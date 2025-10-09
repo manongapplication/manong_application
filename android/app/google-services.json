@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1082660313251",
+    "firebase_url": "https://manong-f8ca4-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "manong-f8ca4",
+    "storage_bucket": "manong-f8ca4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1082660313251:android:ce84eaddf3153f7e4a0716",
+        "android_client_info": {
+          "package_name": "com.manong.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1082660313251-0bl875gq7rl1qv7s06orbmhei0aavak0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.manong.app",
+            "certificate_hash": "27169a478189cb83d4f370784f48757940926309"
+          }
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_YAEjghqFM4JEzp63zsbzdd0Mpo7ULqA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,334 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:intl_phone_field/phone_number.dart';
+import 'package:logging/logging.dart';
+import 'package:manong_application/api/auth_service.dart';
+import 'package:manong_application/api/firebase_api_token.dart';
+import 'package:manong_application/main.dart';
+import 'package:manong_application/screens/home/home_screen.dart';
+import 'package:manong_application/screens/main_screen.dart';
+import 'package:manong_application/theme/colors.dart';
+import 'package:manong_application/utils/hint_phone_numbers.dart';
+import 'package:manong_application/utils/snackbar_utils.dart';
+import 'package:manong_application/widgets/my_app_bar.dart';
+
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
+
+  @override
+  State<RegisterScreen> createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends State<RegisterScreen> {
+  final Logger logger = Logger('RegisterScreen');
+  final _formKey = GlobalKey<FormState>();
+  final authService = AuthService();
+  PhoneNumber? phone;
+  String selectedCountry = 'PH';
+  bool _isLoading = false;
+  String? _error;
+
+  // void _submitRegisterPhone() async {
+  //   if (!mounted) return;
+
+  //   setState(() {
+  //     _isLoading = true;
+  //   });
+
+  //   if (_formKey.currentState!.validate()) {
+  //     if (_formKey.currentState!.validate()) {
+  //       if (phone == null || phone!.number.isEmpty) {
+  //         setState(() {
+  //           _isLoading = false;
+  //         });
+
+  //         SnackBarUtils.showWarning(context, 'Phone number cannot be empty');
+  //         return;
+  //       }
+  //     }
+
+  //     authService.verifyPhoneNumber(
+  //       phoneNumber: phone!.completeNumber,
+  //       onAutoVerified: (credential) async {
+  //         if (!mounted) return;
+
+  //         setState(() {
+  //           _isLoading = false;
+  //         });
+
+  //         try {
+  //           final result = await FirebaseAuth.instance.signInWithCredential(
+  //             credential,
+  //           );
+  //           if (result.user != null) {
+  //             SnackBarUtils.showSuccess(
+  //               navigatorKey.currentContext!,
+  //               'User signed in automatically!',
+  //             );
+
+  //             if (mounted) {
+  //               Navigator.of(context).pushAndRemoveUntil(
+  //                 MaterialPageRoute(builder: (context) => HomeScreen()),
+  //                 (route) => false,
+  //               );
+  //             }
+  //           }
+  //         } catch (e) {
+  //           SnackBarUtils.showError(
+  //             navigatorKey.currentContext!,
+  //             'Auto sign-in failed: $e',
+  //           );
+  //         }
+  //       },
+  //       onFailed: (error) {
+  //         setState(() {
+  //           _isLoading = false;
+  //         });
+
+  //         if (!mounted) return;
+
+  //         SnackBarUtils.showError(
+  //           context,
+  //           'Verification failed: ${error.message}',
+  //         );
+  //       },
+  //       onCodeSent: (verificationId) {
+  //         setState(() {
+  //           _isLoading = false;
+  //         });
+
+  //         if (!mounted) return;
+
+  //         SnackBarUtils.showSuccess(context, 'Code Sent! Check your messages.');
+
+  //         Navigator.pushNamed(
+  //           navigatorKey.currentContext!,
+  //           '/verify',
+  //           arguments: {
+  //             'verificationId': verificationId,
+  //             'authService': authService,
+  //             'phoneNumber': phone!.completeNumber,
+  //           },
+  //         );
+  //       },
+  //     );
+  //   } else {
+  //     setState(() {
+  //       _isLoading = false;
+  //     });
+
+  //     if (!mounted) return;
+
+  //     SnackBarUtils.showWarning(context, 'Please enter a valid phone number');
+  //   }
+  // }
+
+  void _submitRegisterPhone() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    if (_formKey.currentState!.validate()) {
+      if (phone == null || phone!.number.isEmpty) {
+        setState(() => _isLoading = false);
+        SnackBarUtils.showWarning(context, 'Phone number cannot be empty');
+        return;
+      }
+
+      try {
+        final response = await authService.sendVerificationTwilio(
+          phone?.completeNumber ?? '',
+        );
+
+        if (!mounted) return;
+
+        SnackBarUtils.showInfo(
+          context,
+          'We\'ve sent a 6-digit code to your phone. Enter it below to verify your number.',
+        );
+
+        Navigator.pushNamed(
+          context,
+          '/verify',
+          arguments: {
+            'authService': authService,
+            'phoneNumber': phone!.completeNumber,
+          },
+        );
+      } catch (e) {
+        if (!mounted) return;
+
+        final errorMessage = e.toString().contains('blocked')
+            ? 'This number prefix is temporarily blocked. Please try a different number.'
+            : 'Failed to send code: $e';
+
+        SnackBarUtils.showError(context, errorMessage);
+
+        setState(() {
+          _error = errorMessage;
+        });
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } else {
+      setState(() => _isLoading = false);
+      SnackBarUtils.showWarning(context, 'Please enter a valid phone number');
+    }
+  }
+
+  void _registerInstant() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    if (_formKey.currentState!.validate()) {
+      if (phone == null || phone!.number.isEmpty) {
+        setState(() => _isLoading = false);
+        SnackBarUtils.showWarning(context, 'Phone number cannot be empty');
+        return;
+      }
+
+      try {
+        final response = await authService.registerOrLoginUser(
+          phone?.completeNumber ?? '',
+        );
+
+        if (response != null) {
+          SnackBarUtils.showSuccess(navigatorKey.currentContext!, 'Success');
+          Navigator.pushNamedAndRemoveUntil(
+            navigatorKey.currentContext!,
+            '/',
+            (route) => false,
+          );
+        } else {
+          SnackBarUtils.showWarning(navigatorKey.currentContext!, 'Warming');
+        }
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _error = e.toString();
+        });
+
+        logger.severe('Error $_error');
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } else {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    String exampleNumber = getExampleNumber(selectedCountry);
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: myAppBar(title: 'Register'),
+      body: Padding(
+        padding: EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(height: 20),
+              Text("Mobile"),
+              SizedBox(height: 20),
+              IntlPhoneField(
+                decoration: InputDecoration(
+                  labelText: 'Phone Number',
+                  hintText: exampleNumber,
+                  hintStyle: TextStyle(color: Colors.grey),
+                  border: OutlineInputBorder(borderSide: BorderSide()),
+                ),
+                initialCountryCode: 'PH',
+                onChanged: (phone) {
+                  this.phone = phone;
+                },
+                onCountryChanged: (country) {
+                  setState(() {
+                    selectedCountry = country.code;
+                  });
+                },
+                validator: (phone) {
+                  if (phone == null || phone.number.isEmpty) {
+                    return 'Please enter your phone number';
+                  } else {
+                    return null;
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              RichText(
+                textAlign: TextAlign.center,
+                text: TextSpan(
+                  style: TextStyle(color: Colors.black),
+                  children: [
+                    TextSpan(text: "Send me a verification code through "),
+                    TextSpan(
+                      text: "SMS",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColorScheme.primaryColor,
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      onPressed: _isLoading ? null : _registerInstant,
+                      child: _isLoading
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              "Next",
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
