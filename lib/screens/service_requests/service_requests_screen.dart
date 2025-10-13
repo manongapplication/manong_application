@@ -746,7 +746,6 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
           child: ServiceRequestCard(
             serviceRequestItem: serviceRequestItem,
             meters: meters,
-            status: serviceRequestItem.status,
             onTap: () => _onTapServiceCard(serviceRequestItem),
             isAdmin: _isAdmin,
             onStartJob: serviceRequestItem.status != 'accepted'

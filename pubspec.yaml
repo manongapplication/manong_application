@@ -132,14 +132,14 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
 flutter_native_splash:
-  color: "#0A1D37"
+  color: "#59abb9"
   image: assets/icon/logo.png
   android: true
   ios: true
   web: false
 
   android_12:
-    color: "#0A1D37"
+    color: "#59abb9"
     image: assets/icon/logo.png
 
 flutter_launcher_icons:

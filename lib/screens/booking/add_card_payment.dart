@@ -14,11 +14,13 @@ class AddCardPayment extends StatefulWidget {
   final String? proceed;
   final ServiceRequest? serviceRequest;
   final Manong? manong;
+  final double? meters;
   const AddCardPayment({
     super.key,
     this.proceed,
     this.serviceRequest,
     this.manong,
+    this.meters,
   });
 
   @override
@@ -126,6 +128,7 @@ class _AddCardPaymentState extends State<AddCardPayment> {
                 arguments: {
                   'serviceRequest': widget.serviceRequest,
                   'manong': widget.manong,
+                  'meters': widget.meters,
                 },
               );
               return;

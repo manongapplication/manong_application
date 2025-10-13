@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/api/service_request_api_service.dart';
+import 'package:manong_application/api/urgency_level_api_service.dart';
 import 'package:manong_application/api/user_payment_method_api_service.dart';
 import 'package:manong_application/constants/steps_labels.dart';
 import 'package:manong_application/main.dart';
@@ -14,11 +15,11 @@ import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/models/service_item.dart';
 import 'package:manong_application/models/step_flow.dart';
 import 'package:manong_application/models/sub_service_item.dart';
+import 'package:manong_application/models/urgency_level.dart';
 import 'package:manong_application/models/user_payment_method.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/error_helper.dart';
 import 'package:manong_application/utils/snackbar_utils.dart';
-import 'package:manong_application/utils/urgency_level_util.dart';
 import 'package:manong_application/widgets/card_container.dart';
 import 'package:manong_application/widgets/error_state_widget.dart';
 import 'package:manong_application/widgets/image_picker_card.dart';
@@ -56,7 +57,7 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
   late ServiceItem _selectedServiceItem;
   double? _customerLat;
   double? _customerLng;
-  late ServiceRequestApiService manongApiService;
+  late ServiceRequestApiService _manongApiService;
   String? _selectedPaymentName;
   int? _selectedPaymentId;
   String? _userPaymentMethodLast4;
@@ -71,6 +72,7 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
   String? _error;
   late StepFlow stepFlow;
   int currentStep = 2;
+  List<UrgencyLevel>? _urgencyLevels;
 
   void _setActiveUrgencyLevel(int index) {
     setState(() {
@@ -84,6 +86,7 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
     initializedComponents();
     _fetchUser();
     _getDefaultPaymentMethod();
+    _fetchUrgencyLevels();
   }
 
   void initializedComponents() {
@@ -93,7 +96,35 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
     _selectedSubServiceItem = widget.subServiceItem;
     _selectedServiceItem = widget.serviceItem;
     _isOtherService = _selectedSubServiceItem == null;
-    manongApiService = ServiceRequestApiService();
+    _manongApiService = ServiceRequestApiService();
+  }
+
+  Future<void> _fetchUrgencyLevels() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final response = await UrgencyLevelApiService().fetchUrgencyLevels();
+
+      if (response != null) {
+        setState(() {
+          _urgencyLevels = response;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+
+      logger.warning('Error to fetch Urgency Levels $_error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _getDefaultPaymentMethod() async {
@@ -168,7 +199,7 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
     Map<String, dynamic>? response;
 
     try {
-      response = await manongApiService.uploadServiceRequest(serviceRequest);
+      response = await _manongApiService.uploadServiceRequest(serviceRequest);
 
       logger.info('message : $response');
 
@@ -328,7 +359,7 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
                         user!.userPaymentMethod!.isNotEmpty)
                     ? user!.userPaymentMethod!
                           .firstWhere(
-                            (p) => p.isDefault == 1,
+                            (p) => p.isDefault == true,
                             orElse: () => user!.userPaymentMethod!.first,
                           )
                           .paymentMethod
@@ -479,6 +510,7 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
   }
 
   Widget _buildUrgencyLevels() {
+    if (_urgencyLevels == null) return const SizedBox.shrink();
     return CardContainer(
       children: [
         Text(
@@ -489,7 +521,7 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
         const SizedBox(height: 12),
 
         UrgencySelector(
-          levels: UrgencyLevelUtil().getUrgencyLevels,
+          levels: _urgencyLevels ?? [],
           activeIndex: _activeUrgencyLevel,
           onSelected: _setActiveUrgencyLevel,
         ),

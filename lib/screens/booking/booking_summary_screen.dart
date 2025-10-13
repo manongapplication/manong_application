@@ -3,6 +3,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/api/service_request_api_service.dart';
+import 'package:manong_application/api/service_settings_api_service.dart';
+import 'package:manong_application/api/urgency_level_api_service.dart';
 import 'package:manong_application/api/user_payment_method_api_service.dart';
 import 'package:manong_application/constants/steps_labels.dart';
 import 'package:manong_application/main.dart';
@@ -11,6 +13,7 @@ import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/payment_method.dart';
 import 'package:manong_application/models/service_request.dart';
+import 'package:manong_application/models/service_settings.dart';
 import 'package:manong_application/models/step_flow.dart';
 import 'package:manong_application/models/urgency_level.dart';
 import 'package:manong_application/models/user_payment_method.dart';
@@ -21,7 +24,6 @@ import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/utils/urgency_level_util.dart';
 import 'package:manong_application/widgets/card_container.dart';
 import 'package:manong_application/widgets/error_state_widget.dart';
-import 'package:manong_application/widgets/image_dialog.dart';
 import 'package:manong_application/widgets/label_value_row.dart';
 import 'package:manong_application/widgets/manong_list_card.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
@@ -33,11 +35,13 @@ import 'package:manong_application/widgets/urgency_selector.dart';
 class BookingSummaryScreen extends StatefulWidget {
   final ServiceRequest serviceRequest;
   final Manong manong;
+  final double meters;
 
   const BookingSummaryScreen({
     super.key,
     required this.serviceRequest,
     required this.manong,
+    required this.meters,
   });
   @override
   State<BookingSummaryScreen> createState() => _BookingSummaryScreenState();
@@ -47,7 +51,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
   final Logger logger = Logger('BookingSummaryScreen');
   final baseImageUrl = dotenv.env['APP_URL'];
   late ServiceRequest serviceRequest;
-  late Manong manong;
+  late Manong _manong;
   late StepFlow stepFlow;
   late AuthService authService;
   late ServiceRequestApiService serviceRequestApiService;
@@ -64,31 +68,87 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
   int? _activeUrgencyLevel;
   String? _userPaymentMethodLast4;
   String? _userPaymentMethodCode;
+  late double _meters;
+  ServiceSettings? _serviceSettings;
+  List<UrgencyLevel>? _urgencyLevels;
 
   @override
   void initState() {
     super.initState();
     initializeComponents();
-    _initializeData();
+    _fetchUserServiceRequest();
+    _fetchUser();
+    _fetchServiceSettings();
+    _fetchUrgencyLevels();
   }
 
   void initializeComponents() {
     serviceRequest = widget.serviceRequest;
-    manong = widget.manong;
+    _manong = widget.manong;
     stepFlow = AppStepFlows.serviceBooking;
     authService = AuthService();
     serviceRequestApiService = ServiceRequestApiService();
+    _meters = widget.meters;
+  }
+
+  Future<void> _fetchUrgencyLevels() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final response = await UrgencyLevelApiService().fetchUrgencyLevels();
+
+      if (response != null) {
+        setState(() {
+          _urgencyLevels = response;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+
+      logger.warning('Error to fetch Urgency Levels $_error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchServiceSettings() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final response = await ServiceSettingsApiService().fetchServiceSettings();
+
+      if (response != null) {
+        _serviceSettings = response;
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+
+      logger.severe('Error to fetch Service Settings $_error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _setActiveUrgencyLevel(int index) {
     setState(() {
       _activeUrgencyLevel = index;
     });
-  }
-
-  Future<void> _initializeData() async {
-    await _fetchUserServiceRequest();
-    await _fetchUser();
   }
 
   Future<void> _fetchUser() async {
@@ -153,22 +213,9 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
   }
 
   Widget _buildManongDetails() {
-    final manongName = manong.appUser.firstName;
-    final manongProfile = manong.profile;
-
-    if (manongName == null || manongProfile == null) {
-      return const SizedBox.shrink();
-    }
-
     return CardContainer(
       children: [
-        ManongListCard(
-          name: manongName,
-          iconColor: Colors.blue,
-          onTap: () {},
-          isProfessionallyVerified: manongProfile.isProfessionallyVerified,
-          status: manongProfile.status,
-        ),
+        ManongListCard(manong: _manong, iconColor: Colors.blue, onTap: () {}),
       ],
     );
   }
@@ -221,7 +268,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
 
   Future<void> showUrgencyLevels(BuildContext context) async {
     final urgencyLevel = userServiceRequest?.urgencyLevel;
-    if (urgencyLevel == null) return;
+    if (urgencyLevel == null || _urgencyLevels == null) return;
 
     showModalBottomSheet(
       context: context,
@@ -239,7 +286,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     UrgencySelector(
-                      levels: UrgencyLevelUtil().getUrgencyLevels,
+                      levels: _urgencyLevels ?? [],
                       activeIndex: _activeUrgencyLevel ?? urgencyLevel.id - 1,
                       onSelected: (i) async {
                         setModalState(() => _activeUrgencyLevel = i);
@@ -548,8 +595,38 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
     return paymentMethod.name;
   }
 
+  Widget _buildTaxes() {
+    return Column(
+      children: [
+        LabelValueRow(
+          label:
+              'Service Tax (${(_serviceSettings!.serviceTax * 100).toStringAsFixed(0)}):',
+          valueWidget: PriceTag(
+            price: double.parse(
+              CalculationTotals()
+                  .calculateServiceTaxAmount(
+                    userServiceRequest,
+                    _serviceSettings?.serviceTax ?? 0,
+                  )
+                  .toStringAsFixed(2),
+            ),
+          ),
+        ),
+        LabelValueRow(
+          label: 'Distance Fee:',
+          valueWidget: PriceTag(
+            price: CalculationTotals().distanceFee(
+              meters: _meters,
+              ratePerKm: userServiceRequest!.serviceItem!.ratePerKm,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildTotals() {
-    if (userServiceRequest == null) {
+    if (userServiceRequest == null || _serviceSettings == null) {
       return const SizedBox.shrink();
     }
 
@@ -611,22 +688,16 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
               price: CalculationTotals().calculateSubTotal(userServiceRequest),
             ),
           ),
-          LabelValueRow(
-            label:
-                'Service Tax (${(CalculationTotals().serviceTaxRate * 100).toStringAsFixed(0)})',
-            valueWidget: PriceTag(
-              price: double.parse(
-                CalculationTotals()
-                    .calculateServiceTaxAmount(userServiceRequest)
-                    .toStringAsFixed(2),
-              ),
-            ),
-          ),
+          // _buildTaxes(),
           Divider(color: Colors.grey, thickness: 1, indent: 20, endIndent: 20),
           LabelValueRow(
             label: 'Total To Pay:',
             valueWidget: PriceTag(
-              price: CalculationTotals().calculateTotal(userServiceRequest),
+              price: CalculationTotals().calculateTotal(
+                userServiceRequest,
+                _meters,
+                _serviceSettings?.serviceTax,
+              ),
             ),
           ),
         ],
@@ -748,7 +819,11 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
             ),
             Spacer(),
             PriceTag(
-              price: CalculationTotals().calculateTotal(userServiceRequest),
+              price: CalculationTotals().calculateTotal(
+                userServiceRequest,
+                _meters,
+                _serviceSettings?.serviceTax,
+              ),
               textStyle: TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
@@ -856,7 +931,8 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
         arguments: {
           'proceed': 'processing',
           'serviceRequest': userServiceRequest,
-          'manong': manong,
+          'manong': _manong,
+          'meters': _meters,
         },
       );
 
@@ -866,7 +942,11 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
     Navigator.pushNamed(
       navigatorKey.currentContext!,
       '/payment-processing',
-      arguments: {'serviceRequest': userServiceRequest, 'manong': manong},
+      arguments: {
+        'serviceRequest': userServiceRequest,
+        'manong': _manong,
+        'meters': _meters,
+      },
     );
   }
 
@@ -944,7 +1024,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
 
     final currentUserServiceRequest = userServiceRequest;
     final serviceRequestId = currentUserServiceRequest?.id;
-    final int manongUserId = manong.appUser.id;
+    final int manongUserId = _manong.appUser.id;
 
     if (serviceRequestId == null || manongUserId.isNaN) {
       setState(() {

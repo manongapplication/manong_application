@@ -4,33 +4,26 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/service_request.dart';
-import 'package:manong_application/models/sub_service_item.dart';
 import 'package:manong_application/screens/service_requests/route_tracking_screen.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:latlong2/latlong.dart' as latlong;
+import 'package:manong_application/utils/calculation_totals.dart';
 import 'package:manong_application/utils/color_utils.dart';
 import 'package:manong_application/utils/distance_matrix.dart';
 import 'package:manong_application/utils/icon_mapper.dart';
 import 'package:manong_application/widgets/instruction_steps.dart';
+import 'package:manong_application/widgets/price_tag.dart';
 
 class ManongDetailsScreen extends StatefulWidget {
-  final LatLng? currentLatLng;
-  final LatLng? manongLatLng;
-  final String? manongName;
   final Manong? manong;
   final Color? iconColor;
   final ServiceRequest? serviceRequest;
-  final SubServiceItem? subServiceItem;
 
   const ManongDetailsScreen({
     super.key,
-    this.currentLatLng,
-    this.manongLatLng,
-    this.manongName,
     this.manong,
     this.iconColor,
     this.serviceRequest,
-    this.subServiceItem,
   });
 
   @override
@@ -128,33 +121,34 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
     );
   }
 
-  String _formatDistance(double meters) {
-    if (meters < 1000) {
-      return '${meters.round()}m';
-    } else {
-      final km = meters / 1000;
-      return '${km.toStringAsFixed(1)}km';
-    }
-  }
-
-  String _estimateTime(double meters, {double speedKmh = 30}) {
-    // convert km/h → m/s
-    final speedMs = speedKmh * 1000 / 3600;
-
-    final seconds = meters / speedMs;
-    final minutes = seconds / 60;
-
-    if (minutes < 1) {
-      return "${seconds.round()} sec";
-    } else if (minutes < 60) {
-      return "${minutes.round()} min";
-    } else {
-      final hours = minutes / 60;
-      // ✅ if whole number, show as int, else 1 decimal
-      return hours == hours.roundToDouble()
-          ? "${hours.toInt()} hr"
-          : "${hours.toStringAsFixed(1)} hr";
-    }
+  Widget _buildDistanceFee(double? meters) {
+    return Column(
+      children: [
+        if (_serviceRequest?.serviceItem?.ratePerKm != null &&
+            meters != null) ...[
+          Row(
+            children: [
+              Icon(Icons.drive_eta, color: Colors.grey.shade700),
+              PriceTag(
+                price: CalculationTotals().distanceFee(
+                  meters: meters,
+                  ratePerKm: _serviceRequest!.serviceItem!.ratePerKm,
+                ),
+                showDecimals: false,
+              ),
+              const SizedBox(width: 4),
+              if (CalculationTotals().distanceFee(
+                    meters: meters,
+                    ratePerKm: _serviceRequest!.serviceItem!.ratePerKm,
+                  ) ==
+                  400) ...[
+                Text('(capped)'),
+              ],
+            ],
+          ),
+        ],
+      ],
+    );
   }
 
   Widget _buildBottomNav(double? meters, ScrollController scrollController) {
@@ -192,20 +186,35 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
           ),
 
           // --- Time + Distance
-          Row(
-            children: [
-              SizedBox(width: 10),
-              Text(
-                _estimateTime(meters ?? 0),
-                style: TextStyle(fontSize: 18, color: Colors.red.shade700),
-              ),
-              SizedBox(width: 8),
-              Text(
-                '(${_formatDistance(meters ?? 0)})',
-                style: TextStyle(fontSize: 18, color: Colors.grey.shade700),
-              ),
-              Spacer(),
-            ],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      DistanceMatrix().formatDistance(meters ?? 0),
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.red.shade700,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      '(${DistanceMatrix().formatDistance(meters ?? 0)})',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+
+                // -- Distance Fee
+                // _buildDistanceFee(meters),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
 
@@ -221,6 +230,7 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
                       arguments: {
                         'serviceRequest': _serviceRequest!,
                         'manong': _manong,
+                        'meters': meters,
                       },
                     );
                   },
@@ -334,9 +344,9 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: widget.subServiceItem != null
+                    color: _serviceRequest?.subServiceItem != null
                         ? item.subServiceItem.title.contains(
-                                widget.subServiceItem!.title,
+                                _serviceRequest!.subServiceItem!.title,
                               )
                               ? Colors.amber.withOpacity(0.7)
                               : AppColorScheme.primaryColor.withOpacity(0.1)
@@ -368,8 +378,8 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
     final meters = DistanceMatrix().calculateDistance(
       startLat: _serviceRequest?.customerLat ?? 0,
       startLng: _serviceRequest?.customerLng ?? 0,
-      endLat: widget.manongLatLng!.latitude,
-      endLng: widget.manongLatLng!.longitude,
+      endLat: _manong?.appUser.latitude,
+      endLng: _manong?.appUser.longitude,
     );
 
     return Material(
@@ -377,9 +387,15 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
         children: [
           Positioned.fill(
             child: RouteTrackingScreen(
-              currentLatLng: widget.currentLatLng,
-              manongLatLng: widget.manongLatLng,
-              manongName: widget.manongName,
+              currentLatLng: LatLng(
+                _serviceRequest?.customerLat ?? 0,
+                _serviceRequest?.customerLng ?? 0,
+              ),
+              manongLatLng: LatLng(
+                _manong?.appUser.latitude ?? 0,
+                _manong?.appUser.longitude ?? 0,
+              ),
+              manongName: _manong?.appUser.firstName ?? '',
               serviceRequest: _serviceRequest,
               useManongAsTitle: true,
             ),

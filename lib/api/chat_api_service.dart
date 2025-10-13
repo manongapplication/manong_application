@@ -52,14 +52,18 @@ class ChatApiService {
   }
 
   Future<void> joinRoom({
-    required String userId,
-    required String manongId,
-    required String serviceRequestId,
+    required int senderId,
+    required int receiverId,
+    required int userId,
+    required int manongId,
+    required int serviceRequestId,
   }) async {
     // Add a small delay to ensure listeners are set up
     await Future.delayed(Duration(milliseconds: 100));
 
     final data = {
+      'senderId': senderId,
+      'receiverId': receiverId,
       'userId': userId,
       'manongId': manongId,
       'serviceRequestId': serviceRequestId,
@@ -70,13 +74,17 @@ class ChatApiService {
   }
 
   Future<Chat?> sendMessage({
-    required String userId,
-    required String manongId,
-    required String serviceRequestId,
+    required int senderId,
+    required int receiverId,
+    required int userId,
+    required int manongId,
+    required int serviceRequestId,
     required String content,
     List<Map<String, String>>? attachments,
   }) async {
     final data = {
+      'senderId': senderId,
+      'receiverId': receiverId,
       'userId': userId,
       'manongId': manongId,
       'serviceRequestId': serviceRequestId,
@@ -105,9 +113,9 @@ class ChatApiService {
   }
 
   void disconnect({
-    required String userId,
-    required String manongId,
-    required String serviceRequestId,
+    required int userId,
+    required int manongId,
+    required int serviceRequestId,
   }) {
     final data = {
       'userId': userId,

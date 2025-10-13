@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:manong_application/api/manong_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/manong.dart';
+import 'package:manong_application/models/service_item.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/models/sub_service_item.dart';
 import 'package:manong_application/theme/colors.dart';
@@ -17,13 +18,8 @@ import 'package:latlong2/latlong.dart' as latlong;
 
 class ManongListScreen extends StatefulWidget {
   final ServiceRequest serviceRequest;
-  final SubServiceItem? subServiceItem;
 
-  const ManongListScreen({
-    super.key,
-    required this.serviceRequest,
-    this.subServiceItem,
-  });
+  const ManongListScreen({super.key, required this.serviceRequest});
   @override
   State<ManongListScreen> createState() => _ManongListScreenState();
 }
@@ -43,7 +39,6 @@ class _ManongListScreenState extends State<ManongListScreen> {
   LatLng? _currentLatLng;
   bool _argumentsInitialized = false;
   ServiceRequest? _serviceRequest;
-  SubServiceItem? _selectedSubServiceItem;
 
   // Manong Pages
   int _currentPage = 1;
@@ -65,7 +60,6 @@ class _ManongListScreenState extends State<ManongListScreen> {
     super.initState();
     _initializeComponents();
     _serviceRequest = widget.serviceRequest;
-    _selectedSubServiceItem = widget.subServiceItem;
     _fetchManongs();
     setupScrollListener();
   }
@@ -246,6 +240,7 @@ class _ManongListScreenState extends State<ManongListScreen> {
   }
 
   Widget _buildManongsList(List<Manong> filteredManongs) {
+    if (_serviceRequest == null) return SizedBox.shrink();
     return RefreshIndicator(
       color: AppColorScheme.primaryColor,
       backgroundColor: AppColorScheme.backgroundGrey,
@@ -280,34 +275,20 @@ class _ManongListScreenState extends State<ManongListScreen> {
             return Padding(
               padding: EdgeInsets.only(bottom: 8),
               child: ManongListCard(
-                name: manong.appUser.firstName ?? '',
+                manong: manong,
                 iconColor: AppColorScheme.primaryColor,
                 onTap: () {
                   Navigator.pushNamed(
                     navigatorKey.currentContext!,
                     '/manong-details',
                     arguments: {
-                      'currentLatLng': LatLng(
-                        _serviceRequest!.customerLat,
-                        _serviceRequest!.customerLng,
-                      ),
-                      'manongLatLng': LatLng(
-                        manong.appUser.latitude!,
-                        manong.appUser.longitude!,
-                      ),
-                      'manongName': manong.appUser.firstName,
                       'manong': manong,
                       'serviceRequest': _serviceRequest,
-                      'subServiceItem': _selectedSubServiceItem,
                     },
                   );
                 },
-                isProfessionallyVerified:
-                    manong.profile!.isProfessionallyVerified,
-                status: manong.profile!.status,
-                specialities: manong.profile!.specialities,
                 meters: meters,
-                subServiceItem: _selectedSubServiceItem,
+                subServiceItem: _serviceRequest!.subServiceItem,
               ),
             );
           },

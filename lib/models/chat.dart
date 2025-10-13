@@ -1,54 +1,32 @@
-import 'package:logging/logging.dart';
+import 'package:flutter/material.dart';
 
 class Chat {
   final int id;
+  final int senderId;
+  final int receiverId;
   final String roomId;
-  final String senderId;
   final String content;
   final ChatAttachment? attachment;
   final List<ChatAttachment>? attachments; // Support multiple attachments
+  final DateTime? seenAt;
+  final int? serviceRequestId;
   final DateTime createdAt;
 
   Chat({
     required this.id,
-    required this.roomId,
     required this.senderId,
+    required this.receiverId,
+    required this.roomId,
     required this.content,
     this.attachment,
     this.attachments,
+    this.seenAt,
+    this.serviceRequestId,
     required this.createdAt,
   });
 
   factory Chat.fromJson(Map<String, dynamic> json) {
     try {
-      // Handle different possible field names from server
-      String senderId;
-      if (json.containsKey('senderId')) {
-        senderId = json['senderId'].toString();
-      } else if (json.containsKey('sender_id')) {
-        senderId = json['sender_id'].toString();
-      } else {
-        throw Exception('No senderId or sender_id found in JSON');
-      }
-
-      String roomId;
-      if (json.containsKey('roomId')) {
-        roomId = json['roomId'] as String;
-      } else if (json.containsKey('room_id')) {
-        roomId = json['room_id'] as String;
-      } else {
-        roomId = ''; // fallback
-      }
-
-      DateTime createdAt;
-      if (json.containsKey('createdAt')) {
-        createdAt = DateTime.parse(json['createdAt'] as String);
-      } else if (json.containsKey('created_at')) {
-        createdAt = DateTime.parse(json['created_at'] as String);
-      } else {
-        createdAt = DateTime.now(); // fallback
-      }
-
       // Handle attachments (both single and multiple)
       ChatAttachment? attachment;
       List<ChatAttachment>? attachments;
@@ -69,16 +47,23 @@ class Chat {
 
       return Chat(
         id: json['id'] as int,
-        roomId: roomId,
-        senderId: senderId,
+        senderId: json['senderId'] as int,
+        receiverId: json['receiverId'] as int,
+        roomId: json['roomId'].toString(),
         content: json['content'] as String,
         attachment: attachment,
         attachments: attachments,
-        createdAt: createdAt,
+        seenAt: json['seenAt'] != null
+            ? DateTime.tryParse(json['seenAt'])
+            : null,
+        serviceRequestId: json['serviceRequestId'] != null
+            ? int.tryParse(json['serviceRequestId'].toString())
+            : null,
+        createdAt: DateTime.parse(json['createdAt'] as String),
       );
     } catch (e) {
-      print('Error in Chat.fromJson: $e');
-      print('JSON that caused error: $json');
+      debugPrint('Error in Chat.fromJson: $e');
+      debugPrint('JSON that caused error: $json');
       rethrow;
     }
   }
@@ -91,6 +76,7 @@ class Chat {
       'content': content,
       'attachment': attachment?.toJson(),
       'attachments': attachments?.map((att) => att.toJson()).toList(),
+      'seenAt': seenAt,
       'createdAt': createdAt.toIso8601String(),
     };
   }

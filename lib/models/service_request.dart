@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:manong_application/models/app_user.dart';
+import 'package:manong_application/models/chat.dart';
 import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/payment_method.dart';
 import 'package:manong_application/models/payment_status.dart';
@@ -38,6 +39,7 @@ class ServiceRequest {
   final AppUser? user;
   final Manong? manong;
   final PaymentMethod? paymentMethod;
+  final List<Chat>? messages;
 
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -74,6 +76,8 @@ class ServiceRequest {
     this.user,
     this.manong,
     this.paymentMethod,
+    this.messages,
+
     this.createdAt,
     this.updatedAt,
     this.arrivedAt,
@@ -137,6 +141,13 @@ class ServiceRequest {
       paymentMethod: json['paymentMethod'] != null
           ? PaymentMethod.fromJson(json['paymentMethod'])
           : null,
+      messages: (json['messages'] is List)
+          ? (json['messages'] as List)
+                .where((e) => e != null)
+                .map((e) => Chat.fromJson(Map<String, dynamic>.from(e as Map)))
+                .toList()
+          : [],
+
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'].toString())
           : null,

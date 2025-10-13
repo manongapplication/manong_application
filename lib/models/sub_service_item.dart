@@ -3,9 +3,9 @@ class SubServiceItem {
   final String title;
   final String iconName;
   final String? description;
-  final int? cost;
-  final int? fee;
-  final int gross;
+  final double? cost;
+  final double? fee;
+  final double gross;
   final bool isActive;
 
   SubServiceItem({
@@ -25,9 +25,9 @@ class SubServiceItem {
       title: json['title'],
       iconName: json['iconName'],
       description: json['description'],
-      cost: json['cost'],
-      fee: json['fee'],
-      gross: json['gross'],
+      cost: json['cost'] != null ? double.tryParse(json['cost']) ?? 0 : 0,
+      fee: json['fee'] != null ? double.tryParse(json['fee']) ?? 0 : 0,
+      gross: json['gross'] != null ? double.tryParse(json['gross']) ?? 0 : 0,
       isActive: json['isActive'],
     );
   }

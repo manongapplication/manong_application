@@ -9,10 +9,12 @@ import 'package:manong_application/api/fcm_api_service.dart';
 import 'package:manong_application/api/firebase_api_token.dart';
 import 'package:manong_application/api/manong_api_service.dart';
 import 'package:manong_application/api/service_request_api_service.dart';
+import 'package:manong_application/api/service_settings_api_service.dart';
 import 'package:manong_application/api/tracking_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/request_status.dart';
 import 'package:manong_application/models/service_request.dart';
+import 'package:manong_application/models/service_settings.dart';
 import 'package:manong_application/screens/service_requests/route_tracking_screen.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:latlong2/latlong.dart' as latlong;
@@ -26,7 +28,6 @@ import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/utils/status_utils.dart';
 import 'package:manong_application/widgets/card_container.dart';
 import 'package:manong_application/widgets/error_state_widget.dart';
-import 'package:manong_application/widgets/icon_card.dart';
 import 'package:manong_application/widgets/label_value_row.dart';
 import 'package:manong_application/widgets/price_tag.dart';
 
@@ -48,7 +49,6 @@ class ServiceRequestsDetailsScreen extends StatefulWidget {
 class _ServiceRequestsDetailsScreenState
     extends State<ServiceRequestsDetailsScreen> {
   final Logger logger = Logger('ServiceRequestsDetailsScreen');
-  late ManongApiService _manongApiService;
   final _trackingApiService = TrackingApiService();
   late bool? _isAdmin;
   final distance = latlong.Distance();
@@ -59,36 +59,47 @@ class _ServiceRequestsDetailsScreenState
   String? _error;
   late ServiceRequest? _serviceRequest;
   bool _isEditingPaymentStatus = false;
-  late String? _selectedPaymentStatusValue;
   final baseImageUrl = dotenv.env['APP_URL'];
-  late FirebaseApiToken _firebaseApiToken;
-  late FcmApiService _fcmApiService;
-  String? _fcmToken;
   bool _isServiceCompleted = false;
+  ServiceSettings? _serviceSettings;
 
   @override
   void initState() {
     super.initState();
     _initializeComponents();
     _getTrackingStream();
-    _getFcmToken();
+    _fetchServiceSettings();
   }
 
   void _initializeComponents() {
-    _firebaseApiToken = FirebaseApiToken();
-    _fcmApiService = FcmApiService();
-    _manongApiService = ManongApiService();
     _isAdmin = widget.isAdmin;
     _serviceRequest = widget.serviceRequest;
-    _selectedPaymentStatusValue = _serviceRequest?.status;
   }
 
-  Future<void> _getFcmToken() async {
-    final token = await FirebaseApiToken().getToken();
-
+  Future<void> _fetchServiceSettings() async {
     setState(() {
-      _fcmToken = token;
+      _isLoading = true;
     });
+    try {
+      final response = await ServiceSettingsApiService().fetchServiceSettings();
+
+      if (response != null) {
+        _serviceSettings = response;
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+
+      logger.severe('Error to fetch Service Settings $_error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Widget _buildUploadedPhotos() {
@@ -170,8 +181,40 @@ class _ServiceRequestsDetailsScreenState
     );
   }
 
-  Widget _buildTotals() {
-    if (_serviceRequest == null) const SizedBox.shrink();
+  Widget _buildTaxes(double meters) {
+    return Column(
+      children: [
+        LabelValueRow(
+          label:
+              'Service Tax (${(_serviceSettings!.serviceTax * 100).toStringAsFixed(0)})',
+          valueWidget: PriceTag(
+            price: double.parse(
+              CalculationTotals()
+                  .calculateServiceTaxAmount(
+                    _serviceRequest,
+                    _serviceSettings?.serviceTax ?? 0,
+                  )
+                  .toStringAsFixed(2),
+            ),
+          ),
+        ),
+        LabelValueRow(
+          label: 'Distance Fee:',
+          valueWidget: PriceTag(
+            price: CalculationTotals().distanceFee(
+              meters: meters,
+              ratePerKm: _serviceRequest!.serviceItem!.ratePerKm,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTotals(double meters) {
+    if (_serviceRequest == null || _serviceSettings == null) {
+      const SizedBox.shrink();
+    }
 
     final serviceName =
         _serviceRequest!.otherServiceName.toString().trim().isNotEmpty &&
@@ -211,29 +254,23 @@ class _ServiceRequestsDetailsScreenState
             price: CalculationTotals().calculateSubTotal(_serviceRequest),
           ),
         ),
-        LabelValueRow(
-          label:
-              'Service Tax (${(CalculationTotals().serviceTaxRate * 100).toStringAsFixed(0)})',
-          valueWidget: PriceTag(
-            price: double.parse(
-              CalculationTotals()
-                  .calculateServiceTaxAmount(_serviceRequest)
-                  .toStringAsFixed(2),
-            ),
-          ),
-        ),
+        // _buildTaxes()
         Divider(color: Colors.grey, thickness: 1, indent: 20, endIndent: 20),
         Text('Total To Pay:'),
         const SizedBox(height: 4),
         PriceTag(
-          price: CalculationTotals().calculateTotal(_serviceRequest),
+          price: CalculationTotals().calculateTotal(
+            _serviceRequest,
+            meters,
+            _serviceSettings?.serviceTax,
+          ),
           textStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ],
     );
   }
 
-  Widget _buildUserDetails() {
+  Widget _buildUserDetails(double meters) {
     if (_serviceRequest!.user == null || _serviceRequest == null) {
       return const SizedBox.shrink();
     }
@@ -426,7 +463,7 @@ class _ServiceRequestsDetailsScreenState
         _buildUploadedPhotos(),
 
         // -- Totals
-        _buildTotals(),
+        _buildTotals(meters),
       ],
     );
   }
@@ -437,7 +474,7 @@ class _ServiceRequestsDetailsScreenState
     });
   }
 
-  Widget _buildManongDetails() {
+  Widget _buildManongDetails(double meters) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -455,7 +492,7 @@ class _ServiceRequestsDetailsScreenState
               style: TextStyle(fontSize: 18, color: Colors.black),
             ),
             if (_serviceRequest!.manong?.profile!.isProfessionallyVerified ==
-                1) ...[
+                true) ...[
               const SizedBox(width: 4),
               Icon(Icons.verified_rounded, size: 20, color: Colors.lightBlue),
             ],
@@ -545,7 +582,7 @@ class _ServiceRequestsDetailsScreenState
 
         const Divider(),
 
-        _buildUserDetails(),
+        _buildUserDetails(meters),
       ],
     );
   }
@@ -926,9 +963,9 @@ class _ServiceRequestsDetailsScreenState
           ),
           SizedBox(height: 12),
 
-          if (_isAdmin == true) _buildUserDetails(),
+          if (_isAdmin == true) _buildUserDetails(meters ?? 0),
 
-          if (_isAdmin == false) _buildManongDetails(),
+          if (_isAdmin == false) _buildManongDetails(meters ?? 0),
 
           // if (_fcmToken != null) ...[Text('Token for me: $_fcmToken')],
           // if (_serviceRequest != null) ...[

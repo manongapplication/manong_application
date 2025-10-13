@@ -1,24 +1,17 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/api/service_item_api_service.dart';
 import 'package:manong_application/api/user_notification_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/service_item.dart';
-import 'package:manong_application/providers/bottom_nav_provider.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/color_utils.dart';
 import 'package:manong_application/utils/permission_utils.dart';
-import 'package:manong_application/widgets/gradient_header_container.dart';
 import 'package:manong_application/widgets/instruction_steps.dart';
 import 'package:manong_application/widgets/manong_icon.dart';
-import 'package:manong_application/widgets/manong_representational_icon.dart';
 import 'package:manong_application/widgets/modal_icon_overlay.dart';
 import 'package:manong_application/widgets/service_card_lite.dart';
-import 'package:provider/provider.dart';
 
 class HomeScreen extends StatefulWidget {
   final String? token;
@@ -136,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildServiceGrid() {
     if (_error != null) {
-      Future.delayed(Duration(seconds: 1), () {
+      Future.delayed(Duration(seconds: 12), () {
         _loadServiceItems();
       });
 
@@ -175,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (_filteredServiceItems.isEmpty) {
-      Future.delayed(Duration(seconds: 1), () {
+      Future.delayed(Duration(seconds: 12), () {
         _loadServiceItems();
       });
 
@@ -394,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   const SizedBox(width: 4),
                                   Center(
                                     child: Text(
-                                      'Manong App',
+                                      'Manong',
                                       style: TextStyle(
                                         color: AppColorScheme.primaryLight,
                                         fontWeight: FontWeight.bold,
@@ -529,7 +522,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(18),
                         child: Image.network(
-                          'https://scontent.fcrk1-4.fna.fbcdn.net/v/t39.30808-6/558396638_122101818243050982_2984028404746068847_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=127cfc&_nc_ohc=cfN3BWfEWWIQ7kNvwHc_u5K&_nc_oc=Adm4YseuHy-SBZHUiifE5GOqO8WPzZx6_LmORiT_pHrMcVH6PlVzAymvzCMgd_6HKYE&_nc_zt=23&_nc_ht=scontent.fcrk1-4.fna&_nc_gid=lS69ZD74eULOwdud6u35qw&oh=00_Afduks5k6z8zbkyF_FL2F8Ti7N2afH2717LQYHyfLDFILA&oe=68EA4AA0',
+                          'https://i.ibb.co/xKLBVyCy/558396638-122101818243050982-2984028404746068847-n.jpg',
                           errorBuilder: (_, _, _) =>
                               const Icon(Icons.broken_image),
                           height: 180,

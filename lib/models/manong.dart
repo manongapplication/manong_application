@@ -10,10 +10,8 @@ class Manong {
   factory Manong.fromJson(Map<String, dynamic> json) {
     return Manong(
       appUser: AppUser.fromJson(json),
-      profile:
-          json['manongProfile'] != null &&
-              (json['manongProfile'] as List).isNotEmpty
-          ? ManongProfile.fromJson(json['manongProfile'][0])
+      profile: json['manongProfile'] != null
+          ? ManongProfile.fromJson(json['manongProfile'])
           : null,
     );
   }
@@ -28,6 +26,8 @@ class ManongProfile {
   final double? hourlyRate;
   final double? startingPrice;
   final bool isProfessionallyVerified;
+  final int dailyServiceLimit;
+  final String? experienceDescription;
   final List<ManongSpeciality>? specialities;
 
   ManongProfile({
@@ -39,6 +39,8 @@ class ManongProfile {
     this.hourlyRate,
     this.startingPrice,
     required this.isProfessionallyVerified,
+    required this.dailyServiceLimit,
+    this.experienceDescription,
     this.specialities = const [],
   });
 
@@ -58,6 +60,8 @@ class ManongProfile {
           ? double.tryParse(json['startingPrice'].toString())
           : null,
       isProfessionallyVerified: json['isProfessionallyVerified'] ?? false,
+      dailyServiceLimit: json['dailyServiceLimit'] ?? 5,
+      experienceDescription: json['experienceDescription'],
       specialities:
           (json['manongSpecialities'] as List<dynamic>?)
               ?.map((s) => ManongSpeciality.fromJson(s))

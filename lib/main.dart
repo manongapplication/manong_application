@@ -12,7 +12,6 @@ import 'package:manong_application/api/firebase_api_token.dart';
 import 'package:manong_application/api/socket_api_service.dart';
 import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/service_request.dart';
-import 'package:manong_application/models/sub_service_item.dart';
 import 'package:manong_application/providers/bottom_nav_provider.dart';
 import 'package:manong_application/screens/auth/register_screen.dart';
 import 'package:manong_application/screens/auth/verify_screen.dart';
@@ -281,9 +280,6 @@ class MyApp extends StatelessWidget {
                     : throw Exception(
                         'ManongListScreen: serviceRequest is required',
                       ),
-                subServiceItem: args?['subServiceItem'] != null
-                    ? args!['subServiceItem']
-                    : null,
               ),
             );
 
@@ -292,12 +288,8 @@ class MyApp extends StatelessWidget {
 
             return MaterialPageRoute(
               builder: (_) => ManongDetailsScreen(
-                currentLatLng: args?['currentLatLng'] as LatLng?,
-                manongLatLng: args?['manongLatLng'] as LatLng?,
-                manongName: args?['manongName'] as String?,
                 manong: args?['manong'] as Manong?,
                 serviceRequest: args?['serviceRequest'] as ServiceRequest?,
-                subServiceItem: args?['subServiceItem'] as SubServiceItem?,
               ),
             );
 
@@ -341,6 +333,7 @@ class MyApp extends StatelessWidget {
               builder: (_) => BookingSummaryScreen(
                 serviceRequest: args['serviceRequest'] as ServiceRequest,
                 manong: args['manong'] as Manong,
+                meters: args['meters'] as double,
               ),
             );
           case '/edit-profile':
@@ -358,6 +351,7 @@ class MyApp extends StatelessWidget {
                     ? args!['serviceRequest']
                     : null,
                 manong: args?['manong'] != null ? args!['manong'] : null,
+                meters: args?['meters'] != null ? args!['meters'] : null,
               ),
             );
           case '/payment-processing':
@@ -366,6 +360,7 @@ class MyApp extends StatelessWidget {
               builder: (_) => PaymentProcessingScreen(
                 serviceRequest: args['serviceRequest'],
                 manong: args['manong'],
+                meters: args['meters'],
               ),
             );
           case '/chat-manong':

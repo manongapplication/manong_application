@@ -93,32 +93,32 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     }
   }
 
-  Future<void> _getProfile() async {
-    setState(() {
-      _isButtonLoading = true;
-    });
-    try {
-      final response = await AuthService().getMyProfile();
+  // Future<void> _getProfile() async {
+  //   setState(() {
+  //     _isButtonLoading = true;
+  //   });
+  //   try {
+  //     final response = await AuthService().getMyProfile();
 
-      if (!mounted) return;
+  //     if (!mounted) return;
 
-      setState(() {
-        _user = response;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-      });
-      logger.severe('Error getting profile $_error');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isButtonLoading = false;
-        });
-      }
-    }
-  }
+  //     setState(() {
+  //       _user = response;
+  //     });
+  //   } catch (e) {
+  //     if (!mounted) return;
+  //     setState(() {
+  //       _error = e.toString();
+  //     });
+  //     logger.severe('Error getting profile $_error');
+  //   } finally {
+  //     if (mounted) {
+  //       setState(() {
+  //         _isButtonLoading = false;
+  //       });
+  //     }
+  //   }
+  // }
 
   Future<void> _getDefaultPaymentMethod() async {
     setState(() {

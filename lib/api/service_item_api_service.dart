@@ -102,7 +102,22 @@ class ServiceItemApiService {
 
     // If we have cached data, return it immediately
     if (cachedData != null) {
-      List<ServiceItem> cachedItems = parseToJsonServiceItems(cachedData);
+      if (cachedData.trim().isEmpty) {
+        logger.warning('Cached data is empty, forcing network fetch');
+        return _fetchFromNetwork();
+      }
+
+      List<ServiceItem> cachedItems;
+
+      try {
+        cachedItems = parseToJsonServiceItems(cachedData);
+      } catch (e) {
+        logger.severe('Failed to parse cached data: $e');
+        // Optionally, you can delete bad cache here
+        await box.remove(cacheKey);
+        await box.remove(cacheTimestampKey);
+        return _fetchFromNetwork();
+      }
 
       // Check if cache needs refresh
       bool needsRefresh =
@@ -125,46 +140,119 @@ class ServiceItemApiService {
   Future<void> _refreshCacheInBackground() async {
     try {
       final box = GetStorage();
-      final response = await http
-          .get(Uri.parse('${dotenv.env['APP_URL_API']}/service-items'))
-          .timeout(const Duration(seconds: 5));
+      const cacheTimestampKey = 'cache_server_last_updated';
+      final localLastUpdatedStr = box.read(cacheTimestampKey);
 
-      if (response.statusCode == 200) {
-        await box.write('cached_service_items', response.body);
-        await box.write(
-          'cache_timestamp',
-          DateTime.now().millisecondsSinceEpoch,
+      final localLastUpdated = localLastUpdatedStr != null
+          ? DateTime.tryParse(localLastUpdatedStr)
+          : null;
+
+      final serverLastUpdated = await _fetchLastUpdated();
+
+      if (serverLastUpdated == null) {
+        logger.info('Could not get server last updated');
+        return;
+      }
+
+      // Compare timestamps
+      if (localLastUpdated == null ||
+          localLastUpdated.isBefore(serverLastUpdated)) {
+        logger.info('Server has newer data, updating cache...');
+        final response = await http.get(
+          Uri.parse('${dotenv.env['APP_URL_API']}/service-items'),
         );
-        logger.info('Cache refreshed in background');
+
+        if (response.statusCode == 200 && response.body.isNotEmpty) {
+          await box.write('cached_service_items', response.body);
+          await box.write(
+            'cache_timestamp',
+            DateTime.now().millisecondsSinceEpoch,
+          );
+          await box.write(
+            cacheTimestampKey,
+            serverLastUpdated.toIso8601String(),
+          );
+          logger.info('Cache updated with new data');
+        }
+      } else {
+        logger.info('Cache is up to date');
       }
     } catch (e) {
-      logger.severe('Background cache refresh failed: $e');
+      logger.warning('Background cache check failed: $e');
     }
   }
 
   Future<List<ServiceItem>> _fetchFromNetwork() async {
     final box = GetStorage();
+    final cachedEtag = box.read('service_items_etag');
+
+    final url = Uri.parse('${dotenv.env['APP_URL_API']}/service-items');
 
     try {
       final response = await http
-          .get(Uri.parse('${dotenv.env['APP_URL_API']}/service-items'))
+          .get(
+            url,
+            headers: {if (cachedEtag != null) 'If-None-Match': cachedEtag},
+          )
           .timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
-        await box.write('cached_service_items', response.body);
+        // New data available
+        final jsonBody = json.decode(response.body);
+        final newEtag = response.headers['etag'];
+        final items = parseToJsonServiceItems(json.encode(jsonBody['data']));
+
+        await box.write('cached_service_items', json.encode(jsonBody['data']));
+        await box.write('service_items_etag', newEtag);
         await box.write(
           'cache_timestamp',
           DateTime.now().millisecondsSinceEpoch,
         );
 
-        return parseToJsonServiceItems(response.body);
+        return items;
+      } else if (response.statusCode == 304) {
+        // Not modified → use cache
+        final cachedData = box.read('cached_service_items');
+        if (cachedData != null) {
+          logger.info('ETag matched — using cached data');
+          return parseToJsonServiceItems(cachedData);
+        } else {
+          throw Exception('304 received but no cached data exists');
+        }
       } else {
         throw HttpException(
           'HTTP ${response.statusCode}: Failed to load services',
         );
       }
     } catch (e) {
-      throw Exception('Failed to fetch data: $e');
+      logger.severe('Network fetch failed: $e');
+      final cachedData = box.read('cached_service_items');
+      if (cachedData != null) {
+        return parseToJsonServiceItems(cachedData);
+      }
+      throw Exception('Failed to fetch and no cache available');
     }
+  }
+
+  Future<DateTime?> _fetchLastUpdated() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse(
+              '${dotenv.env['APP_URL_API']}/service-items/last-updated',
+            ),
+          )
+          .timeout(const Duration(seconds: 4));
+
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        if (body['lastUpdated'] != null) {
+          return DateTime.parse(body['lastUpdated']);
+        }
+      }
+    } catch (e) {
+      logger.warning('Failed to fetch last-updated: $e');
+    }
+    return null;
   }
 }

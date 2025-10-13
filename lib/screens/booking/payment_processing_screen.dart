@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/service_request_api_service.dart';
+import 'package:manong_application/api/service_settings_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/payment_status.dart';
 import 'package:manong_application/models/service_request.dart';
+import 'package:manong_application/models/service_settings.dart';
 import 'package:manong_application/screens/home/home_screen.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/calculation_totals.dart';
@@ -23,8 +25,14 @@ import 'package:manong_application/widgets/price_tag.dart';
 class PaymentProcessingScreen extends StatefulWidget {
   final ServiceRequest? serviceRequest;
   final Manong? manong;
+  final double? meters;
 
-  const PaymentProcessingScreen({super.key, this.serviceRequest, this.manong});
+  const PaymentProcessingScreen({
+    super.key,
+    this.serviceRequest,
+    this.manong,
+    this.meters,
+  });
 
   @override
   State<PaymentProcessingScreen> createState() =>
@@ -38,17 +46,45 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
   late ServiceRequestApiService serviceRequestApiService;
   bool _isLoading = false;
   String? _error;
+  ServiceSettings? _serviceSettings;
 
   @override
   void initState() {
     super.initState();
     initializedComponents();
+    _fetchServiceSettings();
   }
 
   void initializedComponents() {
     _serviceRequest = widget.serviceRequest;
     _manong = widget.manong;
     serviceRequestApiService = ServiceRequestApiService();
+  }
+
+  Future<void> _fetchServiceSettings() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final response = await ServiceSettingsApiService().fetchServiceSettings();
+
+      if (response != null) {
+        _serviceSettings = response;
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+
+      logger.severe('Error to fetch Service Settings $_error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _completeRequest() async {
@@ -235,7 +271,8 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
   }
 
   Widget _buildTotals() {
-    if (_serviceRequest == null) const SizedBox.shrink();
+    if (_serviceRequest == null || _serviceSettings == null)
+      const SizedBox.shrink();
 
     return CardContainer(
       children: [
@@ -296,7 +333,10 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
           valueWidget: PriceTag(
             price: double.parse(
               CalculationTotals()
-                  .calculateServiceTaxAmount(_serviceRequest)
+                  .calculateServiceTaxAmount(
+                    _serviceRequest,
+                    _serviceSettings?.serviceTax ?? 0,
+                  )
                   .toStringAsFixed(2),
             ),
           ),
@@ -305,7 +345,11 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         LabelValueRow(
           label: 'Total To Pay:',
           valueWidget: PriceTag(
-            price: CalculationTotals().calculateTotal(_serviceRequest),
+            price: CalculationTotals().calculateTotal(
+              _serviceRequest,
+              widget.meters ?? 0,
+              _serviceSettings?.serviceTax,
+            ),
           ),
         ),
       ],

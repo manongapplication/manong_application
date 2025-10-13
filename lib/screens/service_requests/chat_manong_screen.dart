@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -19,7 +18,6 @@ import 'package:manong_application/widgets/error_state_widget.dart';
 import 'package:manong_application/widgets/image_dialog.dart';
 import 'package:manong_application/widgets/input_decorations.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
-import 'package:path/path.dart' as p;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 class ChatManongScreen extends StatefulWidget {
@@ -51,7 +49,8 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
       roomId: '',
       content:
           "Hello! 👋 You can chat here with Manong. Describe your problem or any concerns you have.",
-      senderId: "system", // or some special id to differentiate
+      senderId: -1,
+      receiverId: -1,
       createdAt: DateTime.now(),
     ),
   ];
@@ -153,7 +152,8 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
                 roomId: '',
                 content:
                     "Hello! 👋 You can chat here with Manong. Describe your problem or any concerns you have.",
-                senderId: "system",
+                senderId: -1,
+                receiverId: -1,
                 createdAt: DateTime.now(),
               ),
             );
@@ -185,9 +185,13 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
 
       // Now join the room - this should trigger the history callback
       await _chatApiService.joinRoom(
-        userId: _user!.id.toString(),
-        manongId: _serviceRequest.manongId.toString(),
-        serviceRequestId: _serviceRequest.id.toString(),
+        senderId: _user!.id,
+        receiverId: _user!.id == _serviceRequest.manongId!
+            ? _serviceRequest.userId!
+            : _serviceRequest.manongId!,
+        userId: _serviceRequest.userId!,
+        manongId: _serviceRequest.manongId!,
+        serviceRequestId: _serviceRequest.id!,
       );
 
       logger.info('Successfully joined chat room');
@@ -219,9 +223,13 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
 
       // 1️ Send message first without attachments
       final response = await _chatApiService.sendMessage(
-        userId: _user!.id.toString(),
-        manongId: _serviceRequest.manongId.toString(),
-        serviceRequestId: _serviceRequest.id.toString(),
+        senderId: _user!.id,
+        receiverId: _user!.id == _serviceRequest.manongId!
+            ? _serviceRequest.userId!
+            : _serviceRequest.manongId!,
+        userId: _serviceRequest.userId!,
+        manongId: _serviceRequest.manongId!,
+        serviceRequestId: _serviceRequest.id!,
         content: _messageController.text,
         attachments: null,
       );
@@ -278,7 +286,7 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
               itemCount: _chat.length,
               itemBuilder: (context, index) {
                 final item = _chat[index];
-                final isMe = item.senderId == _user?.id.toString();
+                final isMe = item.senderId == _user?.id;
                 if (item.content.isEmpty &&
                     (item.attachments == null || item.attachments!.isEmpty)) {
                   return const SizedBox.shrink();
@@ -575,9 +583,9 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
     _messageController.dispose();
     if (_user != null) {
       _chatApiService.disconnect(
-        userId: _user!.id.toString(),
-        manongId: _serviceRequest.manongId.toString(),
-        serviceRequestId: _serviceRequest.id.toString(),
+        userId: _serviceRequest.userId!,
+        manongId: _serviceRequest.manongId!,
+        serviceRequestId: _serviceRequest.id!,
       );
     }
     super.dispose();

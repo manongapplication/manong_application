@@ -16,7 +16,6 @@ class ServiceRequestCard extends StatelessWidget {
   final bool? isAdmin;
   final VoidCallback? onStartJob;
   final bool? isButtonLoading;
-  final String? status;
   final bool? disableOnStartJob;
 
   const ServiceRequestCard({
@@ -27,7 +26,6 @@ class ServiceRequestCard extends StatelessWidget {
     this.isAdmin,
     this.onStartJob,
     this.isButtonLoading,
-    this.status,
     this.disableOnStartJob = false,
   });
 
@@ -50,6 +48,8 @@ class ServiceRequestCard extends StatelessWidget {
         manongName.isEmpty && serviceRequestItem.paymentStatus != null
         ? serviceRequestItem.paymentStatus!.value
         : status;
+    final int messagesCount =
+        serviceRequestItem.messages?.where((e) => e.seenAt == null).length ?? 0;
 
     return Card(
       color: status == 'inprogress'
@@ -209,11 +209,43 @@ class ServiceRequestCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const SizedBox(height: 12),
-                  Icon(
-                    meters != null ? Icons.location_on : Icons.location_off,
-                    size: 24,
-                    color: Colors.grey.shade600,
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(
+                        meters != null ? Icons.location_on : Icons.location_off,
+                        size: 24,
+                        color: Colors.grey.shade600,
+                      ),
+
+                      if (messagesCount > 0) ...[
+                        Positioned(
+                          top: -12,
+                          right: -4,
+                          child: Container(
+                            width: 18,
+                            height: 18,
+                            decoration: const BoxDecoration(
+                              color: Colors.redAccent,
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              messagesCount == 5
+                                  ? '${messagesCount.toString()}+'
+                                  : messagesCount.toString(),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
+
                   const SizedBox(height: 4),
                   meters != null &&
                           serviceRequestItem.status ==
