@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:iconify_design/iconify_design.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/fcm_api_service.dart';
 import 'package:manong_application/api/firebase_api_token.dart';
@@ -12,7 +13,8 @@ import 'package:manong_application/api/service_request_api_service.dart';
 import 'package:manong_application/api/service_settings_api_service.dart';
 import 'package:manong_application/api/tracking_api_service.dart';
 import 'package:manong_application/main.dart';
-import 'package:manong_application/models/request_status.dart';
+import 'package:manong_application/models/manong.dart';
+import 'package:manong_application/models/service_request_status.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/models/service_settings.dart';
 import 'package:manong_application/screens/service_requests/route_tracking_screen.dart';
@@ -33,12 +35,12 @@ import 'package:manong_application/widgets/price_tag.dart';
 
 class ServiceRequestsDetailsScreen extends StatefulWidget {
   final ServiceRequest? serviceRequest;
-  final bool? isAdmin;
+  final bool? isManong;
 
   const ServiceRequestsDetailsScreen({
     super.key,
     this.serviceRequest,
-    this.isAdmin,
+    this.isManong,
   });
 
   @override
@@ -50,7 +52,7 @@ class _ServiceRequestsDetailsScreenState
     extends State<ServiceRequestsDetailsScreen> {
   final Logger logger = Logger('ServiceRequestsDetailsScreen');
   final _trackingApiService = TrackingApiService();
-  late bool? _isAdmin;
+  late bool? _isManong;
   final distance = latlong.Distance();
   final storage = FlutterSecureStorage();
   bool checked = false;
@@ -62,18 +64,54 @@ class _ServiceRequestsDetailsScreenState
   final baseImageUrl = dotenv.env['APP_URL'];
   bool _isServiceCompleted = false;
   ServiceSettings? _serviceSettings;
+  Manong? _manong;
 
   @override
   void initState() {
     super.initState();
     _initializeComponents();
+    _fetchManongDetails();
     _getTrackingStream();
     _fetchServiceSettings();
   }
 
   void _initializeComponents() {
-    _isAdmin = widget.isAdmin;
+    _isManong = widget.isManong;
     _serviceRequest = widget.serviceRequest;
+  }
+
+  Future<void> _fetchManongDetails() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      if (_serviceRequest == null) return;
+      final response = await ManongApiService().fetchAManong(
+        _serviceRequest!.manongId!,
+      );
+
+      if (response != null) {
+        setState(() {
+          _manong = response;
+        });
+      } else {
+        logger.warning('Failed fetching a manong');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+
+      logger.severe('Error fetching a manong $_error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _fetchServiceSettings() async {
@@ -225,7 +263,16 @@ class _ServiceRequestsDetailsScreenState
     return CardContainer(
       children: [
         Divider(color: Colors.grey, thickness: 1, indent: 20, endIndent: 20),
-        LabelValueRow(label: 'Service:', valueWidget: Text(serviceName ?? '')),
+        LabelValueRow(
+          label: 'Service: ',
+          valueWidget: Expanded(
+            child: Text(
+              serviceName ?? '',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
         LabelValueRow(
           label: 'Payment:',
           valueWidget: Text(_serviceRequest?.paymentMethod?.name ?? ''),
@@ -277,6 +324,43 @@ class _ServiceRequestsDetailsScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (_serviceRequest?.user?.firstName != null &&
+            _serviceRequest?.user?.lastName != null) ...[
+          Text(
+            "Name",
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+          ),
+          const SizedBox(height: 4),
+
+          Row(
+            children: [
+              Text(
+                '${_serviceRequest!.user?.firstName} ${_serviceRequest!.user?.lastName}',
+                style: TextStyle(fontSize: 18, color: Colors.black),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+        ],
+
+        if (_serviceRequest?.user?.nickname != null) ...[
+          Text(
+            "Nickname",
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+          ),
+          const SizedBox(height: 4),
+
+          Row(
+            children: [
+              Text(
+                '${_serviceRequest!.user?.nickname}',
+                style: TextStyle(fontSize: 18, color: Colors.black),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+        ],
+
         Text(
           "Contact",
           style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
@@ -286,9 +370,7 @@ class _ServiceRequestsDetailsScreenState
         Row(
           children: [
             Text(
-              _serviceRequest!.user?.firstName ??
-                  _serviceRequest!.user?.phone ??
-                  "",
+              _serviceRequest!.user?.phone ?? "",
               style: TextStyle(fontSize: 18, color: Colors.black),
             ),
           ],
@@ -343,18 +425,20 @@ class _ServiceRequestsDetailsScreenState
         Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            color: getStatusColor(_serviceRequest!.status).withOpacity(0.1),
+            color: getStatusColor(
+              _serviceRequest!.status!.value,
+            ).withOpacity(0.1),
             border: Border.all(
-              color: getStatusBorderColor(_serviceRequest!.status),
+              color: getStatusBorderColor(_serviceRequest!.status!.value),
               width: 1,
             ),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           child: Text(
-            getStatusText(_serviceRequest!.status!),
+            getStatusText(_serviceRequest!.status!.value),
             style: TextStyle(
               fontSize: 11,
-              color: getStatusBorderColor(_serviceRequest!.status),
+              color: getStatusBorderColor(_serviceRequest!.status!.value),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -488,11 +572,10 @@ class _ServiceRequestsDetailsScreenState
         Row(
           children: [
             Text(
-              _serviceRequest!.manong?.appUser.firstName! ?? "No name",
+              _manong?.appUser.firstName ?? "No name",
               style: TextStyle(fontSize: 18, color: Colors.black),
             ),
-            if (_serviceRequest!.manong?.profile!.isProfessionallyVerified ==
-                true) ...[
+            if (_manong?.profile!.isProfessionallyVerified == true) ...[
               const SizedBox(width: 4),
               Icon(Icons.verified_rounded, size: 20, color: Colors.lightBlue),
             ],
@@ -512,23 +595,19 @@ class _ServiceRequestsDetailsScreenState
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 color: getStatusColor(
-                  _serviceRequest!.manong!.profile!.status,
+                  _manong?.profile?.status,
                 ).withOpacity(0.1),
                 border: Border.all(
-                  color: getStatusBorderColor(
-                    _serviceRequest!.manong!.profile!.status,
-                  ),
+                  color: getStatusBorderColor(_manong?.profile?.status),
                   width: 1,
                 ),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               child: Text(
-                _serviceRequest!.manong!.profile!.status,
+                _manong?.profile?.status ?? '',
                 style: TextStyle(
                   fontSize: 11,
-                  color: getStatusBorderColor(
-                    _serviceRequest!.manong!.profile!.status,
-                  ),
+                  color: getStatusBorderColor(_manong!.profile!.status),
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -537,8 +616,8 @@ class _ServiceRequestsDetailsScreenState
         ),
         const SizedBox(height: 8),
 
-        if (_serviceRequest!.manong!.profile!.specialities != null &&
-            _serviceRequest!.manong!.profile!.specialities!.isNotEmpty) ...[
+        if (_manong?.profile?.specialities != null &&
+            _manong!.profile!.specialities!.isNotEmpty) ...[
           // -- Specialities
           Text(
             "Specialities",
@@ -548,37 +627,184 @@ class _ServiceRequestsDetailsScreenState
           Wrap(
             spacing: 6,
             runSpacing: 6,
-            children: _serviceRequest!.manong!.profile!.specialities!.map((
-              item,
-            ) {
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                decoration: BoxDecoration(
-                  color:
-                      item.subServiceItem.title.contains(
-                        _serviceRequest!.subServiceItem!.title,
-                      )
-                      ? Colors.amber.withOpacity(0.7)
-                      : AppColorScheme.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(getIconFromName(item.subServiceItem.iconName)),
-                    SizedBox(width: 4),
-                    Text(
-                      item.subServiceItem.title,
-                      style: TextStyle(fontSize: 12, color: Colors.black87),
+            children: [
+              // Show first 5 specialities
+              ..._manong!.profile!.specialities!.take(5).map((item) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color:
+                        item.subServiceItem.title.contains(
+                          _serviceRequest!.subServiceItem!.title,
+                        )
+                        ? Colors.amber.withOpacity(0.7)
+                        : AppColorScheme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconifyIcon(
+                        icon: item.subServiceItem.iconName,
+                        size: 24,
+                        color: Colors.grey.shade800,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        item.subServiceItem.title,
+                        style: TextStyle(fontSize: 12, color: Colors.black87),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+
+              // Show more button if there are more than 5 specialities
+              if (_manong!.profile!.specialities!.length > 5)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: GestureDetector(
+                    onTap: () {
+                      showModalBottomSheet(
+                        context: navigatorKey.currentContext!,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(16),
+                          ),
+                        ),
+                        builder: (context) {
+                          final remaining = _manong!.profile!.specialities!
+                              .skip(5)
+                              .toList();
+
+                          return SafeArea(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Scrollbar(
+                                thumbVisibility: true,
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.vertical,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "More Specialities",
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 6,
+                                        children: remaining.map((item) {
+                                          return Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  item.subServiceItem.title
+                                                      .contains(
+                                                        _serviceRequest
+                                                                ?.subServiceItem
+                                                                ?.title ??
+                                                            "",
+                                                      )
+                                                  ? Colors.amber.withOpacity(
+                                                      0.7,
+                                                    )
+                                                  : AppColorScheme.primaryColor
+                                                        .withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconifyIcon(
+                                                  icon: item
+                                                      .subServiceItem
+                                                      .iconName,
+                                                  size: 24,
+                                                  color: Colors.grey.shade800,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  item.subServiceItem.title,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.black87,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }).toList(),
+                                      ),
+                                      const SizedBox(height: 16),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                    child: Text(
+                      "+${_manong!.profile!.specialities!.length - 5} show more",
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
                     ),
-                  ],
+                  ),
                 ),
-              );
-            }).toList(),
+            ],
           ),
         ],
 
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
+
+        // -- Assistants
+        if (_manong?.profile?.manongAssistants != null) ...[
+          if (_manong!.profile!.manongAssistants!.isNotEmpty) ...[
+            Text(
+              "Assistant(s)",
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+            ),
+            Wrap(
+              spacing: 6,
+              runSpacing: 2,
+              children: _manong!.profile!.manongAssistants!.map((assistant) {
+                return Chip(
+                  avatar: Icon(
+                    Icons.person,
+                    size: 16,
+                    color: AppColorScheme.primaryDark,
+                  ),
+                  label: Text(
+                    assistant.fullName.trim(),
+                    style: TextStyle(color: AppColorScheme.primaryDark),
+                  ),
+                  backgroundColor: AppColorScheme.primaryLight,
+                );
+              }).toList(),
+            ),
+          ],
+        ],
 
         const Divider(),
 
@@ -605,7 +831,7 @@ class _ServiceRequestsDetailsScreenState
         _serviceRequest!.id!,
       );
 
-      final parsedStatus = parseRequestStatus(_serviceRequest!.status!);
+      final parsedStatus = parseRequestStatus(_serviceRequest!.status!.value);
 
       if (parsedStatus != null && _serviceRequest != null) {
         await NotificationUtils.sendStatusUpdateNotification(
@@ -650,17 +876,15 @@ class _ServiceRequestsDetailsScreenState
     }
   }
 
-  void _completeServiceRequest() async {
+  void _markServiceRequestCompleted() async {
     setState(() {
       _isButtonLoading = true;
       _error = null;
     });
     try {
       if (_serviceRequest == null) return;
-      final response = await ServiceRequestApiService().updateServiceRequest(
-        _serviceRequest!.id!,
-        {'status': 'completed'},
-      );
+      final response = await ServiceRequestApiService()
+          .markServiceRequestCompleted(_serviceRequest!.id!);
 
       if (response != null) {
         SnackBarUtils.showSuccess(
@@ -677,7 +901,9 @@ class _ServiceRequestsDetailsScreenState
           (route) => false,
           arguments: {
             'index': 1,
-            'serviceRequestStatusIndex': getTabIndex('completed'),
+            'serviceRequestStatusIndex': getTabIndex(
+              ServiceRequestStatus.completed,
+            ),
           },
         );
       }
@@ -750,7 +976,9 @@ class _ServiceRequestsDetailsScreenState
           (route) => false,
           arguments: {
             'index': 1,
-            'serviceRequestStatusIndex': getTabIndex('cancelled'),
+            'serviceRequestStatusIndex': getTabIndex(
+              ServiceRequestStatus.cancelled,
+            ),
           },
         );
       }
@@ -843,10 +1071,10 @@ class _ServiceRequestsDetailsScreenState
           const SizedBox(height: 12),
 
           // --- Accept Button
-          if (_serviceRequest?.status == RequestStatus.pending.value ||
+          if (_serviceRequest?.status == ServiceRequestStatus.pending ||
               _serviceRequest?.status ==
-                  RequestStatus.awaitingAcceptance.value) ...[
-            if (_isAdmin == true) ...[
+                  ServiceRequestStatus.awaitingAcceptance) ...[
+            if (_isManong == true) ...[
               Row(
                 children: [
                   Expanded(
@@ -909,15 +1137,15 @@ class _ServiceRequestsDetailsScreenState
 
           // -- Complete Button
           if (_serviceRequest?.arrivedAt != null &&
-              _serviceRequest?.status == RequestStatus.inprogress.value &&
+              _serviceRequest?.status == ServiceRequestStatus.inProgress &&
               !(_isServiceCompleted)) ...[
-            if (_isAdmin == true) ...[
+            if (_isManong == true) ...[
               Row(
                 children: [
                   Expanded(
                     child: ElevatedButton(
                       onPressed: !_isButtonLoading
-                          ? _completeServiceRequest
+                          ? _markServiceRequestCompleted
                           : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColorScheme.primaryColor,
@@ -963,9 +1191,9 @@ class _ServiceRequestsDetailsScreenState
           ),
           SizedBox(height: 12),
 
-          if (_isAdmin == true) _buildUserDetails(meters ?? 0),
+          if (_isManong == true) _buildUserDetails(meters ?? 0),
 
-          if (_isAdmin == false) _buildManongDetails(meters ?? 0),
+          if (_isManong == false) _buildManongDetails(meters ?? 0),
 
           // if (_fcmToken != null) ...[Text('Token for me: $_fcmToken')],
           // if (_serviceRequest != null) ...[
@@ -996,7 +1224,7 @@ class _ServiceRequestsDetailsScreenState
         serviceRequestId: _serviceRequest!.id.toString(),
       );
 
-      if (_isAdmin == true) {
+      if (_isManong == true) {
         logger.info('Started Tracking');
         _trackingApiService.startTracking(
           manongId: _serviceRequest!.manongId.toString(),
@@ -1029,8 +1257,8 @@ class _ServiceRequestsDetailsScreenState
   }
 
   Widget _buildRouteTracking() {
-    final lat = _serviceRequest?.manong?.appUser.latitude ?? 0;
-    final lng = _serviceRequest?.manong?.appUser.longitude ?? 0;
+    final lat = _manong?.appUser.latitude ?? 0;
+    final lng = _manong?.appUser.longitude ?? 0;
 
     return Positioned.fill(
       child: RouteTrackingScreen(
@@ -1039,7 +1267,7 @@ class _ServiceRequestsDetailsScreenState
           _serviceRequest!.customerLng,
         ),
         manongLatLng: LatLng(lat, lng),
-        manongName: _serviceRequest!.manong!.appUser.firstName,
+        manongName: _manong?.appUser.firstName,
         manongLatLngNotifier: _trackingApiService.manongLatLngNotifier,
         serviceRequest: _serviceRequest,
       ),
@@ -1047,17 +1275,17 @@ class _ServiceRequestsDetailsScreenState
   }
 
   Widget _buildStack(double meters) {
-    if (_serviceRequest!.manong == null) return SizedBox.shrink();
+    if (_manong == null) return SizedBox.shrink();
     return Stack(
       children: [
         _buildRouteTracking(),
-        if (_serviceRequest!.manong!.profile?.specialities?.length != null)
+        if (_manong?.profile?.specialities?.length != null)
           SafeArea(
             child: DraggableScrollableSheet(
               initialChildSize: 0.20,
               minChildSize: 0.05,
               maxChildSize:
-                  _serviceRequest!.manong!.profile!.specialities!.length >= 6 ||
+                  _manong!.profile!.specialities!.length >= 6 ||
                       _serviceRequest!.images.isNotEmpty
                   ? 0.99
                   : 0.5,
@@ -1065,7 +1293,7 @@ class _ServiceRequestsDetailsScreenState
               snap: true,
               snapSizes: [
                 0.20,
-                _serviceRequest!.manong!.profile!.specialities!.length >= 6 ||
+                _manong!.profile!.specialities!.length >= 6 ||
                         _serviceRequest!.images.isNotEmpty
                     ? 0.99
                     : 0.5,
@@ -1103,7 +1331,10 @@ class _ServiceRequestsDetailsScreenState
 
   @override
   Widget build(BuildContext context) {
-    if (_serviceRequest == null) return const SizedBox.shrink();
+    if (_serviceRequest == null) {
+      return const SizedBox.shrink();
+    }
+
     final meters = DistanceMatrix().calculateDistance(
       startLat: widget.serviceRequest?.customerLat,
       startLng: widget.serviceRequest?.customerLng,

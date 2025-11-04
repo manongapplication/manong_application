@@ -257,7 +257,7 @@ class ServiceRequestApiService {
         return null;
       }
     } catch (e) {
-      logger.severe('Failed updating service request $e');
+      logger.severe('Error updating service request $e');
     }
 
     return null;
@@ -469,6 +469,42 @@ class ServiceRequestApiService {
       }
     } catch (e) {
       logger.severe('Error ongoing service request $e');
+    }
+
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> markServiceRequestCompleted(int id) async {
+    try {
+      if (baseUrl == null) {
+        throw Exception('Base URL is not configured.');
+      }
+
+      final token = await AuthService().getNodeToken();
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/service-requests/$id/mark-completed'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'id': id}),
+      );
+
+      final responseBody = response.body;
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonData;
+      } else {
+        logger.warning(
+          'Failed marking service request as completed ${response.statusCode} $responseBody',
+        );
+        return null;
+      }
+    } catch (e) {
+      logger.severe('Error marking service request as completed $e');
     }
 
     return null;

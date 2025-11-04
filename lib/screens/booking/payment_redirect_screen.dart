@@ -127,7 +127,9 @@ class _PaymentRedirectScreenState extends State<PaymentRedirectScreen>
     }
   }
 
-  Future<void> _goToServiceRequestScreenPending(String paymentStatus) async {
+  Future<void> _goToServiceRequestScreenPending(
+    PaymentStatus paymentStatus,
+  ) async {
     await Future.delayed(Duration(seconds: 1));
     Navigator.pushNamedAndRemoveUntil(
       navigatorKey.currentContext!,
@@ -175,7 +177,7 @@ class _PaymentRedirectScreenState extends State<PaymentRedirectScreen>
           });
 
           if (paymentStatus == PaymentStatus.paid) {
-            await _goToServiceRequestScreenPending(paymentStatus.value);
+            await _goToServiceRequestScreenPending(paymentStatus);
           }
         }
       }
@@ -303,7 +305,7 @@ class _PaymentRedirectScreenState extends State<PaymentRedirectScreen>
             launchInBrowser(_serviceRequest?.paymentRedirectUrl);
           } else {
             await _goToServiceRequestScreenPending(
-              _serviceRequest!.paymentStatus!.value,
+              _serviceRequest!.paymentStatus!,
             );
           }
         }

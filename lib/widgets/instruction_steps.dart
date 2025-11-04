@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:manong_application/theme/colors.dart';
 
 class InstructionSteps extends StatelessWidget {
-  InstructionSteps({super.key});
+  final bool showHorizontalBar; // 👈 optional scrollbar toggle
+
+  InstructionSteps({
+    super.key,
+    this.showHorizontalBar = false, // default: no scrollbar
+  });
 
   final instructions = [
     {
@@ -16,7 +21,7 @@ class InstructionSteps extends StatelessWidget {
       'title': 'Confirm service',
       'description': 'Review the service type, rate, and estimated cost.',
       'imagePath': 'assets/icon/manong_service_icon.png',
-      'height': '150',
+      'height': '140',
     },
     {
       'title': 'Prepare your area',
@@ -33,53 +38,48 @@ class InstructionSteps extends StatelessWidget {
   ];
 
   Widget _buildInstructionStep(String text, String imagePath, double height) {
-    return SizedBox(
-      width: 140,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          color: AppColorScheme.primaryLight,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: SizedBox(
-                height: 50,
-                child: Text(
-                  text,
-                  style: TextStyle(
-                    color: Colors.black87,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  softWrap: true,
-                  textAlign: TextAlign.start,
-                ),
+    return Container(
+      width: 160,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: AppColorScheme.primaryLight,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
               ),
+              softWrap: true,
             ),
-            SizedBox(height: 4),
-            SizedBox(
-              height: 140,
-              child: Center(child: Image.asset(imagePath, fit: BoxFit.contain)),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 4),
+          SizedBox(
+            height: height,
+            child: Center(child: Image.asset(imagePath, fit: BoxFit.contain)),
+          ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
+    final scrollContent = SingleChildScrollView(
       scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
         children: [
           for (var item in instructions)
-            Container(
-              margin: EdgeInsets.only(right: 8),
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
               child: _buildInstructionStep(
                 item['description']!,
                 item['imagePath']!,
@@ -88,6 +88,20 @@ class InstructionSteps extends StatelessWidget {
             ),
         ],
       ),
+    );
+
+    // 👇 Conditionally wrap in Scrollbar
+    return SizedBox(
+      height: 220,
+      child: showHorizontalBar
+          ? Scrollbar(
+              thumbVisibility: true,
+              trackVisibility: false,
+              thickness: 6,
+              radius: const Radius.circular(8),
+              child: scrollContent,
+            )
+          : scrollContent,
     );
   }
 }

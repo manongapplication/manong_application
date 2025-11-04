@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:manong_application/models/sub_service_item.dart';
 import 'package:manong_application/theme/colors.dart';
-import 'package:manong_application/utils/icon_mapper.dart';
 import 'package:manong_application/widgets/icon_card.dart';
 
 class SubServiceCard extends StatelessWidget {
   final SubServiceItem subServiceItem;
   final VoidCallback onTap;
   final Color iconColor;
+  final Color iconTextColor;
 
   const SubServiceCard({
     super.key,
     required this.subServiceItem,
     required this.onTap,
     required this.iconColor,
+    required this.iconTextColor,
   });
 
   @override
@@ -28,6 +29,7 @@ class SubServiceCard extends StatelessWidget {
             leading: iconCard(
               iconColor: iconColor,
               iconName: subServiceItem.iconName,
+              iconTextColor: iconTextColor,
             ),
             title: Text(
               subServiceItem.title,

@@ -4,7 +4,7 @@ import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/main.dart';
-import 'package:manong_application/models/request_status.dart';
+import 'package:manong_application/models/service_request_status.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/distance_matrix.dart';
@@ -17,7 +17,7 @@ class RouteTrackingScreen extends StatefulWidget {
   final LatLng? currentLatLng;
   final LatLng? manongLatLng;
   final String? manongName;
-  final bool? isAdmin;
+  final bool? isManong;
   final ValueNotifier<latlong.LatLng?>? manongLatLngNotifier;
   final ServiceRequest? serviceRequest;
   final bool? useManongAsTitle;
@@ -27,7 +27,7 @@ class RouteTrackingScreen extends StatefulWidget {
     this.currentLatLng,
     this.manongLatLng,
     this.manongName,
-    this.isAdmin,
+    this.isManong,
     this.manongLatLngNotifier,
     this.serviceRequest,
     this.useManongAsTitle,
@@ -80,7 +80,7 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
           _isLoading = false;
         });
         if (_currentLatLng != null && _manongLatLng != null) {
-          if (_serviceRequest?.status != RequestStatus.inprogress.value) {
+          if (_serviceRequest?.status != ServiceRequestStatus.inProgress) {
             await _getPolyline();
           }
           _listenToManongMovement();
@@ -161,7 +161,7 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
 
   void _listenToManongMovement() {
     if (_manongLatLngNotifier != null &&
-        _serviceRequest?.status == RequestStatus.inprogress.value) {
+        _serviceRequest?.status == ServiceRequestStatus.inProgress) {
       _manongLatLngNotifier!.addListener(() {
         final value = _manongLatLngNotifier?.value;
         if (value == null) return;
@@ -291,7 +291,7 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
     );
 
     if (_manongLatLngNotifier != null &&
-        _serviceRequest?.status == RequestStatus.inprogress.value) {
+        _serviceRequest?.status == ServiceRequestStatus.inProgress) {
       return ValueListenableBuilder<latlong.LatLng?>(
         valueListenable: _manongLatLngNotifier!,
         builder: (context, value, child) {
@@ -477,7 +477,7 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
       appBar: myAppBar(
         title: widget.useManongAsTitle == true
             ? 'Manong ${_manongName.toString()}'
-            : _serviceRequest?.status == RequestStatus.inprogress.value
+            : _serviceRequest?.status == ServiceRequestStatus.inProgress
             ? _serviceRequest?.arrivedAt != null
                   ? 'Manong has arrived!'
                   : 'Manong is on the way...'

@@ -184,6 +184,63 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  void _authenticateUser() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    if (_formKey.currentState!.validate()) {
+      if (phone == null || phone!.number.isEmpty) {
+        setState(() => _isLoading = false);
+        SnackBarUtils.showWarning(context, 'Phone number cannot be empty');
+        return;
+      }
+
+      try {
+        final hasPassword = await authService.checkIfHasPassword(
+          phone?.completeNumber ?? '',
+        );
+
+        if (hasPassword != null) {
+          if (hasPassword == true) {
+            Navigator.pushNamed(
+              navigatorKey.currentContext!,
+              '/enter-password',
+              arguments: {'phone': phone?.completeNumber},
+            );
+          } else {
+            _submitRegisterPhone();
+          }
+        }
+
+        // if (response != null) {
+        //   SnackBarUtils.showSuccess(navigatorKey.currentContext!, 'Success');
+        //   Navigator.pushNamedAndRemoveUntil(
+        //     navigatorKey.currentContext!,
+        //     '/',
+        //     (route) => false,
+        //   );
+        // } else {
+        //   SnackBarUtils.showWarning(navigatorKey.currentContext!, 'Warning');
+        // }
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _error = e.toString();
+        });
+
+        logger.severe('Error $_error');
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } else {}
+  }
+
   void _registerInstant() async {
     setState(() {
       _isLoading = true;
@@ -235,7 +292,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: myAppBar(title: 'Register'),
+      appBar: myAppBar(title: 'Get Started'),
       body: Padding(
         padding: EdgeInsets.all(16),
         child: Form(
@@ -304,7 +361,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         backgroundColor: AppColorScheme.primaryColor,
                         padding: EdgeInsets.symmetric(vertical: 16),
                       ),
-                      onPressed: _isLoading ? null : _registerInstant,
+                      onPressed: _isLoading ? null : _authenticateUser,
                       child: _isLoading
                           ? SizedBox(
                               width: 18,

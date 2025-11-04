@@ -13,6 +13,7 @@ import 'package:manong_application/api/socket_api_service.dart';
 import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/providers/bottom_nav_provider.dart';
+import 'package:manong_application/screens/auth/enter_password_screen.dart';
 import 'package:manong_application/screens/auth/register_screen.dart';
 import 'package:manong_application/screens/auth/verify_screen.dart';
 import 'package:manong_application/screens/booking/add_card_payment.dart';
@@ -28,6 +29,7 @@ import 'package:manong_application/screens/booking/sub_service_list_screen.dart'
 import 'package:manong_application/screens/home/user_notification_screen.dart';
 import 'package:manong_application/screens/main_screen.dart';
 import 'package:manong_application/screens/onboarding_screen.dart';
+import 'package:manong_application/screens/profile/complete_profile_screen.dart';
 import 'package:manong_application/screens/profile/edit_profile.dart';
 import 'package:manong_application/screens/profile/notification_settings_screen.dart';
 import 'package:manong_application/screens/service_requests/chat_manong_screen.dart';
@@ -212,6 +214,11 @@ class MyApp extends StatelessWidget {
 
           case '/register':
             return MaterialPageRoute(builder: (_) => RegisterScreen());
+          case '/enter-password':
+            final args = settings.arguments as Map<String, dynamic>?;
+            return MaterialPageRoute(
+              builder: (_) => EnterPasswordScreen(phone: args?['phone']),
+            );
           case '/verify':
             final args = settings.arguments as Map<String, dynamic>?;
 
@@ -259,7 +266,7 @@ class MyApp extends StatelessWidget {
                 currentLatLng: args?['currentLatLng'] as LatLng?,
                 manongLatLng: args?['manongLatLng'] as LatLng?,
                 manongName: args?['manongName'] as String?,
-                isAdmin: args?['isAdmin'] as bool,
+                isManong: args?['isManong'] as bool,
               ),
             );
           case '/manong-list':
@@ -299,8 +306,8 @@ class MyApp extends StatelessWidget {
             return MaterialPageRoute(
               builder: (_) => ServiceRequestsDetailsScreen(
                 serviceRequest: args?['serviceRequest'] as ServiceRequest?,
-                isAdmin: args?['isAdmin'] != null
-                    ? args!['isAdmin'] as bool
+                isManong: args?['isManong'] != null
+                    ? args!['isManong'] as bool
                     : null,
               ),
             );
@@ -383,6 +390,8 @@ class MyApp extends StatelessWidget {
             );
           case '/notifications':
             return MaterialPageRoute(builder: (_) => UserNotificationScreen());
+          case '/complete-profile':
+            return MaterialPageRoute(builder: (_) => CompleteProfileScreen());
         }
         return null;
       },

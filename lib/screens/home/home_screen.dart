@@ -74,6 +74,10 @@ class _HomeScreenState extends State<HomeScreen> {
         _filteredServiceItems = serviceItems;
         _isLoading = false;
       });
+
+      logger.info(
+        'iconTextColor: ${_allServiceItems[0].iconTextColor} iconName: ${_allServiceItems[0].iconName}',
+      );
     } catch (e) {
       if (!mounted) return;
 
@@ -198,7 +202,6 @@ class _HomeScreenState extends State<HomeScreen> {
             height: 100,
             child: ServiceCardLite(
               serviceItem: serviceItem,
-              iconColor: colorFromHex(serviceItem.iconColor),
               onTap: () {
                 Navigator.pushNamed(
                   context,

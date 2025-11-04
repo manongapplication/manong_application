@@ -29,6 +29,7 @@ class ManongProfile {
   final int dailyServiceLimit;
   final String? experienceDescription;
   final List<ManongSpeciality>? specialities;
+  final List<ManongAssistant>? manongAssistants;
 
   ManongProfile({
     required this.id,
@@ -42,6 +43,7 @@ class ManongProfile {
     required this.dailyServiceLimit,
     this.experienceDescription,
     this.specialities = const [],
+    this.manongAssistants,
   });
 
   factory ManongProfile.fromJson(Map<String, dynamic> json) {
@@ -67,6 +69,34 @@ class ManongProfile {
               ?.map((s) => ManongSpeciality.fromJson(s))
               .toList() ??
           [],
+      manongAssistants:
+          (json['manongAssistants'] as List<dynamic>?)
+              ?.map((a) => ManongAssistant.fromJson(a))
+              .toList() ??
+          [],
+    );
+  }
+}
+
+class ManongAssistant {
+  final int id;
+  final int manongProfileId;
+  final String fullName;
+  final String? phone;
+
+  ManongAssistant({
+    required this.id,
+    required this.manongProfileId,
+    required this.fullName,
+    this.phone,
+  });
+
+  factory ManongAssistant.fromJson(Map<String, dynamic> json) {
+    return ManongAssistant(
+      id: json['id'],
+      manongProfileId: json['manongProfileId'],
+      fullName: json['fullName'],
+      phone: json['phone'],
     );
   }
 }

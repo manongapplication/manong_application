@@ -2,8 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/api/service_request_api_service.dart';
-import 'package:manong_application/models/payment_status.dart';
+import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/models/service_request.dart';
 
 class BottomNavProvider with ChangeNotifier {
@@ -13,8 +14,9 @@ class BottomNavProvider with ChangeNotifier {
   ServiceRequest? _ongoingServiceRequest;
   ServiceRequest? get ongoingServiceRequest => _ongoingServiceRequest;
   bool? _manongArrived;
-  String? _serviceRequestStatus;
+  dynamic _serviceRequestStatus;
   bool? _serviceRequestIsExpired;
+  bool? _hasNoFeedback;
 
   void setController(PageController controller) {
     _controller = controller;
@@ -23,15 +25,21 @@ class BottomNavProvider with ChangeNotifier {
   int get selectedindex => _selectedIndex;
   PageController? get controller => _controller;
   bool? get manongArrived => _manongArrived;
-  String? get serviceRequestStatus => _serviceRequestStatus;
+  dynamic get serviceRequestStatus => _serviceRequestStatus;
   bool? get serviceRequestIsExpired => _serviceRequestIsExpired;
+  bool? get hasNoFeedback => _hasNoFeedback;
+
+  void setHasNoFeedback(bool value) {
+    _hasNoFeedback = value;
+    notifyListeners();
+  }
 
   void setServiceRequestIsExpired(bool value) {
     _serviceRequestIsExpired = value;
     notifyListeners();
   }
 
-  void setServiceRequestStatus(String value) {
+  void setServiceRequestStatus(dynamic value) {
     _serviceRequestStatus = value;
     notifyListeners();
   }
@@ -83,8 +91,8 @@ class BottomNavProvider with ChangeNotifier {
   String? _serviceRequestMessage;
   String? get serviceRequestMessage => _serviceRequestMessage;
 
-  bool? _isAdmin;
-  bool? get isAdmin => _isAdmin;
+  bool? _isManong;
+  bool? get isManong => _isManong;
 
   Future<void> fetchOngoingServiceRequest() async {
     _loadingOngoing = true;
@@ -99,12 +107,12 @@ class BottomNavProvider with ChangeNotifier {
       if (response != null) {
         if (response['data'] != null) {
           final sr = ServiceRequest.fromJson(response['data']);
-          final isAdmin = response['admin'];
+          final isManong = response['isManong'];
           final message = response['message'];
 
           _ongoingServiceRequest = sr;
           _serviceRequestMessage = message;
-          _isAdmin = isAdmin;
+          _isManong = isManong;
 
           if (sr.createdAt != null) {
             final now = DateTime.now();
@@ -131,6 +139,27 @@ class BottomNavProvider with ChangeNotifier {
       logger.severe('Error fetching ongoing request: $e');
     } finally {
       _loadingOngoing = false;
+      notifyListeners();
+    }
+  }
+
+  bool _loadingGetProfile = false;
+  bool get loadingGetProfile => _loadingGetProfile;
+
+  AppUser? _user;
+  AppUser? get user => _user;
+
+  Future<void> getProfile() async {
+    _loadingGetProfile = true;
+    notifyListeners();
+    try {
+      final response = await AuthService().getMyProfile();
+
+      _user = response;
+    } catch (e) {
+      logger.severe('Error fetching user: $e');
+    } finally {
+      _loadingGetProfile = false;
       notifyListeners();
     }
   }

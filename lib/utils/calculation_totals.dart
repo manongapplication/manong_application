@@ -9,8 +9,8 @@ class CalculationTotals {
 
     if (userServiceRequest == null) return 0;
 
-    if (userServiceRequest.subServiceItem?.fee != null) {
-      total += userServiceRequest.subServiceItem!.fee!.toDouble();
+    if (userServiceRequest.subServiceItem?.cost != null) {
+      total += userServiceRequest.subServiceItem!.cost!.toDouble();
     }
 
     if (userServiceRequest.urgencyLevel?.price != null) {

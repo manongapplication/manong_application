@@ -54,13 +54,11 @@ class ManongApiService {
     }
   }
 
-  Future<Manong>? fetchAManong(int id) async {
+  Future<Manong?> fetchAManong(int id) async {
     try {
-      if (baseUrl == null) {
-        throw Exception('Base URL is not configured.');
-      }
+      if (baseUrl == null) throw Exception('Base URL is not configured.');
 
-      final token = AuthService().getNodeToken();
+      final token = await AuthService().getNodeToken();
 
       final response = await http.get(
         Uri.parse('$baseUrl/manongs/$id'),
@@ -72,11 +70,15 @@ class ManongApiService {
       );
 
       final responseBody = response.body;
-
       final jsonData = jsonDecode(responseBody);
 
-      if (response.statusCode == 200) {
-        return Manong.fromJson(jsonData['data']);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonData['data'];
+        if (data == null) {
+          logger.warning('No manong found for id $id.');
+          return null;
+        }
+        return Manong.fromJson(data as Map<String, dynamic>);
       } else {
         logger.warning('Fetch the manong failed: ${response.statusCode}');
         logger.warning('Response: $responseBody');

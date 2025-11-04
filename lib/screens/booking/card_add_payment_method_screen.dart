@@ -410,9 +410,7 @@ class _CardAddPaymentMethodScreenState
           actions: <Widget>[
             TextButton(
               child: const Text("Cancel"),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: () => Navigator.of(context).pop(),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(

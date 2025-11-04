@@ -1,7 +1,7 @@
-enum RequestStatus {
+enum ServiceRequestStatus {
   awaitingAcceptance,
   accepted,
-  inprogress,
+  inProgress,
   completed,
   failed,
   cancelled,
@@ -16,68 +16,68 @@ class StatusUpdateMessage {
   const StatusUpdateMessage(this.title, this.body);
 }
 
-RequestStatus? parseRequestStatus(String? value) {
+ServiceRequestStatus? parseRequestStatus(String? value) {
   if (value == null) return null;
   switch (value.toLowerCase()) {
     case 'awaitingAcceptance':
-      return RequestStatus.awaitingAcceptance;
+      return ServiceRequestStatus.awaitingAcceptance;
     case 'accepted':
-      return RequestStatus.accepted;
-    case 'inprogress':
-      return RequestStatus.inprogress;
+      return ServiceRequestStatus.accepted;
+    case 'inProgress':
+      return ServiceRequestStatus.inProgress;
     case 'completed':
-      return RequestStatus.completed;
+      return ServiceRequestStatus.completed;
     case 'failed':
-      return RequestStatus.failed;
+      return ServiceRequestStatus.failed;
     case 'cancelled':
-      return RequestStatus.cancelled;
+      return ServiceRequestStatus.cancelled;
     case 'pending':
-      return RequestStatus.pending;
+      return ServiceRequestStatus.pending;
     case 'expired':
-      return RequestStatus.expired;
+      return ServiceRequestStatus.expired;
     default:
       return null;
   }
 }
 
-StatusUpdateMessage getStatusUpdate(RequestStatus status) {
+StatusUpdateMessage getStatusUpdate(ServiceRequestStatus status) {
   switch (status) {
-    case RequestStatus.awaitingAcceptance:
+    case ServiceRequestStatus.awaitingAcceptance:
       return const StatusUpdateMessage(
         'Waiting',
         'Your request is waiting for a manong to accept.',
       );
-    case RequestStatus.accepted:
+    case ServiceRequestStatus.accepted:
       return const StatusUpdateMessage(
         'Accepted',
         'A manong has accepted your request!',
       );
-    case RequestStatus.inprogress:
+    case ServiceRequestStatus.inProgress:
       return const StatusUpdateMessage(
         'Ongoing',
         'Your service is now in progress.',
       );
-    case RequestStatus.completed:
+    case ServiceRequestStatus.completed:
       return const StatusUpdateMessage(
         'Completed',
         'The service has been completed successfully.',
       );
-    case RequestStatus.failed:
+    case ServiceRequestStatus.failed:
       return const StatusUpdateMessage(
         'Failed',
         'Unfortunately, the service has failed. Please try again.',
       );
-    case RequestStatus.cancelled:
+    case ServiceRequestStatus.cancelled:
       return const StatusUpdateMessage(
         'Cancelled',
         'Your request has been cancelled.',
       );
-    case RequestStatus.pending:
+    case ServiceRequestStatus.pending:
       return const StatusUpdateMessage(
         'Pending',
         'Your request is pending and will be processed soon.',
       );
-    case RequestStatus.expired:
+    case ServiceRequestStatus.expired:
       return const StatusUpdateMessage(
         'Expired',
         'Your request has now expired.',
@@ -85,33 +85,33 @@ StatusUpdateMessage getStatusUpdate(RequestStatus status) {
   }
 }
 
-extension RequestStatusExtension on RequestStatus {
+extension RequestStatusExtension on ServiceRequestStatus {
   String get value => toString().split('.').last;
 
   String get readable {
     switch (this) {
-      case RequestStatus.awaitingAcceptance:
+      case ServiceRequestStatus.awaitingAcceptance:
         return 'Waiting';
-      case RequestStatus.accepted:
+      case ServiceRequestStatus.accepted:
         return 'Accepted';
-      case RequestStatus.inprogress:
+      case ServiceRequestStatus.inProgress:
         return 'Ongoing';
-      case RequestStatus.completed:
+      case ServiceRequestStatus.completed:
         return 'Completed';
-      case RequestStatus.failed:
+      case ServiceRequestStatus.failed:
         return 'Failed';
-      case RequestStatus.cancelled:
+      case ServiceRequestStatus.cancelled:
         return 'Cancelled';
-      case RequestStatus.pending:
+      case ServiceRequestStatus.pending:
         return 'Pending';
-      case RequestStatus.expired:
+      case ServiceRequestStatus.expired:
         return 'Expired';
     }
   }
 
-  static RequestStatus? fromString(String status) {
+  static ServiceRequestStatus? fromString(String status) {
     try {
-      return RequestStatus.values.firstWhere(
+      return ServiceRequestStatus.values.firstWhere(
         (e) => e.value == status.toLowerCase(),
       );
     } catch (_) {

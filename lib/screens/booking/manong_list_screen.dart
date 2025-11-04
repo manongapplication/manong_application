@@ -79,18 +79,28 @@ class _ManongListScreenState extends State<ManongListScreen> {
     });
   }
 
-  Future<void> _fetchManongs({bool loadMore = false}) async {
+  Future<void> _fetchManongs({
+    bool loadMore = false,
+    bool fromRefresh = false,
+  }) async {
     if (!mounted) return;
-    if (_isLoadingMore || !_hasMore) return;
+    if (!fromRefresh && (_isLoadingMore || !_hasMore)) return;
 
     try {
       if (loadMore) {
-        setState(() {
-          _isLoadingMore = true;
-        });
-      } else {
+        setState(() => _isLoadingMore = true);
+      } else if (!fromRefresh) {
+        // only show loader on first load, not when refreshing
         setState(() {
           isLoading = true;
+          _error = null;
+          _currentPage = 1;
+          _hasMore = true;
+          manongs.clear();
+        });
+      } else {
+        // from pull-to-refresh
+        setState(() {
           _error = null;
           _currentPage = 1;
           _hasMore = true;
@@ -198,13 +208,32 @@ class _ManongListScreenState extends State<ManongListScreen> {
 
   Widget _buildEmptyState() {
     if (_error != null) {
-      ErrorStateWidget(errorText: _error!, onPressed: _fetchManongs);
+      return ErrorStateWidget(
+        errorText: _error!,
+        onPressed: () => _fetchManongs(fromRefresh: true),
+      );
     }
 
-    return EmptyStateWidget(
-      searchQuery: _searchQuery,
-      emptyMessage: 'No Manongs found',
-      onPressed: _clearSearch,
+    return RefreshIndicator(
+      color: AppColorScheme.primaryColor,
+      backgroundColor: AppColorScheme.backgroundGrey,
+      onRefresh: () async {
+        await _fetchManongs(fromRefresh: true);
+      },
+      child: Scrollbar(
+        controller: _scrollController,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+            EmptyStateWidget(
+              searchQuery: _searchQuery,
+              emptyMessage: 'No Manongs found',
+              onPressed: _clearSearch,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -244,7 +273,9 @@ class _ManongListScreenState extends State<ManongListScreen> {
     return RefreshIndicator(
       color: AppColorScheme.primaryColor,
       backgroundColor: AppColorScheme.backgroundGrey,
-      onRefresh: _fetchManongs,
+      onRefresh: () async {
+        await _fetchManongs(fromRefresh: true);
+      },
       child: Scrollbar(
         controller: _scrollController,
         child: ListView.builder(

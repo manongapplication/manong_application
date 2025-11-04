@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:iconify_design/iconify_design.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/service_request.dart';
@@ -356,7 +357,11 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(getIconFromName(item.subServiceItem.iconName)),
+                      IconifyIcon(
+                        icon: item.subServiceItem.iconName,
+                        size: 24,
+                        color: Colors.grey.shade800,
+                      ),
                       SizedBox(width: 4),
                       Text(
                         item.subServiceItem.title,

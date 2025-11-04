@@ -1,14 +1,14 @@
 import 'dart:convert';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/fcm_api_service.dart';
-import 'package:manong_application/models/request_status.dart';
+import 'package:manong_application/models/service_request_status.dart';
 
 class NotificationUtils {
   static final Logger logger = Logger('NotificationUtils');
   static final FcmApiService _fcmApiService = FcmApiService();
 
   static Future<void> sendStatusUpdateNotification({
-    required RequestStatus status,
+    required ServiceRequestStatus status,
     required String token,
     String? serviceRequestId,
     required int userId,

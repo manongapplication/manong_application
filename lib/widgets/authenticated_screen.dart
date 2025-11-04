@@ -3,7 +3,7 @@ import 'package:manong_application/api/auth_service.dart';
 
 class AuthenticatedScreen extends StatefulWidget {
   final Widget child;
-  const AuthenticatedScreen({Key? key, required this.child}) : super(key: key);
+  const AuthenticatedScreen({super.key, required this.child});
 
   @override
   State<AuthenticatedScreen> createState() => _AuthenticatedScreenState();

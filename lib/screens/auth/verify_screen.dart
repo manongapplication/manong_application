@@ -160,11 +160,6 @@ class _VerifyScreenState extends State<VerifyScreen> {
         code,
       );
 
-      setState(() {
-        _isLoading = false;
-        _error = null;
-      });
-
       if (response != null) {
         SnackBarUtils.showSuccess(
           navigatorKey.currentContext!,
@@ -258,6 +253,9 @@ class _VerifyScreenState extends State<VerifyScreen> {
 
                   if (_isLoading) ...[
                     Positioned(
+                      top: 4,
+                      right: 0,
+                      left: 0,
                       child: Container(
                         color: Colors.white.withOpacity(0.8),
                         child: Center(

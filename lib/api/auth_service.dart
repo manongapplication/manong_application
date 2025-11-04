@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/firebase_api_token.dart';
+import 'package:manong_application/models/address_category.dart';
 import 'package:manong_application/models/app_user.dart';
+import 'package:manong_application/models/valid_id_type.dart';
 
 class AuthService {
   final storage = FlutterSecureStorage();
@@ -216,6 +219,7 @@ class AuthService {
     String? firstName,
     String? lastName,
     String? email,
+    bool? hasSeenVerificationCongrats,
   }) async {
     try {
       final token = await getNodeToken();
@@ -232,6 +236,7 @@ class AuthService {
               'firstName': firstName,
               'lastName': lastName,
               'email': email,
+              'hasSeenVerificationCongrats': hasSeenVerificationCongrats,
             }),
           )
           .timeout(Duration(seconds: 30));
@@ -341,6 +346,148 @@ class AuthService {
       }
     } catch (e) {
       logger.severe('Error to save fcmToken $e');
+    }
+
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> completeProfile({
+    required String firstName,
+    required String lastName,
+    String? nickname,
+    required String email,
+    required AddressCategory addressCategory,
+    required String addressLine,
+    required ValidIdType validIdType,
+    required File validId,
+    required String password,
+  }) async {
+    try {
+      final token = await getNodeToken();
+
+      if (token == null) {
+        throw Exception('Authentication token not found.');
+      }
+
+      final uri = Uri.parse('$baseUrl/user/complete');
+
+      final request = http.MultipartRequest('POST', uri)
+        ..headers['Authorization'] = 'Bearer $token'
+        ..headers['Accept'] = 'application/json'
+        ..fields['firstName'] = firstName
+        ..fields['lastName'] = lastName
+        ..fields['email'] = email
+        ..fields['addressCategory'] = addressCategory.value
+        ..fields['addressLine'] = addressLine
+        ..fields['validIdType'] = validIdType.value
+        ..fields['password'] = password;
+
+      if (nickname != null && nickname.isNotEmpty) {
+        request.fields['nickname'] = nickname;
+      }
+
+      final stream = http.ByteStream(validId.openRead().cast());
+      final length = await validId.length();
+      final multipartFile = http.MultipartFile(
+        'validId',
+        stream,
+        length,
+        filename: validId.path.split('/').last,
+      );
+      request.files.add(multipartFile);
+
+      final response = await request.send();
+      final responseBody = await response.stream.bytesToString();
+
+      logger.info('Response body: $responseBody');
+
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        logger.info('Profile completed successfully.');
+        return jsonData;
+      } else {
+        logger.warning(
+          'Failed to complete profile: ${response.statusCode} $responseBody',
+        );
+        return jsonData;
+      }
+    } catch (e) {
+      logger.severe('Error to completing profile $e');
+      return {'error': e.toString()};
+    }
+  }
+
+  Future<bool?> checkIfHasPassword(String phone) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/has-password'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'phone': phone}),
+      );
+
+      final responseBody = response.body;
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonData['hasPassword'] == true;
+      } else {
+        logger.warning(
+          'Failed to checking if has password ${response.statusCode} $responseBody',
+        );
+      }
+    } catch (e) {
+      logger.severe('Error to check if has password $e');
+    }
+
+    return null;
+  }
+
+  Future<void> accessAccountByNumber(String phone) async {
+    final hasPassword = await checkIfHasPassword(phone);
+
+    if (hasPassword != null && hasPassword == true) {
+      logger.info('User has password!');
+    } else {
+      logger.info('User has no password!');
+    }
+  }
+
+  Future<Map<String, dynamic>?> login({
+    required String phone,
+    required String password,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/login'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'phone': phone, 'password': password}),
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        await storage.write(key: 'node_token', value: data['token']);
+        if (data != null) {
+          await FirebaseApiToken().saveFcmTokenToDatabase();
+        }
+        return data;
+      } else if (response.statusCode == 422) {
+        final errors = json.decode(response.body);
+        throw Exception(
+          'Validation failed: ${errors['errors']['phone']?[0] ?? 'Invalid phone number'}',
+        );
+      } else if (response.statusCode == 401) {
+        return {'token': null, 'message': 'Invalid Credentials!'};
+      }
+    } catch (e) {
+      logger.severe('Error to login $e');
     }
 
     return null;

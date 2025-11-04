@@ -3,15 +3,17 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/fcm_api_service.dart';
+import 'package:manong_application/api/feedback_api_service.dart';
 import 'package:manong_application/api/service_request_api_service.dart';
 import 'package:manong_application/api/tracking_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/payment_status.dart';
-import 'package:manong_application/models/request_status.dart';
+import 'package:manong_application/models/service_request_status.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/providers/bottom_nav_provider.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/distance_matrix.dart';
+import 'package:manong_application/utils/feedback_utils.dart';
 import 'package:manong_application/utils/notification_utils.dart';
 import 'package:manong_application/utils/permission_utils.dart';
 import 'package:manong_application/utils/snackbar_utils.dart';
@@ -19,6 +21,7 @@ import 'package:manong_application/utils/status_utils.dart';
 import 'package:manong_application/widgets/app_bar_search.dart';
 import 'package:manong_application/widgets/empty_state_widget.dart';
 import 'package:manong_application/widgets/error_state_widget.dart';
+import 'package:manong_application/widgets/input_decorations.dart';
 import 'package:manong_application/widgets/modal_icon_overlay.dart';
 import 'package:manong_application/widgets/service_request_card.dart';
 import 'package:provider/provider.dart';
@@ -59,7 +62,7 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   final int _limit = 10; // items per page
   bool _isLoadingMore = false;
   bool _hasMore = true;
-  bool? _isAdmin;
+  bool? _isManong;
   bool _isButtonLoading = false;
   ServiceRequest? _ongoingServiceRequest;
   late PermissionUtils? _permissionUtils;
@@ -67,6 +70,11 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   final ValueNotifier<int?> _highlightedId = ValueNotifier(null);
 
   final List<String> tabs = tabStatuses.keys.toList();
+  bool _hasScrolledToRequest = false;
+
+  final TextEditingController _commentController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  int _commentCount = 0;
 
   @override
   void initState() {
@@ -176,7 +184,7 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
             serviceRequestId: ongoingRequest.id.toString(),
           );
 
-          if (_isAdmin == true) {
+          if (_isManong == true) {
             _trackingApiService.startTracking(
               manongId: ongoingRequest.manongId.toString(),
               serviceRequestId: ongoingRequest.id.toString(),
@@ -186,13 +194,16 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
           _trackingApiService.onLocationUpdate((data) async {
             final lat = data['lat'];
             final lng = data['lng'];
-            final status = data['status'];
+            final statusString = data['status']?.toString() ?? '';
 
-            if (status.toString().toLowerCase() == 'completed' ||
-                status.toString().toLowerCase() == 'cancelled') {
-              _navProvider.setServiceRequestStatus(
-                status.toString().toLowerCase(),
-              );
+            final status = ServiceRequestStatus.values.firstWhere(
+              (e) => e.name.toLowerCase() == statusString.toLowerCase(),
+              orElse: () => ServiceRequestStatus.pending,
+            );
+
+            if (status == ServiceRequestStatus.completed ||
+                status == ServiceRequestStatus.cancelled) {
+              _navProvider.setServiceRequestStatus(status);
               setState(() {
                 _statusIndex = getTabIndex(status)!;
               });
@@ -221,7 +232,9 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
 
         setState(() {
           _ongoingServiceRequest = ongoingRequest;
-          _statusIndex = getTabIndex(ongoingRequest.status!)!;
+          _statusIndex = getTabIndex(
+            ongoingRequest.status ?? ServiceRequestStatus.pending,
+          )!;
         });
         _fetchServiceRequests();
       }
@@ -345,7 +358,7 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         limit: _limit,
       );
 
-      logger.info('Response $response');
+      logger.info('_fetchMoreServiceRequests $response');
 
       if (response == null) {
         setState(() => _hasMore = false);
@@ -397,6 +410,8 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         limit: _limit,
       );
 
+      logger.info('_fetchServiceRequests raw $response');
+
       if (!mounted) return;
 
       setState(() {
@@ -409,6 +424,8 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       }
 
       final requests = response['data'] as List<dynamic>?;
+
+      logger.info('_fetchServiceRequests requests $requests');
 
       if (requests == null || requests.isEmpty) {
         setState(() {
@@ -423,12 +440,14 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       }
 
       setState(() {
-        _isAdmin = response['admin'];
+        _isManong = response['isManong'];
       });
 
       final parsedRequests = requests
           .map((json) => ServiceRequest.fromJson(json as Map<String, dynamic>))
           .toList();
+
+      logger.info('_fetchServiceRequests parsed $parsedRequests');
 
       setState(() {
         if (loadMore) {
@@ -441,7 +460,10 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         if (parsedRequests.length < _limit) _hasMore = false;
       });
 
-      if (_navProvider.serviceRequestId != null) {
+      logger.info('_fetchServiceRequests _serviceRequest $_serviceRequest');
+
+      if (_navProvider.serviceRequestId != null && !_hasScrolledToRequest) {
+        _hasScrolledToRequest = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _scrollToServiceRequest(_navProvider.serviceRequestId!);
         });
@@ -473,16 +495,24 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     final tab = tabs[_statusIndex];
     final validStatuses = tabStatuses[tab] ?? [];
 
-    logger.info('Unfiltered _serviceRequest ${jsonEncode(_serviceRequest)}');
+    logger.info('Unfiltered _serviceRequest $_serviceRequest');
 
     filtered = _serviceRequest.where((req) {
-      final reqStatus = req.status?.toLowerCase() ?? '';
-      final paymentStatus = req.paymentStatus?.value.toLowerCase() ?? '';
+      final reqStatus = req.status ?? ServiceRequestStatus.pending;
+      final paymentStatus = req.paymentStatus ?? PaymentStatus.pending;
 
-      if (tab == 'To Pay' && reqStatus == 'expired') return false;
-      if (tab == 'To Pay' && reqStatus == 'cancelled') return false;
-      if (tab == 'Upcoming' && reqStatus == 'completed') return false;
-      if (tab == 'Upcoming' && reqStatus == 'inprogress') return false;
+      if (tab == 'To Pay' && reqStatus == ServiceRequestStatus.expired) {
+        return false;
+      }
+      if (tab == 'To Pay' && reqStatus == ServiceRequestStatus.cancelled) {
+        return false;
+      }
+      if (tab == 'Upcoming' && reqStatus == ServiceRequestStatus.completed) {
+        return false;
+      }
+      if (tab == 'Upcoming' && reqStatus == ServiceRequestStatus.inProgress) {
+        return false;
+      }
 
       return validStatuses.contains(reqStatus) ||
           validStatuses.contains(paymentStatus);
@@ -587,30 +617,6 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     );
   }
 
-  Future<void> _leaveAReviewDialog(BuildContext context) async {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                Image.asset('assets/icon/manong_review_icon.png'),
-                const SizedBox(height: 4),
-                Text('Leave feedback to help others and support our manongs.'),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   void _startServiceRequest(ServiceRequest serviceRequest) async {
     setState(() {
       _isButtonLoading = true;
@@ -634,7 +640,9 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
             'Service Request ${sr.status}',
           );
           if (sr.status != serviceRequest.status) {
-            _statusIndex = getTabIndex(sr.status ?? 'inprogress')!;
+            _statusIndex = getTabIndex(
+              sr.status ?? ServiceRequestStatus.pending,
+            )!;
             _fetchServiceRequests();
             _getOngoingServiceRequest();
           }
@@ -680,7 +688,10 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       final result = await Navigator.pushNamed(
         navigatorKey.currentContext!,
         '/service-request-details',
-        arguments: {'serviceRequest': serviceRequestItem, 'isAdmin': _isAdmin},
+        arguments: {
+          'serviceRequest': serviceRequestItem,
+          'isManong': _isManong,
+        },
       );
 
       if (result != null && result is Map) {
@@ -704,11 +715,11 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   }
 
   void _onStartJob(ServiceRequest serviceRequestItem) async {
-    if (_isAdmin == true && serviceRequestItem.userId != null) {
+    if (_isManong == true && serviceRequestItem.userId != null) {
       logger.info('_onStartJob ${_ongoingServiceRequest != null}');
       _startServiceRequest(serviceRequestItem);
       await NotificationUtils.sendStatusUpdateNotification(
-        status: parseRequestStatus(serviceRequestItem.status!)!,
+        status: parseRequestStatus(serviceRequestItem.status!.value)!,
         token: serviceRequestItem.user?.fcmToken ?? '',
         serviceRequestId: serviceRequestItem.id.toString(),
         userId: serviceRequestItem.userId!,
@@ -733,6 +744,12 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       builder: (context, highlightedId, child) {
         final isHighlighted = highlightedId == serviceRequestItem.id;
 
+        if (meters != null &&
+            DistanceMatrix().estimateTime(meters).toLowerCase() == 'arrived' &&
+            serviceRequestItem.status == ServiceRequestStatus.inProgress) {
+          _fetchServiceRequests();
+        }
+
         return AnimatedContainer(
           duration: const Duration(milliseconds: 600),
           curve: Curves.easeInOut,
@@ -747,11 +764,53 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
             serviceRequestItem: serviceRequestItem,
             meters: meters,
             onTap: () => _onTapServiceCard(serviceRequestItem),
-            isAdmin: _isAdmin,
-            onStartJob: serviceRequestItem.status != 'accepted'
+            isManong: _isManong,
+            onStartJob:
+                serviceRequestItem.status != ServiceRequestStatus.accepted
                 ? null
                 : () => _onStartJob(serviceRequestItem),
             isButtonLoading: _isButtonLoading,
+            onTapRate: (rating) {
+              if (serviceRequestItem.id == null ||
+                  serviceRequestItem.manongId == null) {
+                return;
+              }
+
+              if (rating <= 2) {
+                FeedbackUtils().dissastisfiedDialog(
+                  context: context,
+                  rating: rating,
+                  serviceRequestId: serviceRequestItem.id!,
+                  reveweeId: serviceRequestItem.manongId!,
+                  formKey: _formKey,
+                  commentController: _commentController,
+                  commentCount: _commentCount,
+                  onClose: () {
+                    _fetchServiceRequests();
+                  },
+                );
+                return;
+              }
+
+              FeedbackUtils().createFeedback(
+                serviceRequestId: serviceRequestItem.id!,
+                revieweeId: serviceRequestItem.manongId!,
+                rating: rating,
+              );
+            },
+            onTapReview: () {
+              FeedbackUtils().leaveAReviewDialog(
+                context: context,
+                formKey: _formKey,
+                commentController: _commentController,
+                commentCount: _commentCount,
+                serviceRequest: serviceRequestItem,
+                navProvider: _navProvider,
+                onClose: () {
+                  _fetchServiceRequests();
+                },
+              );
+            },
           ),
         );
       },
@@ -820,10 +879,8 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
 
     if (targetReq.status == null) return;
 
-    final int? targetTabIndex = getTabIndex(targetReq.paymentStatus!.value);
-    logger.info(
-      'targetTabIndex $targetTabIndex ${targetReq.paymentStatus?.value}',
-    );
+    final int? targetTabIndex = getTabIndex(targetReq.status);
+    logger.info('targetTabIndex $targetTabIndex ${targetReq.status?.value}');
     if (targetTabIndex == null) {
       logger.warning(
         'Unknown status ${targetReq.status} for request $requestId',

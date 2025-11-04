@@ -8,6 +8,7 @@ import 'package:manong_application/api/urgency_level_api_service.dart';
 import 'package:manong_application/api/user_payment_method_api_service.dart';
 import 'package:manong_application/constants/steps_labels.dart';
 import 'package:manong_application/main.dart';
+import 'package:manong_application/models/account_status.dart';
 import 'package:manong_application/models/app_step_flows.dart';
 import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/models/payment_method.dart';
@@ -168,6 +169,14 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
   }
 
   void _findAvailableManongs() async {
+    if (user?.status == AccountStatus.onHold ||
+        user?.status == AccountStatus.pending) {
+      SnackBarUtils.showWarning(
+        navigatorKey.currentContext!,
+        'Account on hold. Please wait before you can use our services.',
+      );
+    }
+
     if (!_formKey.currentState!.validate()) {
       return;
     }

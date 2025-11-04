@@ -127,7 +127,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             arguments: {
               'index': 1,
               'serviceRequestStatusIndex': data.paymentStatus?.index != null
-                  ? (getTabIndex(data.paymentStatus!.value)!)
+                  ? (getTabIndex(data.paymentStatus!)!)
                   : null,
             },
           );
@@ -142,7 +142,7 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
               arguments: {
                 'index': 1,
                 'serviceRequestStatusIndex': sr.paymentStatus != null
-                    ? (getTabIndex(sr.paymentStatus!.value))
+                    ? (getTabIndex(sr.paymentStatus!))
                     : null,
               },
             );
@@ -281,11 +281,18 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             iconCard(
               iconColor: colorFromHex(_serviceRequest!.serviceItem!.iconColor),
               iconName: _serviceRequest!.subServiceItem?.iconName ?? '',
+              iconTextColor: colorFromHex(
+                _serviceRequest!.serviceItem!.iconTextColor,
+              ),
             ),
             const SizedBox(width: 12),
-            Text(
-              _serviceRequest!.subServiceItem?.title ?? '',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            Expanded(
+              child: Text(
+                _serviceRequest!.subServiceItem?.title ?? '',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
             ),
           ],
         ),
@@ -416,6 +423,8 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                       Text(
                         _serviceRequest!.customerFullAddress ?? '',
                         softWrap: true,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),

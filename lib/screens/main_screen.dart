@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/tracking_api_service.dart';
+import 'package:manong_application/main.dart';
+import 'package:manong_application/models/app_user.dart';
+import 'package:manong_application/models/service_request_status.dart';
 import 'package:manong_application/providers/bottom_nav_provider.dart';
 import 'package:manong_application/screens/home/home_screen.dart';
 import 'package:manong_application/screens/profile/profile_screen.dart';
@@ -31,12 +34,14 @@ class _MainScreenState extends State<MainScreen> {
   final Logger logger = Logger('MainScreen');
   final AuthService _authService = AuthService();
   final PageController _pageController = PageController();
+  String? _error;
   bool _isLoading = true;
   late TrackingApiService _trackingApiService;
   late int? _index;
   late int? _serviceRequestStatusIndex;
   late int? _serviceRequestId;
   late BottomNavProvider? _navProvider;
+  AppUser? _user;
 
   final List<Widget> _pages = const [
     HomeScreen(),
@@ -49,6 +54,7 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _initializeComponents();
     _loadToken();
+    _getProfile();
   }
 
   void _initializeComponents() {
@@ -107,6 +113,59 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  Future<void> _getProfile() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final response = await AuthService().getMyProfile();
+
+      if (!mounted) return;
+
+      setState(() {
+        _user = response;
+      });
+
+      logger.info('User main_screen $_user');
+
+      if (_user?.givenFeedbacks != null && _user!.givenFeedbacks!.isNotEmpty) {
+        if (_user!.givenFeedbacks![0].serviceRequest?.status ==
+            ServiceRequestStatus.completed) {
+          _navProvider?.setHasNoFeedback(false);
+        } else {
+          logger.info('Has givenFeedbacks but status not completed');
+        }
+      } else {
+        if (_user?.userRequests != null &&
+            _user!.userRequests!.isNotEmpty &&
+            _user!.userRequests![0].status == ServiceRequestStatus.completed) {
+          final now = DateTime.now();
+          final difference = now
+              .difference(_user!.userRequests![0].createdAt!)
+              .inDays;
+
+          if (difference >= 0 && difference <= 7) {
+            _navProvider?.setHasNoFeedback(true);
+          }
+        } else {
+          _navProvider?.setHasNoFeedback(false);
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+      logger.severe('Error getting profile _mainScreen $_error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -115,7 +174,7 @@ class _MainScreenState extends State<MainScreen> {
       body: _token != null
           ? Consumer<BottomNavProvider>(
               builder: (context, navProvider, _) {
-                logger.info('navProvider.isAdmin ${navProvider.isAdmin}');
+                logger.info('navProvider.isManong ${navProvider.isManong}');
 
                 return BottomNavSwipe(
                   pages: _pages,
@@ -132,7 +191,7 @@ class _MainScreenState extends State<MainScreen> {
                   },
                   serviceRequest: navProvider.ongoingServiceRequest,
                   serviceRequestMessage: navProvider.serviceRequestMessage,
-                  isAdmin: navProvider.isAdmin,
+                  isManong: navProvider.isManong,
                   serviceRequestStatus: navProvider.serviceRequestStatus,
                   onTapContainer: () {
                     Navigator.pushNamed(
@@ -140,7 +199,7 @@ class _MainScreenState extends State<MainScreen> {
                       '/service-request-details',
                       arguments: {
                         'serviceRequest': navProvider.ongoingServiceRequest,
-                        'isAdmin': navProvider.isAdmin,
+                        'isManong': navProvider.isManong,
                         'manongLatLng':
                             _trackingApiService.manongLatLngNotifier.value,
                       },
@@ -148,6 +207,21 @@ class _MainScreenState extends State<MainScreen> {
                   },
                   manongArrived: navProvider.manongArrived,
                   serviceRequestIsExpired: navProvider.serviceRequestIsExpired,
+                  user: _user,
+                  hasNoFeedback: navProvider.hasNoFeedback,
+                  onTapCompleteProfile: () async {
+                    final result = await Navigator.pushNamed(
+                      navigatorKey.currentContext!,
+                      '/complete-profile',
+                    );
+
+                    if (result != null && result is Map) {
+                      if (result['update'] == true) {
+                        _getProfile();
+                      }
+                    }
+                  },
+                  navProvider: navProvider,
                 );
               },
             )

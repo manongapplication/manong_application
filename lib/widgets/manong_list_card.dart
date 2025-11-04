@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:iconify_design/iconify_design.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/sub_service_item.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/color_utils.dart';
-import 'package:manong_application/utils/icon_mapper.dart';
 
 class ManongListCard extends StatelessWidget {
   final Manong manong;
@@ -48,11 +48,19 @@ class ManongListCard extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(getIconFromName(item.subServiceItem.iconName)),
+                IconifyIcon(
+                  icon: item.subServiceItem.iconName,
+                  size: 24,
+                  color: Colors.grey.shade800,
+                ),
                 SizedBox(width: 4),
-                Text(
-                  item.subServiceItem.title,
-                  style: TextStyle(fontSize: 12, color: Colors.black87),
+                Flexible(
+                  child: Text(
+                    item.subServiceItem.title,
+                    style: const TextStyle(fontSize: 12, color: Colors.black87),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis, // <-- truncate long text
+                  ),
                 ),
               ],
             ),
@@ -85,60 +93,65 @@ class ManongListCard extends StatelessWidget {
                     return SafeArea(
                       child: Padding(
                         padding: const EdgeInsets.all(16),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "More Specialities",
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: remaining.map((item) {
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 4,
+                        child: Scrollbar(
+                          thumbVisibility: true,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.vertical,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "More Specialities",
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        item.subServiceItem.title.contains(
-                                          subServiceItem?.title ?? "",
-                                        )
-                                        ? Colors.amber.withOpacity(0.7)
-                                        : iconColor.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        getIconFromName(
-                                          item.subServiceItem.iconName,
-                                        ),
-                                        size: 14,
+                                ),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: remaining.map((item) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 4,
                                       ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        item.subServiceItem.title,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.black87,
-                                        ),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            item.subServiceItem.title.contains(
+                                              subServiceItem?.title ?? "",
+                                            )
+                                            ? Colors.amber.withOpacity(0.7)
+                                            : iconColor.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconifyIcon(
+                                            icon: item.subServiceItem.iconName,
+                                            size: 24,
+                                            color: Colors.grey.shade800,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            item.subServiceItem.title,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
                             ),
-                            const SizedBox(height: 16),
-                          ],
+                          ),
                         ),
                       ),
                     );

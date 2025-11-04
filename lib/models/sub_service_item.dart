@@ -1,3 +1,5 @@
+import 'package:manong_application/models/service_item_status.dart';
+
 class SubServiceItem {
   final int id;
   final String title;
@@ -6,7 +8,7 @@ class SubServiceItem {
   final double? cost;
   final double? fee;
   final double gross;
-  final bool isActive;
+  final ServiceItemStatus status;
 
   SubServiceItem({
     required this.id,
@@ -16,7 +18,7 @@ class SubServiceItem {
     this.cost,
     this.fee,
     required this.gross,
-    required this.isActive,
+    required this.status,
   });
 
   factory SubServiceItem.fromJson(Map<String, dynamic> json) {
@@ -28,7 +30,10 @@ class SubServiceItem {
       cost: json['cost'] != null ? double.tryParse(json['cost']) ?? 0 : 0,
       fee: json['fee'] != null ? double.tryParse(json['fee']) ?? 0 : 0,
       gross: json['gross'] != null ? double.tryParse(json['gross']) ?? 0 : 0,
-      isActive: json['isActive'],
+      status: ServiceItemStatus.values.firstWhere(
+        (e) => e.name == json['status'].toString(),
+        orElse: () => ServiceItemStatus.inactive,
+      ),
     );
   }
 }

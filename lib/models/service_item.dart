@@ -1,3 +1,4 @@
+import 'package:manong_application/models/service_item_status.dart';
 import 'package:manong_application/models/sub_service_item.dart';
 
 class ServiceItem {
@@ -9,7 +10,8 @@ class ServiceItem {
   final double ratePerKm;
   final String iconName;
   final String iconColor;
-  final bool isActive;
+  final String iconTextColor;
+  final ServiceItemStatus status;
   final DateTime? updatedAt;
   final List<SubServiceItem> subServiceItems;
 
@@ -22,7 +24,8 @@ class ServiceItem {
     required this.ratePerKm,
     this.iconName = 'handyman',
     this.iconColor = '#3B82F6',
-    required this.isActive,
+    this.iconTextColor = '#FFFFFF',
+    required this.status,
     this.updatedAt,
     this.subServiceItems = const [],
   });
@@ -43,7 +46,11 @@ class ServiceItem {
           : 0,
       iconName: json['iconName'] ?? 'handyman',
       iconColor: json['iconColor'] ?? '#3B82F6',
-      isActive: json['isActive'] == 1 || json['isActive'] == true,
+      iconTextColor: json['iconTextColor'] ?? '#FFFFFF',
+      status: ServiceItemStatus.values.firstWhere(
+        (e) => e.name == json['status'].toString(),
+        orElse: () => ServiceItemStatus.inactive,
+      ),
       updatedAt: json['updatedAt'] != null
           ? DateTime.parse(json['updatedAt'])
           : null,

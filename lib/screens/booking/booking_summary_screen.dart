@@ -215,7 +215,12 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
   Widget _buildManongDetails() {
     return CardContainer(
       children: [
-        ManongListCard(manong: _manong, iconColor: Colors.blue, onTap: () {}),
+        ManongListCard(
+          manong: _manong,
+          iconColor: Colors.blue,
+          subServiceItem: serviceRequest.subServiceItem,
+          onTap: () {},
+        ),
       ],
     );
   }

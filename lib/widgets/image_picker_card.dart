@@ -99,15 +99,52 @@ class _ImagePickerState extends State<ImagePickerCard> {
     );
   }
 
+  Future<void> _onSelectImageSource() async {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Take a photo'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from gallery'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _pickImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.cancel),
+                title: const Text('Cancel'),
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Material(
       color: AppColorScheme.primaryLight,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: () => _images.length >= maxImages
-            ? null
-            : _pickImage(ImageSource.gallery),
+        onTap: () =>
+            _images.length >= maxImages ? null : _onSelectImageSource(),
         child: SizedBox(
           width: double.infinity,
           child: _images.isNotEmpty

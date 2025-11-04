@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:manong_application/main.dart';
-import 'package:manong_application/models/request_status.dart';
+import 'package:manong_application/models/service_request_status.dart';
 import 'package:manong_application/models/user_notification.dart';
 import 'package:manong_application/utils/color_utils.dart';
 
@@ -17,24 +17,21 @@ class NotificationCard extends StatelessWidget {
 
   Widget _buildData(String data) {
     final jsonData = jsonDecode(data);
-    final String? paymentStatus = jsonData['paymentStatus'];
+    final String? status = jsonData['status'];
 
     return Row(
       children: [
-        if (paymentStatus != null) ...[
+        if (status != null) ...[
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: getStatusColor(paymentStatus).withOpacity(0.1),
+              color: getStatusColor(status).withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: getStatusBorderColor(paymentStatus),
-                width: 1,
-              ),
+              border: Border.all(color: getStatusBorderColor(status), width: 1),
             ),
             child: Text(
-              parseRequestStatus(paymentStatus)?.readable ?? '',
-              style: TextStyle(color: getStatusBorderColor(paymentStatus)),
+              parseRequestStatus(status)?.readable ?? '',
+              style: TextStyle(color: getStatusBorderColor(status)),
             ),
           ),
         ],

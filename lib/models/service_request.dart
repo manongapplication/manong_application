@@ -6,8 +6,10 @@ import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/payment_method.dart';
 import 'package:manong_application/models/payment_status.dart';
 import 'package:manong_application/models/service_item.dart';
+import 'package:manong_application/models/service_request_status.dart';
 import 'package:manong_application/models/sub_service_item.dart';
 import 'package:manong_application/models/urgency_level.dart';
+import 'package:manong_application/models/user_feedback.dart';
 
 class ServiceRequest {
   final int? id;
@@ -26,8 +28,7 @@ class ServiceRequest {
   final double customerLng;
 
   final String? notes;
-  final int? rating;
-  final String? status;
+  final ServiceRequestStatus? status;
   final double? total;
   final PaymentStatus? paymentStatus;
   final String? paymentTransactionId;
@@ -40,6 +41,7 @@ class ServiceRequest {
   final Manong? manong;
   final PaymentMethod? paymentMethod;
   final List<Chat>? messages;
+  final UserFeedback? feedback;
 
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -63,7 +65,6 @@ class ServiceRequest {
     required this.customerLng,
 
     this.notes,
-    this.rating,
     this.status,
     this.total,
     this.paymentStatus,
@@ -77,6 +78,7 @@ class ServiceRequest {
     this.manong,
     this.paymentMethod,
     this.messages,
+    this.feedback,
 
     this.createdAt,
     this.updatedAt,
@@ -118,8 +120,10 @@ class ServiceRequest {
           : double.tryParse(json['customerLng'].toString()) ?? 0.0,
 
       notes: json['notes'],
-      rating: json['rating'],
-      status: json['status'],
+      status: ServiceRequestStatus.values.firstWhere(
+        (e) => e.name == json['status'].toString(),
+        orElse: () => ServiceRequestStatus.pending,
+      ),
       total: json['total'] != null ? double.tryParse(json['total']) : null,
       paymentStatus: PaymentStatus.values.firstWhere(
         (e) => e.name == json['paymentStatus'].toString(),
@@ -147,6 +151,10 @@ class ServiceRequest {
                 .map((e) => Chat.fromJson(Map<String, dynamic>.from(e as Map)))
                 .toList()
           : [],
+
+      feedback: json['feedback'] != null
+          ? UserFeedback.fromJson(json['feedback'])
+          : null,
 
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'].toString())
@@ -176,7 +184,6 @@ class ServiceRequest {
       'customerLat': customerLat,
       'customerLng': customerLng,
       'notes': notes,
-      'rating': rating,
     };
   }
 
@@ -195,7 +202,6 @@ class ServiceRequest {
         'customerLat: $customerLat, '
         'customerLng: $customerLng, '
         'notes: $notes, '
-        'rating: $rating, '
         'status: $status, '
         'total: $total, '
         'paymentStatus: $paymentStatus, '

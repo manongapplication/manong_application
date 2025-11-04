@@ -1,3 +1,6 @@
+import 'package:manong_application/models/payment_status.dart';
+import 'package:manong_application/models/service_request_status.dart';
+
 String getStatusWithManongText(String manongName, String status) {
   String readableStatus;
   switch (status) {
@@ -66,21 +69,25 @@ String getStatusText(String status) {
   return readableStatus;
 }
 
-const Map<String, List<String>> tabStatuses = {
-  'To Pay': ['unpaid', 'pending'],
-  'Upcoming': ['accepted', 'paid', 'awaitingAcceptance'],
-  'In Progress': ['inprogress'],
-  'Completed': ['completed'],
-  'Closed': ['cancelled', 'expired'],
+final Map<String, List<dynamic>> tabStatuses = {
+  'To Pay': [
+    PaymentStatus.unpaid,
+    PaymentStatus.pending,
+    ServiceRequestStatus.pending,
+  ],
+  'Upcoming': [
+    ServiceRequestStatus.awaitingAcceptance,
+    ServiceRequestStatus.accepted,
+    PaymentStatus.paid,
+  ],
+  'In Progress': [ServiceRequestStatus.inProgress],
+  'Completed': [ServiceRequestStatus.completed],
+  'Closed': [ServiceRequestStatus.cancelled, ServiceRequestStatus.expired],
 };
 
-int? getTabIndex(String status) {
-  final entries = tabStatuses.entries.toList();
-
-  for (int i = 0; i < entries.length; i++) {
-    if (entries[i].value.contains(status)) {
-      return i;
-    }
+int? getTabIndex(dynamic status) {
+  for (int i = 0; i < tabStatuses.length; i++) {
+    if (tabStatuses.values.elementAt(i).contains(status)) return i;
   }
   return null;
 }

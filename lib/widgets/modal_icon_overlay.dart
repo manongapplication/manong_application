@@ -5,11 +5,13 @@ class ModalIconOverlay extends StatelessWidget {
   final VoidCallback onPressed;
   final IconData icons;
   final String description;
+  final String? text;
   const ModalIconOverlay({
     super.key,
     required this.onPressed,
     required this.icons,
     required this.description,
+    this.text,
   });
   @override
   Widget build(BuildContext context) {
@@ -32,7 +34,7 @@ class ModalIconOverlay extends StatelessWidget {
               foregroundColor: Colors.white,
             ),
             onPressed: onPressed,
-            child: const Text('Grant Permission'),
+            child: Text(text ?? 'Grant Permission'),
           ),
         ],
       ),
