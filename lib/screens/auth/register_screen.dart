@@ -140,9 +140,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
 
       try {
-        final response = await authService.sendVerificationTwilio(
-          phone?.completeNumber ?? '',
-        );
+        await authService.sendVerificationTwilio(phone?.completeNumber ?? '');
 
         if (!mounted) return;
 

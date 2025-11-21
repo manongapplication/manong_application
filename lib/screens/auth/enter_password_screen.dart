@@ -23,6 +23,7 @@ class _EnterPasswordScreenState extends State<EnterPasswordScreen> {
   bool _isLoading = false;
   String? _error;
   late String? _phone;
+  final authService = AuthService();
 
   @override
   void initState() {
@@ -45,11 +46,6 @@ class _EnterPasswordScreenState extends State<EnterPasswordScreen> {
 
         if (response != null) {
           if (response['token'] != null) {
-            SnackBarUtils.showSuccess(
-              navigatorKey.currentContext!,
-              'Logged in!',
-            );
-
             Navigator.pushNamedAndRemoveUntil(
               navigatorKey.currentContext!,
               '/',
@@ -79,74 +75,145 @@ class _EnterPasswordScreenState extends State<EnterPasswordScreen> {
     }
   }
 
+  void _forgotPassword() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    if (_phone == null) {
+      setState(() => _isLoading = false);
+      SnackBarUtils.showWarning(context, 'Phone number cannot be empty');
+      return;
+    }
+
+    try {
+      await authService.sendVerificationTwilio(_phone ?? '');
+
+      if (!mounted) return;
+
+      SnackBarUtils.showInfo(
+        context,
+        'We\'ve sent a 6-digit code to your phone. Enter it below to verify your number.',
+      );
+
+      Navigator.pushNamed(
+        context,
+        '/verify',
+        arguments: {
+          'authService': authService,
+          'phoneNumber': _phone,
+          'isPasswordReset': true,
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      final errorMessage = e.toString().contains('blocked')
+          ? 'This number prefix is temporarily blocked. Please try a different number.'
+          : 'Failed to send code: $e';
+
+      SnackBarUtils.showError(context, errorMessage);
+
+      setState(() {
+        _error = errorMessage;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildForm() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 20),
+            const Text(
+              "Password",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 12),
+            Stack(
+              children: [
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: _obscureText,
+                  enabled: !_isLoading,
+                  decoration: inputDecoration(
+                    'Enter your password',
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureText ? Icons.visibility_off : Icons.visibility,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscureText = !_obscureText;
+                        });
+                      },
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Password cannot be empty';
+                    }
+                    return null;
+                  },
+                ),
+
+                if (_isLoading) ...[
+                  Positioned(
+                    top: 4,
+                    right: 0,
+                    left: 0,
+                    child: Container(
+                      color: Colors.white.withOpacity(0.8),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: AppColorScheme.primaryColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 14),
+            GestureDetector(
+              onTap: _forgotPassword,
+              child: Text(
+                'Forgot password?',
+                style: TextStyle(
+                  color: Colors.blue,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildState() {
+    return _buildForm();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: myAppBar(title: 'Enter Password'),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              const Text(
-                "Password",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 12),
-              Stack(
-                children: [
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscureText,
-                    enabled: !_isLoading,
-                    decoration: inputDecoration(
-                      'Enter your password',
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureText
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscureText = !_obscureText;
-                          });
-                        },
-                      ),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Password cannot be empty';
-                      }
-                      return null;
-                    },
-                  ),
-
-                  if (_isLoading) ...[
-                    Positioned(
-                      top: 4,
-                      right: 0,
-                      left: 0,
-                      child: Container(
-                        color: Colors.white.withOpacity(0.8),
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: AppColorScheme.primaryColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+      body: _buildState(),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16.0),

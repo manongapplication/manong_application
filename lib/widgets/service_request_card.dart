@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/payment_status.dart';
+import 'package:manong_application/models/refund_status.dart';
 import 'package:manong_application/models/service_request_status.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/theme/colors.dart';
@@ -60,8 +61,87 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
         : 'Rate this service';
   }
 
+  void _updateRatingDialog(int oldRating) {
+    showDialog(
+      context: navigatorKey.currentContext!,
+      builder: (context) {
+        return WillPopScope(
+          onWillPop: () async {
+            setState(() {
+              _selectedRating = oldRating;
+            });
+            return true;
+          },
+          child: AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            content: const Text(
+              'Update your rating? This will replace the previous one.',
+            ),
+            actions: <Widget>[
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: Colors.black),
+                onPressed: () {
+                  setState(() {
+                    _selectedRating = oldRating;
+                  });
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  FeedbackUtils().createFeedback(
+                    serviceRequestId: widget.serviceRequestItem.id!,
+                    revieweeId: widget.serviceRequestItem.manongId!,
+                    rating: _selectedRating,
+                    comment: '',
+                  );
+                  Navigator.of(context).pop();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColorScheme.primaryColor,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Update'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _onTapRatings(int index) {
+    final oldRating = _selectedRating;
+    setState(() {
+      _selectedRating = index + 1;
+    });
+
+    if (oldRating > 0) {
+      _updateRatingDialog(oldRating);
+      return;
+    }
+
+    setState(() {
+      _rateText = 'Thank you for rating!';
+    });
+
+    if (_onTapRate != null) {
+      _onTapRate!(_selectedRating);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasRefundRequest =
+        widget.serviceRequestItem.refundRequests != null &&
+        widget.serviceRequestItem.refundRequests!.isNotEmpty &&
+        widget.serviceRequestItem.paymentStatus != PaymentStatus.refunded &&
+        widget.serviceRequestItem.refundRequests!.last.status !=
+            RefundStatus.approved;
     final serviceItemTitle =
         widget.serviceRequestItem.serviceItem?.title ?? 'Unknown Service';
     // final serviceItemDate = widget.serviceRequestItem.createdAt;
@@ -98,7 +178,7 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
         0;
 
     return Card(
-      color: status == 'inprogress'
+      color: status == 'inProgress'
           ? AppColorScheme.primaryLight
           : status == 'expired'
           ? const Color.fromARGB(255, 240, 199, 199)
@@ -108,8 +188,11 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: status == 'inprogress'
-              ? AppColorScheme.orangeAccent
+          color: status == 'inProgress'
+              ? (widget.serviceRequestItem.refundRequests != null &&
+                        widget.serviceRequestItem.refundRequests!.isNotEmpty)
+                    ? Colors.deepPurple
+                    : AppColorScheme.orangeAccent
               : status == 'expired'
               ? Colors.redAccent
               : AppColorScheme.backgroundGrey,
@@ -150,6 +233,35 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColorScheme.primaryLight.withOpacity(
+                                0.5,
+                              ),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: AppColorScheme.primaryColor.withOpacity(
+                                  0.3,
+                                ),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Text(
+                              widget.serviceRequestItem.requestNumber ?? 'N/A',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: AppColorScheme.primaryDark,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
                           ),
                           const SizedBox(height: 4),
 
@@ -210,6 +322,9 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
                                           finalStatus,
                                         ),
                                         fontWeight: FontWeight.w500,
+                                        decoration: hasRefundRequest
+                                            ? TextDecoration.lineThrough
+                                            : TextDecoration.none,
                                       ),
                                     ),
                                   ),
@@ -221,6 +336,50 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
                                 // ],
                               ],
                             ),
+
+                            if (hasRefundRequest) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      color: getStatusColor(
+                                        'refunding',
+                                      ).withOpacity(0.1),
+                                      border: Border.all(
+                                        color: getStatusBorderColor(
+                                          'refunding',
+                                        ),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        'Refund Requested. 1-2 business day',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: getStatusBorderColor(
+                                            'refunding',
+                                          ),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  // if (widget.isManong == true) ...[
+                                  //   const SizedBox(width: 4),
+                                  //   Icon(Icons.edit, color: Colors.grey.shade700),
+                                  // ],
+                                ],
+                              ),
+                            ],
 
                             if (widget.serviceRequestItem.paymentStatus !=
                                 null) ...[
@@ -459,103 +618,7 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
                                 child: GestureDetector(
                                   onTap: widget.isManong == true
                                       ? null
-                                      : () {
-                                          final oldRating = _selectedRating;
-                                          setState(() {
-                                            _selectedRating = index + 1;
-                                          });
-
-                                          if (_selectedRating > 0 &&
-                                              _selectedRating > 2) {
-                                            showDialog(
-                                              context:
-                                                  navigatorKey.currentContext!,
-                                              builder: (context) {
-                                                return WillPopScope(
-                                                  onWillPop: () async {
-                                                    setState(() {
-                                                      _selectedRating =
-                                                          oldRating;
-                                                    });
-                                                    return true;
-                                                  },
-                                                  child: AlertDialog(
-                                                    backgroundColor:
-                                                        Colors.white,
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            12,
-                                                          ),
-                                                    ),
-                                                    content: const Text(
-                                                      'Update your rating? This will replace the previous one.',
-                                                    ),
-                                                    actions: <Widget>[
-                                                      TextButton(
-                                                        style:
-                                                            TextButton.styleFrom(
-                                                              foregroundColor:
-                                                                  Colors.black,
-                                                            ),
-                                                        onPressed: () {
-                                                          setState(() {
-                                                            _selectedRating =
-                                                                oldRating;
-                                                          });
-                                                          Navigator.of(
-                                                            context,
-                                                          ).pop();
-                                                        },
-                                                        child: const Text(
-                                                          'Cancel',
-                                                        ),
-                                                      ),
-                                                      ElevatedButton(
-                                                        onPressed: () {
-                                                          FeedbackUtils().createFeedback(
-                                                            serviceRequestId: widget
-                                                                .serviceRequestItem
-                                                                .id!,
-                                                            revieweeId: widget
-                                                                .serviceRequestItem
-                                                                .manongId!,
-                                                            rating:
-                                                                _selectedRating,
-                                                            comment: '',
-                                                          );
-                                                          Navigator.of(
-                                                            context,
-                                                          ).pop();
-                                                        },
-                                                        style: ElevatedButton.styleFrom(
-                                                          backgroundColor:
-                                                              AppColorScheme
-                                                                  .primaryColor,
-                                                          foregroundColor:
-                                                              Colors.white,
-                                                        ),
-                                                        child: const Text(
-                                                          'Update',
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                );
-                                              },
-                                            );
-
-                                            return;
-                                          }
-
-                                          setState(() {
-                                            _rateText = 'Thank you for rating!';
-                                          });
-
-                                          if (_onTapRate != null) {
-                                            _onTapRate!(_selectedRating);
-                                          }
-                                        },
+                                      : () => _onTapRatings(index),
                                   child: Icon(
                                     index < _selectedRating
                                         ? Icons.star

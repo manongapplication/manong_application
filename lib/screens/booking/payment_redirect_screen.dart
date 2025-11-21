@@ -272,7 +272,10 @@ class _PaymentRedirectScreenState extends State<PaymentRedirectScreen>
                 style: TextStyle(fontSize: 18),
               ),
             ] else ...[
-              if (_serviceRequest?.paymentRedirectUrl != null) ...[
+              if (_serviceRequest
+                      ?.paymentTransactions?[0]
+                      .metadata?['paymentRedirectUrl'] !=
+                  null) ...[
                 SizedBox(
                   width: 120,
                   height: 120,
@@ -302,7 +305,11 @@ class _PaymentRedirectScreenState extends State<PaymentRedirectScreen>
       if (!(_isExpired!)) {
         if (_serviceRequest?.paymentStatus != null) {
           if (_serviceRequest?.paymentStatus != PaymentStatus.paid) {
-            launchInBrowser(_serviceRequest?.paymentRedirectUrl);
+            launchInBrowser(
+              _serviceRequest
+                  ?.paymentTransactions?[0]
+                  .metadata?['paymentRedirectUrl'],
+            );
           } else {
             await _goToServiceRequestScreenPending(
               _serviceRequest!.paymentStatus!,

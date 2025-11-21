@@ -7,6 +7,7 @@ enum ServiceRequestStatus {
   cancelled,
   pending,
   expired,
+  refunding,
 }
 
 class StatusUpdateMessage {
@@ -82,6 +83,8 @@ StatusUpdateMessage getStatusUpdate(ServiceRequestStatus status) {
         'Expired',
         'Your request has now expired.',
       );
+    case ServiceRequestStatus.refunding:
+      return const StatusUpdateMessage('Expired', 'Your request is refunding.');
   }
 }
 
@@ -106,6 +109,8 @@ extension RequestStatusExtension on ServiceRequestStatus {
         return 'Pending';
       case ServiceRequestStatus.expired:
         return 'Expired';
+      case ServiceRequestStatus.refunding:
+        return 'Refunding';
     }
   }
 

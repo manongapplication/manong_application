@@ -3,8 +3,11 @@ import 'dart:io';
 import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/models/chat.dart';
 import 'package:manong_application/models/manong.dart';
+import 'package:manong_application/models/manong_report.dart';
 import 'package:manong_application/models/payment_method.dart';
 import 'package:manong_application/models/payment_status.dart';
+import 'package:manong_application/models/payment_transaction.dart';
+import 'package:manong_application/models/refund_request.dart';
 import 'package:manong_application/models/service_item.dart';
 import 'package:manong_application/models/service_request_status.dart';
 import 'package:manong_application/models/sub_service_item.dart';
@@ -13,6 +16,7 @@ import 'package:manong_application/models/user_feedback.dart';
 
 class ServiceRequest {
   final int? id;
+  final String? requestNumber;
   final int serviceItemId;
   final int? subServiceItemId;
   final int? paymentMethodId;
@@ -31,8 +35,6 @@ class ServiceRequest {
   final ServiceRequestStatus? status;
   final double? total;
   final PaymentStatus? paymentStatus;
-  final String? paymentTransactionId;
-  final String? paymentRedirectUrl;
 
   final ServiceItem? serviceItem;
   final SubServiceItem? subServiceItem;
@@ -42,6 +44,9 @@ class ServiceRequest {
   final PaymentMethod? paymentMethod;
   final List<Chat>? messages;
   final UserFeedback? feedback;
+  final List<PaymentTransaction>? paymentTransactions;
+  final List<RefundRequest>? refundRequests;
+  final ManongReport? manongReport;
 
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -50,6 +55,7 @@ class ServiceRequest {
 
   ServiceRequest({
     this.id,
+    this.requestNumber,
     required this.serviceItemId,
     this.subServiceItemId,
     this.paymentMethodId,
@@ -68,8 +74,6 @@ class ServiceRequest {
     this.status,
     this.total,
     this.paymentStatus,
-    this.paymentTransactionId,
-    this.paymentRedirectUrl,
 
     this.serviceItem,
     this.subServiceItem,
@@ -79,6 +83,9 @@ class ServiceRequest {
     this.paymentMethod,
     this.messages,
     this.feedback,
+    this.paymentTransactions,
+    this.refundRequests,
+    this.manongReport,
 
     this.createdAt,
     this.updatedAt,
@@ -89,6 +96,7 @@ class ServiceRequest {
   factory ServiceRequest.fromJson(Map<String, dynamic> json) {
     return ServiceRequest(
       id: json['id'] != null ? json['id'] as int : null,
+      requestNumber: json['requestNumber'],
       serviceItemId: int.tryParse(json['serviceItemId'].toString()) ?? 0,
       subServiceItemId: json['subServiceItemId'] != null
           ? int.tryParse(json['subServiceItemId'].toString())
@@ -129,8 +137,6 @@ class ServiceRequest {
         (e) => e.name == json['paymentStatus'].toString(),
         orElse: () => PaymentStatus.unpaid,
       ),
-      paymentTransactionId: json['paymentTransactionId'],
-      paymentRedirectUrl: json['paymentRedirectUrl'],
       serviceItem: json['serviceItem'] != null
           ? ServiceItem.fromJson(json['serviceItem'])
           : null,
@@ -154,6 +160,21 @@ class ServiceRequest {
 
       feedback: json['feedback'] != null
           ? UserFeedback.fromJson(json['feedback'])
+          : null,
+
+      paymentTransactions: json['paymentTransactions'] != null
+          ? (json['paymentTransactions'] as List<dynamic>?)
+                ?.map((e) => PaymentTransaction.fromJson(e))
+                .toList()
+          : [],
+
+      refundRequests: json['refundRequests'] != null
+          ? (json['refundRequests'] as List<dynamic>)
+                .map((e) => RefundRequest.fromJson(e as Map<String, dynamic>))
+                .toList()
+          : null,
+      manongReport: json['manongReport'] != null
+          ? ManongReport.fromJson(json['manongReport'])
           : null,
 
       createdAt: json['createdAt'] != null
@@ -205,8 +226,6 @@ class ServiceRequest {
         'status: $status, '
         'total: $total, '
         'paymentStatus: $paymentStatus, '
-        'paymentTransactionId: $paymentTransactionId, '
-        'paymentRedirectUrl: $paymentRedirectUrl, '
         'serviceItem: $serviceItem, '
         'subServiceItem: $subServiceItem, '
         'urgencyLevel: $urgencyLevel, '

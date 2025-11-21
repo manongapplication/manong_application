@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/fcm_api_service.dart';
+import 'package:manong_application/api/user_notification_api_service.dart';
 import 'package:manong_application/models/service_request_status.dart';
 
 class NotificationUtils {
@@ -27,6 +28,14 @@ class NotificationUtils {
     } catch (e) {
       logger.severe('Error sending status update notification ${e.toString()}');
       rethrow;
+    }
+  }
+
+  static Future<void> seenAll() async {
+    try {
+      await UserNotificationApiService().seenAllNotification();
+    } catch (e) {
+      logger.info('Error seen all notifications ${e.toString()}');
     }
   }
 }

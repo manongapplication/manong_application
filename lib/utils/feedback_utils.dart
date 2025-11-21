@@ -93,6 +93,20 @@ class FeedbackUtils {
                               rating = index + 1;
                               errorRating = null;
                             });
+
+                            if (rating <= 2) {
+                              dissastisfiedDialog(
+                                context: context,
+                                rating: rating,
+                                serviceRequestId: serviceRequest.id!,
+                                reveweeId: serviceRequest.manongId!,
+                                formKey: formKey,
+                                commentController: commentController,
+                                commentCount: commentCount,
+                                onClose: () => onClose,
+                              );
+                              return;
+                            }
                           },
                           child: Icon(
                             index < rating ? Icons.star : Icons.star_border,

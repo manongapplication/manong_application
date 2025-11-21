@@ -10,6 +10,8 @@ String getStatusWithManongText(String manongName, String status) {
     case 'accepted':
       readableStatus = 'Accepted';
       break;
+    case 'ongoing':
+      readableStatus = 'Ongoing';
     case 'inprogress':
       readableStatus = 'Ongoing';
       break;
@@ -24,6 +26,8 @@ String getStatusWithManongText(String manongName, String status) {
       break;
     case 'expired':
       readableStatus = 'Expired';
+    case 'refunding':
+      readableStatus = 'Refunding';
       break;
     case 'pending':
     default:
@@ -48,7 +52,7 @@ String getStatusText(String status) {
     case 'accepted':
       readableStatus = 'Accepted';
       break;
-    case 'inprogress':
+    case 'inProgress':
       readableStatus = 'Ongoing';
       break;
     case 'completed':
@@ -78,6 +82,7 @@ final Map<String, List<dynamic>> tabStatuses = {
   'Upcoming': [
     ServiceRequestStatus.awaitingAcceptance,
     ServiceRequestStatus.accepted,
+    ServiceRequestStatus.refunding,
     PaymentStatus.paid,
   ],
   'In Progress': [ServiceRequestStatus.inProgress],

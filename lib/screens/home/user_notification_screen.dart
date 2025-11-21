@@ -7,6 +7,7 @@ import 'package:manong_application/main.dart';
 import 'package:manong_application/models/user_notification.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/notification_card.dart';
+import 'package:manong_application/utils/notification_utils.dart';
 import 'package:manong_application/utils/status_utils.dart';
 import 'package:manong_application/widgets/empty_state_widget.dart';
 import 'package:manong_application/widgets/error_state_widget.dart';
@@ -216,18 +217,49 @@ class _UserNotificationScreenState extends State<UserNotificationScreen> {
   }
 
   Widget _buildStatusRow() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: List.generate(
-          tabs.length,
-          (index) => _buildStatusChip(
-            title: tabs[index],
-            index: index,
-            active: _statusIndex == index,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: List.generate(
+                  tabs.length,
+                  (index) => _buildStatusChip(
+                    title: tabs[index],
+                    index: index,
+                    active: _statusIndex == index,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-      ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: FilterChip(
+            label: Text('Seen All'),
+            selected: false,
+            onSelected: (_) => NotificationUtils.seenAll().then(
+              (_) => _fetchUserNotifications(),
+            ),
+            selectedColor: AppColorScheme.primaryColor,
+            backgroundColor: AppColorScheme.primaryLight,
+            labelStyle: TextStyle(
+              color: Colors.grey.shade700,
+              fontWeight: FontWeight.normal,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            showCheckmark: false,
+          ),
+        ),
+      ],
     );
   }
 

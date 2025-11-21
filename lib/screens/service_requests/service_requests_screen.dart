@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/fcm_api_service.dart';
-import 'package:manong_application/api/feedback_api_service.dart';
+import 'package:manong_application/api/payment_transaction_api_service.dart';
 import 'package:manong_application/api/service_request_api_service.dart';
 import 'package:manong_application/api/tracking_api_service.dart';
 import 'package:manong_application/main.dart';
@@ -21,7 +21,6 @@ import 'package:manong_application/utils/status_utils.dart';
 import 'package:manong_application/widgets/app_bar_search.dart';
 import 'package:manong_application/widgets/empty_state_widget.dart';
 import 'package:manong_application/widgets/error_state_widget.dart';
-import 'package:manong_application/widgets/input_decorations.dart';
 import 'package:manong_application/widgets/modal_icon_overlay.dart';
 import 'package:manong_application/widgets/service_request_card.dart';
 import 'package:provider/provider.dart';
@@ -74,7 +73,9 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
 
   final TextEditingController _commentController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  int _commentCount = 0;
+  final int _commentCount = 0;
+  double? _averageRating;
+  int _transactionCount = 0;
 
   @override
   void initState() {
@@ -97,6 +98,8 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showPermissionDialog();
     });
+
+    _countUnseenPaymentTransactions();
   }
 
   void _initializeComponents() {
@@ -111,6 +114,22 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       setState(() {
         _statusIndex = _navProvider.statusIndex!;
       });
+    }
+  }
+
+  Future<void> _countUnseenPaymentTransactions() async {
+    try {
+      final response = await PaymentTransactionApiService()
+          .countUnseenPaymentTransactions();
+
+      if (response != null) {
+        setState(() {
+          _transactionCount = response;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      logger.severe('Error counting Payment Transactions ${e.toString()}');
     }
   }
 
@@ -251,28 +270,28 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     }
   }
 
-  Widget _buildStatusChip({
-    required String title,
-    required int index,
-    required bool active,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 6, left: 6),
-      child: FilterChip(
-        label: Text(title),
-        selected: active,
-        onSelected: (_) => _onStatusChanged(index),
-        selectedColor: AppColorScheme.primaryColor,
-        backgroundColor: AppColorScheme.primaryLight,
-        labelStyle: TextStyle(
-          color: active ? Colors.white : Colors.grey.shade700,
-          fontWeight: active ? FontWeight.w600 : FontWeight.normal,
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        showCheckmark: false,
-      ),
-    );
-  }
+  // Widget _buildStatusChip({
+  //   required String title,
+  //   required int index,
+  //   required bool active,
+  // }) {
+  //   return Padding(
+  //     padding: const EdgeInsets.only(right: 6, left: 6),
+  //     child: FilterChip(
+  //       label: Text(title),
+  //       selected: active,
+  //       onSelected: (_) => _onStatusChanged(index),
+  //       selectedColor: AppColorScheme.primaryColor,
+  //       backgroundColor: AppColorScheme.primaryLight,
+  //       labelStyle: TextStyle(
+  //         color: active ? Colors.white : Colors.grey.shade700,
+  //         fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+  //       ),
+  //       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+  //       showCheckmark: false,
+  //     ),
+  //   );
+  // }
 
   Widget _buildTopStatusChip({
     required String title,
@@ -429,10 +448,11 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
 
       if (requests == null || requests.isEmpty) {
         setState(() {
-          if (loadMore)
+          if (loadMore) {
             _hasMore = false;
-          else
+          } else {
             _serviceRequest = [];
+          }
           _isLoadingMore = false;
         });
 
@@ -458,6 +478,24 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
           isLoading = false;
         }
         if (parsedRequests.length < _limit) _hasMore = false;
+
+        final completedRequests = _serviceRequest
+            .where(
+              (r) =>
+                  r.status == ServiceRequestStatus.completed &&
+                  r.feedback?.rating != null,
+            )
+            .toList();
+
+        if (completedRequests.isNotEmpty) {
+          final ratings = completedRequests
+              .map((r) => r.feedback!.rating.toDouble())
+              .toList();
+          final total = ratings.reduce((a, b) => a + b);
+          _averageRating = total / ratings.length;
+        } else {
+          _averageRating = null;
+        }
       });
 
       logger.info('_fetchServiceRequests _serviceRequest $_serviceRequest');
@@ -525,12 +563,14 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         final service = req.serviceItem?.title.toLowerCase() ?? '';
         final subService = req.subServiceItem?.title.toLowerCase() ?? '';
         final urgency = req.urgencyLevel?.level.toLowerCase() ?? '';
+        final requestNumber = req.requestNumber?.toLowerCase() ?? '';
 
         final matches =
             manong.contains(query) ||
             service.contains(query) ||
             subService.contains(query) ||
-            urgency.contains(query);
+            urgency.contains(query) ||
+            requestNumber.contains(query);
 
         return matches;
       }).toList();
@@ -577,11 +617,19 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
                   children: [
                     Icon(Icons.list, color: Colors.grey.shade800),
                     const SizedBox(width: 4),
-                    Icon(
-                      option.toLowerCase() == 'ascending'
-                          ? Icons.arrow_upward
-                          : Icons.arrow_downward,
-                      color: Colors.grey.shade800,
+                    Row(
+                      children: [
+                        Text(
+                          option.toLowerCase() == 'ascending' ? 'ASC' : 'DESC',
+                          style: TextStyle(fontWeight: FontWeight.w300),
+                        ),
+                        Icon(
+                          option.toLowerCase() == 'ascending'
+                              ? Icons.arrow_upward
+                              : Icons.arrow_downward,
+                          color: Colors.grey.shade800,
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -665,23 +713,32 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
 
   void _onTapServiceCard(ServiceRequest serviceRequestItem) async {
     if (serviceRequestItem.manong?.appUser.id != null) {
-      if (serviceRequestItem.paymentRedirectUrl != null) {
-        if (serviceRequestItem.paymentRedirectUrl
-                .toString()
-                .trim()
-                .isNotEmpty &&
-            serviceRequestItem.paymentStatus != PaymentStatus.paid) {
-          final result = await Navigator.pushNamed(
-            navigatorKey.currentContext!,
-            '/payment-redirect',
-            arguments: {'serviceRequest': serviceRequestItem},
-          );
+      final conditionToAllowRedirect =
+          serviceRequestItem.paymentTransactions != null &&
+          serviceRequestItem.paymentTransactions!.isNotEmpty &&
+          (serviceRequestItem.status != ServiceRequestStatus.cancelled &&
+              serviceRequestItem.paymentStatus != PaymentStatus.refunded &&
+              serviceRequestItem.status != ServiceRequestStatus.refunding);
 
-          if (result != null) {
-            _fetchMoreServiceRequests();
+      if (conditionToAllowRedirect) {
+        final paymentRedirectUrl = serviceRequestItem
+            .paymentTransactions?[0]
+            .metadata?['paymentRedirectUrl'];
+        if (paymentRedirectUrl != null) {
+          if (paymentRedirectUrl.toString().trim().isNotEmpty &&
+              serviceRequestItem.paymentStatus != PaymentStatus.paid) {
+            final result = await Navigator.pushNamed(
+              navigatorKey.currentContext!,
+              '/payment-redirect',
+              arguments: {'serviceRequest': serviceRequestItem},
+            );
+
+            if (result != null) {
+              _fetchMoreServiceRequests();
+            }
+
+            return;
           }
-
-          return;
         }
       }
 
@@ -947,6 +1004,68 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     }
   }
 
+  Widget _buildRatings() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: Column(
+        children: [
+          if (_statusIndex == getTabIndex(ServiceRequestStatus.completed) &&
+              _isManong == true)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Average Rating: ${_averageRating?.toStringAsFixed(1) ?? 'No Ratings yet'} ★',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _transactionTrailing() {
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.pushNamed(
+          navigatorKey.currentContext!,
+          '/transactions',
+        );
+
+        _countUnseenPaymentTransactions();
+      },
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(Icons.receipt_long, color: Colors.white),
+          if (_transactionCount > 0) ...[
+            Positioned(
+              right: 0,
+              top: 0,
+              child: Container(
+                height: 15,
+                width: 15,
+                decoration: const BoxDecoration(
+                  color: Colors.redAccent,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  _transactionCount.toString(),
+                  style: TextStyle(color: Colors.white, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredRequests = _getFilteredRequests();
@@ -955,17 +1074,17 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       backgroundColor: AppColorScheme.backgroundGrey,
       appBar: AppBarSearch(
         title: 'My Requests',
-        onBackTap: () {
-          _navProvider.changeIndex(0);
-        },
+        trailing: _transactionTrailing(),
         controller: _searchController,
         onChanged: _onSearchChanged,
       ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildStatusRow(),
           const SizedBox(height: 2),
           _buildResultsInfo(filteredRequests.length),
+          _buildRatings(),
           Expanded(
             child: Container(
               margin: const EdgeInsets.only(top: 0),

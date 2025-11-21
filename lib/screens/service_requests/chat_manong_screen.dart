@@ -12,6 +12,7 @@ import 'package:manong_application/main.dart';
 import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/models/chat.dart';
 import 'package:manong_application/models/service_request.dart';
+import 'package:manong_application/models/service_request_status.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/widgets/error_state_widget.dart';
@@ -47,13 +48,13 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
     Chat(
       id: -1,
       roomId: '',
-      content:
-          "Hello! 👋 You can chat here with Manong. Describe your problem or any concerns you have.",
+      content: "Loading chats...",
       senderId: -1,
       receiverId: -1,
       createdAt: DateTime.now(),
     ),
   ];
+  bool _isChatEnded = true;
 
   @override
   void initState() {
@@ -70,6 +71,30 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
     _images = <File>[];
     _baseImageUrl = dotenv.env['APP_URL']?.replaceAll(RegExp(r'/$'), '');
     _imageUploadService = ImageUploadApiService();
+  }
+
+  void checkIfPassedOneDay() {
+    final now = DateTime.now();
+    Duration diff = now.difference(_serviceRequest.createdAt!);
+
+    _isChatEnded =
+        (diff.inHours >= 24 ||
+        _serviceRequest.status == ServiceRequestStatus.cancelled);
+
+    final String message = _isChatEnded
+        ? "This chat session has ended. 🕒 You can no longer send messages here."
+        : "Hello! 👋 You can chat here with Manong. Describe your problem or any concerns you have.";
+
+    _chat.add(
+      Chat(
+        id: -1,
+        roomId: '',
+        content: message,
+        senderId: -1,
+        receiverId: -1,
+        createdAt: DateTime.now(),
+      ),
+    );
   }
 
   Future<void> initializeMethods() async {
@@ -146,17 +171,7 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
             _chat.clear();
 
             // Add system message back
-            _chat.add(
-              Chat(
-                id: -1,
-                roomId: '',
-                content:
-                    "Hello! 👋 You can chat here with Manong. Describe your problem or any concerns you have.",
-                senderId: -1,
-                receiverId: -1,
-                createdAt: DateTime.now(),
-              ),
-            );
+            checkIfPassedOneDay();
 
             // Add history messages
             _chat.addAll(data.map((json) => Chat.fromJson(json)));
@@ -512,6 +527,7 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
                           controller: _messageController,
                           minLines: 1,
                           maxLines: null,
+                          enabled: !_isChatEnded,
                           keyboardType: TextInputType.multiline,
                           decoration: inputDecoration(
                             'Send a message...',
@@ -530,7 +546,9 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
 
                       child: InkWell(
                         borderRadius: BorderRadius.circular(12),
-                        onTap: _isButtonLoading ? null : _sendMessage,
+                        onTap: _isButtonLoading || _isChatEnded
+                            ? null
+                            : _sendMessage,
                         child: Padding(
                           padding: const EdgeInsets.all(12),
                           child: Icon(Icons.send, color: Colors.white),

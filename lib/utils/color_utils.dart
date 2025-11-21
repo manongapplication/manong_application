@@ -31,8 +31,18 @@ Color getStatusColor(String? status) {
       return Colors.green;
     case 'failed':
       return Colors.red;
+    case 'refunding':
+      return Colors.purpleAccent;
     case 'refunded':
       return Colors.purple;
+
+    // Refund statuses
+    case 'approved':
+      return Colors.green;
+    case 'rejected':
+      return Colors.red;
+    case 'pending': // Refund pending (already exists for service request)
+      return Colors.orange;
 
     default:
       return Colors.grey;
@@ -64,8 +74,16 @@ Color getStatusBorderColor(String? status) {
       return Colors.green.shade700;
     case 'failed':
       return Colors.red.shade900;
+    case 'refunding':
+      return Colors.purple.shade400;
     case 'refunded':
       return Colors.purple.shade700;
+
+    // Refund statuses
+    case 'approved':
+      return Colors.green.shade700;
+    case 'rejected':
+      return Colors.red.shade700;
 
     default:
       return Colors.grey.shade700;

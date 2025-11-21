@@ -110,17 +110,22 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
 
         if (response['data'] != null) {
           final data = ServiceRequest.fromJson(response['data']);
+          if (data.paymentTransactions != null) {
+            if (data.paymentTransactions!.isNotEmpty) {
+              final paymentRedirectUrl =
+                  data.paymentTransactions?[0].metadata?['paymentRedirectUrl'];
 
-          if (data.paymentRedirectUrl != null) {
-            Navigator.pushReplacementNamed(
-              navigatorKey.currentContext!,
-              '/payment-redirect',
-              arguments: {'serviceRequest': data},
-            );
+              if (paymentRedirectUrl != null) {
+                Navigator.pushReplacementNamed(
+                  navigatorKey.currentContext!,
+                  '/payment-redirect',
+                  arguments: {'serviceRequest': data},
+                );
 
-            return;
+                return;
+              }
+            }
           }
-
           Navigator.of(navigatorKey.currentContext!).pushNamedAndRemoveUntil(
             '/',
             (route) => false,
@@ -312,10 +317,10 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
         ),
         const SizedBox(height: 4),
         LabelValueRow(
-          label: 'Base Fee:',
-          valueWidget: _serviceRequest?.subServiceItem?.fee != null
+          label: 'Base Cost:',
+          valueWidget: _serviceRequest?.subServiceItem?.cost != null
               ? PriceTag(
-                  price: _serviceRequest!.subServiceItem!.fee!.toDouble(),
+                  price: _serviceRequest!.subServiceItem!.cost!.toDouble(),
                 )
               : null,
         ),
@@ -334,20 +339,20 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
             price: CalculationTotals().calculateSubTotal(_serviceRequest),
           ),
         ),
-        LabelValueRow(
-          label:
-              'Service Tax (${(CalculationTotals().serviceTaxRate * 100).toStringAsFixed(0)})',
-          valueWidget: PriceTag(
-            price: double.parse(
-              CalculationTotals()
-                  .calculateServiceTaxAmount(
-                    _serviceRequest,
-                    _serviceSettings?.serviceTax ?? 0,
-                  )
-                  .toStringAsFixed(2),
-            ),
-          ),
-        ),
+        // LabelValueRow(
+        //   label:
+        //       'Service Tax (${(CalculationTotals().serviceTaxRate * 100).toStringAsFixed(0)})',
+        //   valueWidget: PriceTag(
+        //     price: double.parse(
+        //       CalculationTotals()
+        //           .calculateServiceTaxAmount(
+        //             _serviceRequest,
+        //             _serviceSettings?.serviceTax ?? 0,
+        //           )
+        //           .toStringAsFixed(2),
+        //     ),
+        //   ),
+        // ),
         Divider(color: Colors.grey, thickness: 1, indent: 20, endIndent: 20),
         LabelValueRow(
           label: 'Total To Pay:',

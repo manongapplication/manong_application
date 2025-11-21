@@ -23,6 +23,7 @@ import 'package:manong_application/utils/dialog_utils.dart';
 import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/utils/urgency_level_util.dart';
 import 'package:manong_application/widgets/card_container.dart';
+import 'package:manong_application/widgets/disclaimer_dialog.dart';
 import 'package:manong_application/widgets/error_state_widget.dart';
 import 'package:manong_application/widgets/label_value_row.dart';
 import 'package:manong_application/widgets/manong_list_card.dart';
@@ -76,6 +77,13 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
   void initState() {
     super.initState();
     initializeComponents();
+    showDisclaimerDialog(
+      context,
+      title: 'Refund Policy Disclaimer',
+      message:
+          'If a customer decides to cancel the service after the professional has confirmed that the reported concern was incorrect or not valid, a ₱300 Manong Fee will be charged to cover consultation and professional fees.',
+      dontShowAgainKey: 'refundPolicy',
+    );
     _fetchUserServiceRequest();
     _fetchUser();
     _fetchServiceSettings();
@@ -292,7 +300,13 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                   children: [
                     UrgencySelector(
                       levels: _urgencyLevels ?? [],
-                      activeIndex: _activeUrgencyLevel ?? urgencyLevel.id - 1,
+                      activeIndex:
+                          _activeUrgencyLevel ??
+                          UrgencyLevelUtil().getActiveUrgencyIndex(
+                            _urgencyLevels!,
+                            urgencyLevel,
+                          ) ??
+                          0,
                       onSelected: (i) async {
                         setModalState(() => _activeUrgencyLevel = i);
 
@@ -330,8 +344,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
 
   double _getUrgencyPrice(UrgencyLevel urgencyLevel) {
     if (_activeUrgencyLevel != null) {
-      final selected =
-          UrgencyLevelUtil().getUrgencyLevels[_activeUrgencyLevel!];
+      final selected = _urgencyLevels![_activeUrgencyLevel!];
       return selected.price ?? 0.0;
     }
     return urgencyLevel.price ?? 0.0;
@@ -382,9 +395,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                   children: [
                     Text(
                       _activeUrgencyLevel != null
-                          ? UrgencyLevelUtil()
-                                .getUrgencyLevels[_activeUrgencyLevel!]
-                                .level
+                          ? _urgencyLevels![_activeUrgencyLevel!].level
                           : urgencyLevel.level,
                       style: const TextStyle(
                         fontSize: 14,
@@ -394,9 +405,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                     const SizedBox(width: 4),
                     Text(
                       _activeUrgencyLevel != null
-                          ? UrgencyLevelUtil()
-                                .getUrgencyLevels[_activeUrgencyLevel!]
-                                .time
+                          ? _urgencyLevels![_activeUrgencyLevel!].time
                           : urgencyLevel.time,
                       style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                     ),
@@ -669,10 +678,10 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
             style: TextStyle(fontSize: 14),
           ),
           LabelValueRow(
-            label: 'Base Fee:',
-            valueWidget: userServiceRequest?.subServiceItem?.fee != null
+            label: 'Base Cost:',
+            valueWidget: userServiceRequest?.subServiceItem?.cost != null
                 ? PriceTag(
-                    price: userServiceRequest!.subServiceItem!.fee!.toDouble(),
+                    price: userServiceRequest!.subServiceItem!.cost!.toDouble(),
                   )
                 : null,
           ),

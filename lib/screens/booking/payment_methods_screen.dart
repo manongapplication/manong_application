@@ -300,6 +300,9 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       case 'cash':
         _saveUserPaymentMethod();
         break;
+      case 'paymaya':
+        _saveUserPaymentMethod();
+        break;
       default:
         SnackBarUtils.showWarning(
           navigatorKey.currentContext!,
@@ -307,8 +310,6 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
         );
     }
   }
-
-  void _openGcash() {}
 
   Widget _buildPaymentMethodItems() {
     if (_paymentMethods == null) return const SizedBox.shrink();

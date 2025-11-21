@@ -142,6 +142,40 @@ class ServiceRequestApiService {
       final token = await AuthService().getNodeToken();
 
       final response = await http.get(
+        Uri.parse('$baseUrl/service-requests/user/$id'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final responseBody = response.body;
+
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200) {
+        return ServiceRequest.fromJson(jsonData['data']);
+      } else {
+        throw Exception(
+          'Failed to load user service request: ${response.statusCode} ${response.body}',
+        );
+      }
+    } catch (e) {
+      logger.severe('Error fetching user service request $e');
+    }
+    return null;
+  }
+
+  Future<ServiceRequest?> fetchServiceRequest(int id) async {
+    try {
+      if (baseUrl == null) {
+        throw Exception('Base URL is not configured.');
+      }
+
+      final token = await AuthService().getNodeToken();
+
+      final response = await http.get(
         Uri.parse('$baseUrl/service-requests/$id'),
         headers: {
           'Accept': 'application/json',
@@ -501,7 +535,7 @@ class ServiceRequestApiService {
         logger.warning(
           'Failed marking service request as completed ${response.statusCode} $responseBody',
         );
-        return null;
+        return jsonData;
       }
     } catch (e) {
       logger.severe('Error marking service request as completed $e');

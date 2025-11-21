@@ -4,7 +4,6 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:logging/logging.dart';
 import 'package:http/http.dart' as http;
 import 'package:manong_application/api/auth_service.dart';
-import 'package:manong_application/models/payment_method.dart';
 
 class UserPaymentMethodApiService {
   final Logger logger = Logger('UserPaymentMethodApiService');

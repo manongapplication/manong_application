@@ -41,6 +41,7 @@ class UserFeedback {
       reviewerId: json['reviewerId'],
       revieweeId: json['revieweeId'],
       rating: json['rating'],
+      comment: json['comment'],
 
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'])

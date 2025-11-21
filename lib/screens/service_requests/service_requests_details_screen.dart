@@ -1,19 +1,18 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:iconify_design/iconify_design.dart';
 import 'package:logging/logging.dart';
-import 'package:manong_application/api/fcm_api_service.dart';
-import 'package:manong_application/api/firebase_api_token.dart';
-import 'package:manong_application/api/manong_api_service.dart';
 import 'package:manong_application/api/service_request_api_service.dart';
 import 'package:manong_application/api/service_settings_api_service.dart';
 import 'package:manong_application/api/tracking_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/manong.dart';
+import 'package:manong_application/models/manong_report.dart';
+import 'package:manong_application/models/payment_status.dart';
+import 'package:manong_application/models/refund_request.dart';
+import 'package:manong_application/models/refund_status.dart';
 import 'package:manong_application/models/service_request_status.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/models/service_settings.dart';
@@ -24,14 +23,21 @@ import 'package:manong_application/utils/calculation_totals.dart';
 import 'package:manong_application/utils/color_utils.dart';
 import 'package:manong_application/utils/dialog_utils.dart';
 import 'package:manong_application/utils/distance_matrix.dart';
-import 'package:manong_application/utils/icon_mapper.dart';
+import 'package:manong_application/utils/manong_report_utils.dart';
 import 'package:manong_application/utils/notification_utils.dart';
+import 'package:manong_application/utils/refund_utils.dart';
 import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/utils/status_utils.dart';
 import 'package:manong_application/widgets/card_container.dart';
+import 'package:manong_application/widgets/detailed_manong_report_card.dart';
+import 'package:manong_application/widgets/disclaimer_dialog.dart';
 import 'package:manong_application/widgets/error_state_widget.dart';
 import 'package:manong_application/widgets/label_value_row.dart';
+import 'package:manong_application/widgets/manong_report_dialog.dart';
 import 'package:manong_application/widgets/price_tag.dart';
+import 'package:manong_application/widgets/refund_dialog.dart';
+import 'package:manong_application/widgets/transaction_card.dart';
+import 'package:manong_application/widgets/transaction_list.dart';
 
 class ServiceRequestsDetailsScreen extends StatefulWidget {
   final ServiceRequest? serviceRequest;
@@ -59,7 +65,7 @@ class _ServiceRequestsDetailsScreenState
   bool _isLoading = false;
   bool _isButtonLoading = false;
   String? _error;
-  late ServiceRequest? _serviceRequest;
+  ServiceRequest? _serviceRequest;
   bool _isEditingPaymentStatus = false;
   final baseImageUrl = dotenv.env['APP_URL'];
   bool _isServiceCompleted = false;
@@ -70,41 +76,47 @@ class _ServiceRequestsDetailsScreenState
   void initState() {
     super.initState();
     _initializeComponents();
-    _fetchManongDetails();
+    _fetchServiceRequest();
     _getTrackingStream();
     _fetchServiceSettings();
   }
 
   void _initializeComponents() {
     _isManong = widget.isManong;
-    _serviceRequest = widget.serviceRequest;
   }
 
-  Future<void> _fetchManongDetails() async {
+  Future<void> _fetchServiceRequest() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
+
     try {
-      if (_serviceRequest == null) return;
-      final response = await ManongApiService().fetchAManong(
-        _serviceRequest!.manongId!,
+      final serviceRequestId = widget.serviceRequest?.id;
+      if (serviceRequestId == null) {
+        throw Exception('Service request ID is null');
+      }
+
+      final response = await ServiceRequestApiService().fetchServiceRequest(
+        serviceRequestId,
       );
 
-      if (response != null) {
-        setState(() {
-          _manong = response;
-        });
-      } else {
-        logger.warning('Failed fetching a manong');
-      }
+      logger.info('Response ${response?.manongReport}');
+
+      if (!mounted) return;
+      setState(() {
+        _serviceRequest = response;
+        _manong = _serviceRequest?.manong;
+      });
+
+      logger.info('Working $_serviceRequest');
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.toString();
       });
 
-      logger.severe('Error fetching a manong $_error');
+      logger.severe('Error fetching user service request $_error');
     } finally {
       if (mounted) {
         setState(() {
@@ -317,6 +329,110 @@ class _ServiceRequestsDetailsScreenState
     );
   }
 
+  Widget _buildStarRatings() {
+    return Row(
+      children: List.generate(5, (index) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: GestureDetector(
+            onTap: null,
+            child: Icon(
+              index < (_serviceRequest?.feedback?.rating ?? 0)
+                  ? Icons.star
+                  : Icons.star_border,
+              color: AppColorScheme.gold,
+              size: 22,
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildFeedbackDetails() {
+    if (_serviceRequest?.feedback == null) return const SizedBox.shrink();
+
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Feedback',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+
+          CardContainer(
+            padding: const EdgeInsets.all(12),
+            borderRadius: BorderRadius.circular(12),
+            color: AppColorScheme.backgroundGrey,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_serviceRequest?.user?.firstName ?? ''),
+                  _buildStarRatings(),
+                  if (_serviceRequest?.feedback?.comment != null) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      child: Text(_serviceRequest?.feedback?.comment ?? ''),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _updateManong(ManongReport details) async {
+    setState(() {
+      _isButtonLoading = true;
+      _error = null;
+    });
+    try {
+      if (_serviceRequest?.manongReport == null) return;
+      final response = await ManongReportUtils().update(
+        id: _serviceRequest!.manongReport!.id,
+        details: details,
+      );
+
+      if (response != null) {
+        if (response['success'] == true) {
+          SnackBarUtils.showSuccess(
+            navigatorKey.currentContext!,
+            response['message'],
+          );
+          _fetchServiceRequest();
+        } else {
+          SnackBarUtils.showWarning(
+            navigatorKey.currentContext!,
+            response['message'],
+          );
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+      logger.severe('Error updating manong $_error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isButtonLoading = false;
+        });
+      }
+    }
+  }
+
   Widget _buildUserDetails(double meters) {
     if (_serviceRequest!.user == null || _serviceRequest == null) {
       return const SizedBox.shrink();
@@ -324,6 +440,57 @@ class _ServiceRequestsDetailsScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (_serviceRequest?.manongReport != null) ...[
+          Stack(
+            children: [
+              DetailedManongReportCard(
+                report: _serviceRequest!.manongReport!,
+                isManong: _isManong ?? false,
+                onSave: (report) {
+                  _updateManong(report);
+                },
+              ),
+              if (_isButtonLoading == true) ...[
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.white.withOpacity(0.8),
+                    ),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: AppColorScheme.primaryColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+        Text(
+          "Request Number",
+          style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColorScheme.primaryLight,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColorScheme.primaryColor),
+          ),
+          child: Text(
+            _serviceRequest?.requestNumber ?? 'N/A',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColorScheme.primaryDark,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         if (_serviceRequest?.user?.firstName != null &&
             _serviceRequest?.user?.lastName != null) ...[
           Text(
@@ -548,6 +715,21 @@ class _ServiceRequestsDetailsScreenState
 
         // -- Totals
         _buildTotals(meters),
+
+        const SizedBox(height: 14),
+
+        // -- Transactions (add this line)
+        TransactionList(
+          transactions: _serviceRequest?.paymentTransactions ?? [],
+          title: 'Payment History',
+        ),
+
+        const SizedBox(height: 14),
+
+        // == Feedback
+        _buildFeedbackDetails(),
+
+        const SizedBox(height: 56),
       ],
     );
   }
@@ -688,8 +870,9 @@ class _ServiceRequestsDetailsScreenState
                               .toList();
 
                           return SafeArea(
-                            child: Padding(
+                            child: Container(
                               padding: const EdgeInsets.all(16),
+                              width: double.infinity,
                               child: Scrollbar(
                                 thumbVisibility: true,
                                 child: SingleChildScrollView(
@@ -819,9 +1002,7 @@ class _ServiceRequestsDetailsScreenState
       _error = null;
     });
     try {
-      if (_serviceRequest == null ||
-          _serviceRequest!.status == null ||
-          _serviceRequest!.user?.fcmToken == null) {
+      if (_serviceRequest == null || _serviceRequest!.status == null) {
         logger.warning(
           'Cannot accept service request: missing status or user FCM token.',
         );
@@ -877,6 +1058,20 @@ class _ServiceRequestsDetailsScreenState
   }
 
   void _markServiceRequestCompleted() async {
+    if (_serviceRequest == null) return;
+    final result = await ManongReportUtils().showManongReport(
+      navigatorKey.currentContext!,
+      serviceRequest: _serviceRequest!,
+    );
+
+    if (result != null && result is Map) {
+      if (result['success'] != true) {
+        return;
+      }
+    } else {
+      return;
+    }
+
     setState(() {
       _isButtonLoading = true;
       _error = null;
@@ -887,25 +1082,33 @@ class _ServiceRequestsDetailsScreenState
           .markServiceRequestCompleted(_serviceRequest!.id!);
 
       if (response != null) {
-        SnackBarUtils.showSuccess(
-          navigatorKey.currentContext!,
-          'Service request marked as completed!',
-        );
+        if (response['success'] == true) {
+          SnackBarUtils.showSuccess(
+            navigatorKey.currentContext!,
+            'Service request marked as completed!',
+          );
 
-        setState(() {
-          _isServiceCompleted = true;
-        });
+          setState(() {
+            _isServiceCompleted = true;
+          });
 
-        Navigator.of(navigatorKey.currentContext!).pushNamedAndRemoveUntil(
-          '/',
-          (route) => false,
-          arguments: {
-            'index': 1,
-            'serviceRequestStatusIndex': getTabIndex(
-              ServiceRequestStatus.completed,
-            ),
-          },
-        );
+          Navigator.of(navigatorKey.currentContext!).pushNamedAndRemoveUntil(
+            '/',
+            (route) => false,
+            arguments: {
+              'index': 1,
+              'serviceRequestStatusIndex': getTabIndex(
+                ServiceRequestStatus.completed,
+              ),
+            },
+          );
+        } else {
+          SnackBarUtils.showWarning(
+            navigatorKey.currentContext!,
+            response['message'] ??
+                'Failed marking service request as completed.',
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -923,7 +1126,7 @@ class _ServiceRequestsDetailsScreenState
   }
 
   Widget _buildDistanceRow() {
-    if (_serviceRequest?.status != 'inprogress') return const SizedBox.shrink();
+    if (_serviceRequest?.status != 'inProgress') return const SizedBox.shrink();
     return ValueListenableBuilder<latlong.LatLng?>(
       valueListenable: _trackingApiService.manongLatLngNotifier,
       builder: (context, value, child) {
@@ -997,16 +1200,21 @@ class _ServiceRequestsDetailsScreenState
     }
   }
 
-  Future<void> _showDialogCancelConfirmation() async {
+  Future<void> _showDialogCancelConfirmation({bool isRefund = false}) async {
     showDialog(
       context: navigatorKey.currentContext!,
       builder: (context) {
         return AlertDialog(
-          title: Text('Cancel Service Request', style: TextStyle(fontSize: 22)),
+          title: Text(
+            '${isRefund ? 'Refund' : 'Cancel'} Service Request',
+            style: TextStyle(fontSize: 22),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Are you sure you want to cancel this service request?'),
+              Text(
+                'Are you sure you want to ${isRefund ? 'Refund' : 'Cancel'} this service request?',
+              ),
               SizedBox(height: 8),
               Text(
                 'This action cannot be undone.',
@@ -1016,15 +1224,49 @@ class _ServiceRequestsDetailsScreenState
             ],
           ),
           actions: [
-            TextButton(
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColorScheme.primaryColor,
+                foregroundColor: Colors.white,
+              ),
               onPressed: () => Navigator.of(context).pop(),
               child: Text('No, keep request'),
             ),
             TextButton(
               onPressed: () {
-                _cancelServiceRequest();
+                Navigator.pop(context);
+                if (_serviceRequest?.status == ServiceRequestStatus.pending ||
+                    _serviceRequest?.status ==
+                        ServiceRequestStatus.awaitingAcceptance) {
+                  Future.delayed(Duration(milliseconds: 50), () {
+                    RefundDialog.show(
+                      navigatorKey.currentContext!,
+                      request: _serviceRequest!,
+                    );
+                  });
+                  return;
+                }
+                showDisclaimerDialog(
+                  context,
+                  title: 'Refund Policy Disclaimer',
+                  message:
+                      'If a customer decides to cancel the service after the professional has confirmed that the reported concern was incorrect or not valid, a ₱300 Manong Fee will be charged to cover consultation and professional fees.',
+                  hasCancel: true,
+                  onAgree: () {
+                    Future.delayed(Duration(milliseconds: 50), () {
+                      RefundDialog.show(
+                        navigatorKey.currentContext!,
+                        request: _serviceRequest!,
+                      );
+                    });
+                  },
+                );
+                // _cancelServiceRequest();
               },
-              child: Text('Yes, cancel it'),
+              child: Text(
+                'Yes, cancel it',
+                style: TextStyle(color: Colors.red),
+              ),
             ),
           ],
         );
@@ -1032,7 +1274,91 @@ class _ServiceRequestsDetailsScreenState
     );
   }
 
+  Future<void> _requestRefund() async {
+    if (_serviceRequest == null) return;
+
+    setState(() => _isButtonLoading = true);
+
+    try {
+      List<RefundRequest>? response = await RefundUtils().fetchRequests(
+        _serviceRequest!,
+      );
+
+      if (response != null) {
+        if (response.isNotEmpty) {
+          SnackBarUtils.showWarning(
+            navigatorKey.currentContext!,
+            'You\'ve already requested a refund for this service!',
+          );
+        } else {
+          await _showDialogCancelConfirmation(
+            isRefund: _serviceRequest?.paymentStatus == PaymentStatus.paid,
+          );
+        }
+      }
+    } catch (e) {
+      SnackBarUtils.showError(
+        navigatorKey.currentContext!,
+        'Failed to request refund. Please try again later.',
+      );
+    } finally {
+      if (mounted) setState(() => _isButtonLoading = false);
+    }
+  }
+
+  Widget _refundButton() {
+    if (_isManong == true) return const SizedBox.shrink();
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton(
+            onPressed: _isButtonLoading ? null : () async => _requestRefund(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColorScheme.primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: _isButtonLoading
+                ? SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: AppColorScheme.primaryColor,
+                      ),
+                    ),
+                  )
+                : Text(
+                    _serviceRequest?.paymentStatus == PaymentStatus.paid
+                        ? _serviceRequest?.refundRequests != null &&
+                                  _serviceRequest!.refundRequests!.isNotEmpty
+                              ? 'Refund Requested'
+                              : 'Request Refund'
+                        : 'Cancel',
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildBottomNav(double? meters, ScrollController scrollController) {
+    // State for show more functionality
+    bool _showFullReason = false;
+
+    // Safe access to refund request
+    final hasRefundRequest =
+        _serviceRequest?.refundRequests != null &&
+        _serviceRequest!.refundRequests!.isNotEmpty;
+
+    final refundRequest = hasRefundRequest
+        ? _serviceRequest!.refundRequests![0]
+        : null;
+    final refundStatus = refundRequest?.status.name;
+
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(12),
@@ -1050,157 +1376,318 @@ class _ServiceRequestsDetailsScreenState
           ),
         ],
       ),
-      child: ListView(
-        controller: scrollController,
-        children: [
-          // -- Drag handle
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade400,
-                borderRadius: BorderRadius.circular(2),
+      child: StatefulBuilder(
+        builder: (context, setState) {
+          return ListView(
+            controller: scrollController,
+            children: [
+              // -- Drag handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade400,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
               ),
-            ),
-          ),
 
-          // --- Time + Distance
-          _buildDistanceRow(),
-          const SizedBox(height: 12),
-
-          // --- Accept Button
-          if (_serviceRequest?.status == ServiceRequestStatus.pending ||
-              _serviceRequest?.status ==
-                  ServiceRequestStatus.awaitingAcceptance) ...[
-            if (_isManong == true) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: !_isButtonLoading
-                          ? _acceptServiceRequest
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColorScheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 14,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: _isButtonLoading
-                          ? SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColorScheme.primaryColor,
+              // --- Refund Requested Section (at the top)
+              if (hasRefundRequest) ...[
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: getStatusColor(refundStatus).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: getStatusBorderColor(refundStatus),
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      // Main content
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header with badge positioned absolutely
+                          SizedBox(height: 4), // Space for the badge
+                          // Title
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.receipt_long,
+                                size: 18,
+                                color: getStatusBorderColor(refundStatus),
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Refund Requested',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: getStatusBorderColor(refundStatus),
                                 ),
                               ),
-                            )
-                          : Text('Accept'),
-                    ),
-                  ),
-                ],
-              ),
-            ] else ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        _showDialogCancelConfirmation();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColorScheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 14,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: Text('Cancel'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
+                            ],
+                          ),
+                          SizedBox(height: 16),
 
-          // -- Complete Button
-          if (_serviceRequest?.arrivedAt != null &&
-              _serviceRequest?.status == ServiceRequestStatus.inProgress &&
-              !(_isServiceCompleted)) ...[
-            if (_isManong == true) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: !_isButtonLoading
-                          ? _markServiceRequestCompleted
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColorScheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 14,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: _isButtonLoading
-                          ? SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColorScheme.primaryColor,
+                          // Reason with show more
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Reason:',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade700,
                                 ),
                               ),
-                            )
-                          : Text('Complete Service Request'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
+                              SizedBox(height: 4),
+                              Text(
+                                refundRequest?.reason ?? '',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w400,
+                                  color: Colors.grey.shade800,
+                                ),
+                                maxLines: _showFullReason ? null : 3,
+                                overflow: _showFullReason
+                                    ? null
+                                    : TextOverflow.ellipsis,
+                              ),
+                              if ((refundRequest?.reason.length ?? 0) >
+                                  100) ...[
+                                SizedBox(height: 8),
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _showFullReason = !_showFullReason;
+                                    });
+                                  },
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        _showFullReason
+                                            ? 'Show less'
+                                            : 'Show more',
+                                        style: TextStyle(
+                                          color: Colors.orange.shade700,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      SizedBox(width: 4),
+                                      Icon(
+                                        _showFullReason
+                                            ? Icons.expand_less
+                                            : Icons.expand_more,
+                                        size: 16,
+                                        color: Colors.orange.shade700,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
 
-          // -- More details
-          Visibility(
-            visible: true,
-            maintainSize: true,
-            maintainAnimation: true,
-            maintainState: true,
-            child: Column(
-              children: [
-                const SizedBox(height: 3),
-                Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade700),
+                          // Remarks
+                          if (refundRequest?.remarks != null &&
+                              refundRequest!.remarks!.isNotEmpty) ...[
+                            SizedBox(height: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Remarks:',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  refundRequest.remarks!,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w400,
+                                    color: Colors.grey.shade800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+
+                      // Refund Status Badge - Top Right
+                      if (refundStatus != null)
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              color: getStatusColor(
+                                refundStatus,
+                              ).withOpacity(0.1),
+                              border: Border.all(
+                                color: getStatusBorderColor(refundStatus),
+                                width: 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 2,
+                                  offset: Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            child: Text(
+                              refundStatus.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: getStatusBorderColor(refundStatus),
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 16),
+
+                // Divider after refund section
+                Divider(color: Colors.grey.shade300, thickness: 1, height: 1),
+                SizedBox(height: 16),
               ],
-            ),
-          ),
-          SizedBox(height: 12),
 
-          if (_isManong == true) _buildUserDetails(meters ?? 0),
+              // Rest of your existing content...
+              _buildDistanceRow(),
+              const SizedBox(height: 12),
 
-          if (_isManong == false) _buildManongDetails(meters ?? 0),
+              // --- Accept Button
+              if (_serviceRequest?.status == ServiceRequestStatus.pending ||
+                  _serviceRequest?.status ==
+                      ServiceRequestStatus.awaitingAcceptance) ...[
+                if (_isManong == true) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: !_isButtonLoading
+                              ? _acceptServiceRequest
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColorScheme.primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 32,
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: _isButtonLoading
+                              ? SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      color: AppColorScheme.primaryColor,
+                                    ),
+                                  ),
+                                )
+                              : Text('Accept'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  _refundButton(),
+                ],
+              ],
 
-          // if (_fcmToken != null) ...[Text('Token for me: $_fcmToken')],
-          // if (_serviceRequest != null) ...[
-          //   const SizedBox(height: 8),
-          //   Text('Token of the other side: ${_serviceRequest?.user?.fcmToken}'),
-          // ],
-        ],
+              if (_serviceRequest?.status == ServiceRequestStatus.inProgress ||
+                  _serviceRequest?.status == ServiceRequestStatus.accepted) ...[
+                _refundButton(),
+              ],
+
+              // -- Complete Button
+              if (_serviceRequest?.arrivedAt != null &&
+                  _serviceRequest?.status == ServiceRequestStatus.inProgress &&
+                  !(_isServiceCompleted)) ...[
+                if (_isManong == true) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: !_isButtonLoading
+                              ? _markServiceRequestCompleted
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColorScheme.primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 32,
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: _isButtonLoading
+                              ? SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      color: AppColorScheme.primaryColor,
+                                    ),
+                                  ),
+                                )
+                              : Text('Complete Service Request'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+
+              // -- More details
+              Visibility(
+                visible: true,
+                maintainSize: true,
+                maintainAnimation: true,
+                maintainState: true,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 3),
+                    Icon(
+                      Icons.keyboard_arrow_down,
+                      color: Colors.grey.shade700,
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 12),
+
+              if (_isManong == true) _buildUserDetails(meters ?? 0),
+
+              if (_isManong == false) _buildManongDetails(meters ?? 0),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1215,7 +1702,7 @@ class _ServiceRequestsDetailsScreenState
     try {
       // Live Location Tracking
 
-      if (_serviceRequest?.status != 'inprogress') return;
+      if (_serviceRequest?.status != 'inProgress') return;
 
       logger.info('Live now');
 
@@ -1289,7 +1776,6 @@ class _ServiceRequestsDetailsScreenState
                       _serviceRequest!.images.isNotEmpty
                   ? 0.99
                   : 0.5,
-
               snap: true,
               snapSizes: [
                 0.20,
@@ -1332,7 +1818,11 @@ class _ServiceRequestsDetailsScreenState
   @override
   Widget build(BuildContext context) {
     if (_serviceRequest == null) {
-      return const SizedBox.shrink();
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: AppColorScheme.primaryColor),
+        ),
+      );
     }
 
     final meters = DistanceMatrix().calculateDistance(

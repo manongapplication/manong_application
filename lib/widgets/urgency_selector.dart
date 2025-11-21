@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:manong_application/models/urgency_level.dart';
 import 'package:manong_application/theme/colors.dart';
+import 'package:manong_application/widgets/price_tag.dart';
 
 class UrgencySelector extends StatelessWidget {
   final List<UrgencyLevel> levels;
@@ -59,12 +60,7 @@ class UrgencySelector extends StatelessWidget {
                     ],
                   ),
 
-                  Text(
-                    level.price != null
-                        ? '₱ ${level.price!.toStringAsFixed(2)}'
-                        : '',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  PriceTag(price: level.price!, showDecimals: false),
                 ],
               ),
             ),

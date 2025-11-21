@@ -7,6 +7,7 @@ class AppBarSearch extends StatefulWidget implements PreferredSizeWidget {
   final Function()? onBackTap;
   final TextEditingController controller;
   final Function(String) onChanged;
+  final Widget? trailing;
 
   const AppBarSearch({
     super.key,
@@ -14,6 +15,7 @@ class AppBarSearch extends StatefulWidget implements PreferredSizeWidget {
     this.onBackTap,
     required this.controller,
     required this.onChanged,
+    this.trailing,
   });
 
   @override
@@ -31,15 +33,18 @@ class _AppBarSearchState extends State<AppBarSearch> {
       title: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          GestureDetector(
-            onTap: widget.onBackTap,
-            child: Icon(
-              Icons.arrow_back_ios_new_sharp,
-              color: Colors.white,
-              size: 20,
+          if (widget.onBackTap != null) ...[
+            GestureDetector(
+              onTap: widget.onBackTap,
+              child: Icon(
+                Icons.arrow_back_ios_new_sharp,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
-          ),
-          SizedBox(width: 18),
+            SizedBox(width: 18),
+          ],
+
           Expanded(
             child: SizedBox(
               height: 36,
@@ -49,6 +54,8 @@ class _AppBarSearchState extends State<AppBarSearch> {
               ),
             ),
           ),
+          SizedBox(width: 18),
+          if (widget.trailing != null) ...[widget.trailing!],
         ],
       ),
     );

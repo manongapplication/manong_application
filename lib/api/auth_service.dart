@@ -288,6 +288,7 @@ class AuthService {
   Future<Map<String, dynamic>?> verifySmsCodeTwilio(
     String smsNumber,
     String code,
+    bool? resetPassword,
   ) async {
     try {
       final response = await http.post(
@@ -296,7 +297,11 @@ class AuthService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: jsonEncode({'phone': smsNumber, 'code': code}),
+        body: jsonEncode({
+          'phone': smsNumber,
+          'code': code,
+          'resetPassword': resetPassword,
+        }),
       );
 
       final responseBody = response.body;
@@ -305,6 +310,9 @@ class AuthService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         if (jsonData['token'] == null) return null;
         await storage.write(key: 'node_token', value: jsonData['token']);
+        if (jsonData != null) {
+          await FirebaseApiToken().saveFcmTokenToDatabase();
+        }
         return jsonData;
       } else {
         logger.warning(
@@ -315,6 +323,39 @@ class AuthService {
       }
     } catch (e) {
       logger.severe('Error verifying sms code $e');
+    }
+
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> resetPassword(String password) async {
+    try {
+      final token = await getNodeToken();
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/reset-password'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'password': password}),
+      );
+
+      final responseBody = response.body;
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonData;
+      } else {
+        logger.warning(
+          'Failed to reset password ${response.statusCode} $responseBody',
+        );
+
+        return null;
+      }
+    } catch (e) {
+      logger.severe('Error resetting password $e');
     }
 
     return null;

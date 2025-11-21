@@ -1,9 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
+import 'package:manong_application/main.dart';
+import 'package:manong_application/providers/app_maintenance_provider.dart';
+import 'package:manong_application/screens/app_maintenance_screen.dart';
 import '../models/service_item.dart';
 
 class ServiceItemApiService {
@@ -47,6 +51,29 @@ class ServiceItemApiService {
         );
 
         return items;
+      } else if (response.statusCode == 403) {
+        logger.warning('Received 403: Unauthorized. Refreshing app...');
+        // Clear cached user/session data if needed
+        await box.erase();
+
+        final maintenanceProvider = AppMaintenanceProvider();
+        await maintenanceProvider.fetchMaintenance();
+
+        if (navigatorKey.currentState != null) {
+          navigatorKey.currentState!.pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (_) => AppMaintenanceScreen(
+                appMaintenance: maintenanceProvider.appMaintenance!,
+                onRefresh: () async {
+                  await maintenanceProvider.fetchMaintenance();
+                },
+              ),
+            ),
+            (route) => false,
+          );
+        }
+        // Throw to stop further processing
+        throw HttpException('HTTP 403: Unauthorized. App refreshed.');
       } else {
         throw HttpException(
           'HTTP ${response.statusCode}: Failed to load services',

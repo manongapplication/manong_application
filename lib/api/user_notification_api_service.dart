@@ -79,7 +79,40 @@ class UserNotificationApiService {
         return null;
       }
     } catch (e) {
-      logger.severe('Error seen notificatication $e');
+      logger.severe('Error seen notification $e');
+    }
+
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> seenAllNotification() async {
+    try {
+      final token = await AuthService().getNodeToken();
+
+      final uri = Uri.parse('$baseUrl/notification/seenAll');
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final responseBody = response.body;
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonData;
+      } else {
+        logger.warning(
+          'Failed to seen all notifications ${response.statusCode} ${jsonEncode(responseBody)} $uri',
+        );
+        return null;
+      }
+    } catch (e) {
+      logger.severe('Error seen all notifications $e');
     }
 
     return null;

@@ -14,12 +14,14 @@ class VerifyScreen extends StatefulWidget {
   final AuthService authService;
   final String? verificationId;
   final String phoneNumber;
+  final bool? isPasswordReset;
 
   const VerifyScreen({
     super.key,
     required this.authService,
     required this.verificationId,
     required this.phoneNumber,
+    this.isPasswordReset,
   });
 
   @override
@@ -36,6 +38,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
   bool _isSuccess = false;
   bool _isLoading = false;
   String? _error;
+  late bool? _isPasswordReset;
 
   @override
   void didChangeDependencies() {
@@ -48,6 +51,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
     _authService = widget.authService;
     _verificationId = widget.verificationId ?? '';
     _phoneNumber = widget.phoneNumber;
+    _isPasswordReset = widget.isPasswordReset;
   }
 
   void _verifySmsCode(String smsCode) async {
@@ -158,6 +162,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
       final response = await _authService?.verifySmsCodeTwilio(
         _phoneNumber,
         code,
+        _isPasswordReset,
       );
 
       if (response != null) {
@@ -166,11 +171,21 @@ class _VerifyScreenState extends State<VerifyScreen> {
           'Phone number verified successfully!',
         );
 
-        Navigator.pushNamedAndRemoveUntil(
-          navigatorKey.currentContext!,
-          '/',
-          (route) => false,
-        );
+        logger.info(response);
+
+        if (response['resetPassword'] == true) {
+          Navigator.pushNamed(
+            navigatorKey.currentContext!,
+            '/password-reset',
+            arguments: {'resetPassword': response['resetPassword']},
+          );
+        } else {
+          Navigator.pushNamedAndRemoveUntil(
+            navigatorKey.currentContext!,
+            '/',
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;

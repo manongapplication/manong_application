@@ -1,10 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/api/service_item_api_service.dart';
 import 'package:manong_application/api/user_notification_api_service.dart';
+import 'package:manong_application/api/wordpress_post_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/service_item.dart';
+import 'package:manong_application/models/wordpress_post.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/color_utils.dart';
 import 'package:manong_application/utils/permission_utils.dart';
@@ -12,6 +16,7 @@ import 'package:manong_application/widgets/instruction_steps.dart';
 import 'package:manong_application/widgets/manong_icon.dart';
 import 'package:manong_application/widgets/modal_icon_overlay.dart';
 import 'package:manong_application/widgets/service_card_lite.dart';
+import 'package:manong_application/widgets/wordpress_post_card.dart';
 
 class HomeScreen extends StatefulWidget {
   final String? token;
@@ -26,9 +31,21 @@ class _HomeScreenState extends State<HomeScreen> {
   List<ServiceItem> _allServiceItems = [];
   List<ServiceItem> _filteredServiceItems = [];
   bool _isLoading = true;
+  bool _isPostLoading = false;
   String? _error;
   late ServiceItemApiService _serviceItemApiService;
   late PermissionUtils? _permissionUtils;
+  late List<WordpressPost> _wordpressPost = [
+    WordpressPost(
+      id: 0,
+      title: "Welcome to Manong App",
+      excerpt:
+          "Welcome to our latest update! Here, we share insights, stories, and announcements to keep you informed and inspired.",
+      imageUrl: null,
+      link: "https://manongapp.com",
+      content: '',
+    ),
+  ];
 
   final TextEditingController _firstSearchController = TextEditingController();
   final TextEditingController _secondSearchController = TextEditingController();
@@ -52,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _serviceItemApiService = ServiceItemApiService();
     _loadToken();
     _getUnreadCount();
+    _fetchWordpressPost();
   }
 
   Future<void> _loadServiceItems() async {
@@ -352,6 +370,75 @@ class _HomeScreenState extends State<HomeScreen> {
     return InstructionSteps();
   }
 
+  Future<void> _fetchWordpressPost() async {
+    setState(() {
+      _isPostLoading = true;
+    });
+    try {
+      final response = await WordpressPostApiService().fetchWordpressPosts();
+
+      if (!mounted) return;
+
+      setState(() {
+        if (response == null) {
+          _wordpressPost = [
+            WordpressPost(
+              id: 0,
+              title: "Welcome to Manong App",
+              excerpt:
+                  "Welcome to our latest update! Here, we share insights, stories, and announcements to keep you informed and inspired.",
+              imageUrl: null,
+              link: "https://manongapp.com",
+              content: '',
+            ),
+          ];
+        } else {
+          _wordpressPost = response;
+        }
+        _isPostLoading = false;
+      });
+
+      logger.info('Wordpress posts ${jsonEncode(_wordpressPost[0].imageUrl)}');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _isPostLoading = false;
+      });
+      logger.severe('Error fetching posts $_error');
+    }
+  }
+
+  Widget _wordpressPostCards() {
+    if (_wordpressPost.isEmpty) {
+      return SizedBox(
+        height: 150,
+        child: Center(
+          child: Text(
+            'No posts available',
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: _wordpressPost.map((post) {
+          return WordpressPostCard(
+            id: post.id,
+            title: post.title,
+            excerpt: post.excerpt,
+            content: post.content,
+            imageUrl: post.imageUrl,
+            link: post.link,
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -522,17 +609,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(18),
-                        child: Image.network(
-                          'https://i.ibb.co/xKLBVyCy/558396638-122101818243050982-2984028404746068847-n.jpg',
-                          errorBuilder: (_, _, _) =>
-                              const Icon(Icons.broken_image),
-                          height: 180,
-                          width: 500,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
+                      // ClipRRect(
+                      //   borderRadius: BorderRadius.circular(18),
+                      //   child: Image.network(
+                      //     'https://i.ibb.co/xKLBVyCy/558396638-122101818243050982-2984028404746068847-n.jpg',
+                      //     errorBuilder: (_, _, _) =>
+                      //         const Icon(Icons.broken_image),
+                      //     height: 180,
+                      //     width: 500,
+                      //     fit: BoxFit.cover,
+                      //   ),
+                      // ),
+                      if (_isPostLoading)
+                        SizedBox(
+                          height: 150,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: AppColorScheme.primaryColor,
+                            ),
+                          ),
+                        )
+                      else
+                        _wordpressPostCards(),
                     ],
                   ),
                 ),
