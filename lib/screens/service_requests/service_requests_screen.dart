@@ -40,6 +40,7 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
   final distance = latlong.Distance();
+  bool _permissionDialogShown = false;
 
   late ServiceRequestApiService _serviceRequestApiService;
   final Logger logger = Logger('ServiceRequestScreen');
@@ -95,11 +96,45 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       });
     });
 
+    _countUnseenPaymentTransactions();
+  }
+
+    Future<void> _showPermissionDialog() async {
+    // Only show once and only if permission isn't already granted
+    if (_permissionDialogShown || _permissionUtils == null) return;
+    
+    bool granted = await _permissionUtils!.isLocationPermissionGranted();
+    
+    if (!granted && mounted) {
+      _permissionDialogShown = true; // Mark as shown
+      
+      showDialog(
+        context: navigatorKey.currentContext!,
+        barrierDismissible: false,
+        builder: (context) {
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ModalIconOverlay(
+              icons: Icons.location_off,
+              description:
+                  'Location permission is required to show your position and track service requests.',
+              onPressed: () async {
+                await _permissionUtils!.checkLocationPermission();
+                if (mounted) Navigator.of(navigatorKey.currentContext!).pop();
+              },
+            ),
+          );
+        },
+      );
+    }
+  }
+
+  void _checkAndShowPermissionDialog() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showPermissionDialog();
     });
-
-    _countUnseenPaymentTransactions();
   }
 
   void _initializeComponents() {
@@ -975,33 +1010,6 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         _navProvider.setServiceRequestId(null);
       });
     });
-  }
-
-  Future<void> _showPermissionDialog() async {
-    if (_permissionUtils != null) {
-      bool granted = await _permissionUtils!.isLocationPermissionGranted();
-      if (!granted && mounted) {
-        showDialog(
-          context: navigatorKey.currentContext!,
-          builder: (context) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: ModalIconOverlay(
-                icons: Icons.location_off,
-                description:
-                    'Location permission is required to show your position',
-                onPressed: () async {
-                  await _permissionUtils!.checkLocationPermission();
-                  if (mounted) Navigator.of(navigatorKey.currentContext!).pop();
-                },
-              ),
-            );
-          },
-        );
-      }
-    }
   }
 
   Widget _buildRatings() {

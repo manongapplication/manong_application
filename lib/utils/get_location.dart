@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:logging/logging.dart';
-import 'package:manong_application/main.dart';
 import 'package:manong_application/models/location_result.dart';
 
 class GetLocation {
@@ -15,11 +14,11 @@ class GetLocation {
 
     if (!serviceEnabled) {
       showDialog(
-        context: navigatorKey.currentContext!,
+        context: context, // ← CHANGE THIS: Use passed context
         builder: (context) => AlertDialog(
           title: Text('Location Disabled'),
           content: Text(
-            'Please enable location services to use this feauture.',
+            'Please enable location services to use this feature.',
           ),
           actions: [
             TextButton(
@@ -27,9 +26,7 @@ class GetLocation {
                 Navigator.of(context).pop();
                 await Geolocator.openLocationSettings();
                 await Future.delayed(Duration(seconds: 2));
-                Navigator.of(
-                  navigatorKey.currentContext!,
-                ).pushNamedAndRemoveUntil('/', (route) => false);
+                Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false); // ← CHANGE THIS
               },
               child: Text('Open Settings'),
             ),
@@ -98,7 +95,7 @@ class GetLocation {
             '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
       }
     } catch (e) {
-      logger.severe("Geolocator error $e");
+      logger.severe("Geocoding error $e");
     }
 
     return LocationResult(position: position, locationName: locationName);

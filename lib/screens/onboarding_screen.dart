@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:manong_application/main.dart';
@@ -6,6 +8,7 @@ import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/onboarding_storage.dart';
 import 'package:manong_application/utils/permission_utils.dart';
 import 'package:manong_application/widgets/modal_icon_overlay.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -21,6 +24,11 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   late FlutterSecureStorage _storage;
   int _currentPage = 0;
   late OnboardingStorage _onboardingStorage;
+  
+  // Track which dialogs have been shown
+  bool _locationDialogShown = false;
+  bool _notificationDialogShown = false;
+  
   final List<Map<String, String>> _instructions = [
     {
       'text': 'Welcome to Manong – Home services anytime you need.',
@@ -68,56 +76,127 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   }
 
   Future<void> _showNotificationPermissionDialog() async {
-    if (_permissionUtils != null) {
-      bool granted = await _permissionUtils!.isNotificationPermissionGranted();
-      if (!granted && mounted) {
-        showDialog(
-          context: navigatorKey.currentContext!,
-          builder: (context) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: ModalIconOverlay(
-                onPressed: () async {
-                  await _permissionUtils!.checkNotificationPermission();
-                  if (mounted) Navigator.of(navigatorKey.currentContext!).pop();
-                },
-                icons: Icons.notifications_active,
-                description:
-                    'We’d like to send you notifications about updates, reminders, and important alerts.',
-              ),
-            );
-          },
-        );
-      }
+    // Only show once and only if permission isn't already granted
+    if (_notificationDialogShown || _permissionUtils == null) return;
+    
+    bool granted = await _permissionUtils!.isNotificationPermissionGranted();
+    
+    if (!granted && mounted) {
+      _notificationDialogShown = true; // Mark as shown
+      
+      showDialog(
+        context: navigatorKey.currentContext!,
+        barrierDismissible: false,
+        builder: (context) {
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ModalIconOverlay(
+              onPressed: () async {
+                await _permissionUtils!.checkNotificationPermission();
+                
+                // Check if permission was granted after the action
+                bool newStatus = await _permissionUtils!.isNotificationPermissionGranted();
+                
+                if (mounted) {
+                  Navigator.of(navigatorKey.currentContext!).pop();
+                  
+                  // Show a follow-up message if on iOS and permission was denied
+                  if (Platform.isIOS && !newStatus) {
+                    _showIOSNotificationInstructions();
+                  }
+                }
+              },
+              icons: Icons.notifications_active,
+              description: Platform.isIOS 
+                  ? 'Enable notifications to get updates about your bookings and important alerts. You can manage this later in Settings.'
+                  : 'We\'d like to send you notifications about updates, reminders, and important alerts.',
+            ),
+          );
+        },
+      );
     }
   }
 
-  Future<void> _showLocationPermissionDialog() async {
-    if (_permissionUtils != null) {
-      bool granted = await _permissionUtils!.isLocationPermissionGranted();
-      if (!granted && mounted) {
-        showDialog(
-          context: navigatorKey.currentContext!,
-          builder: (context) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: ModalIconOverlay(
-                icons: Icons.location_off,
-                description:
-                    'Location permission is required to show your position',
-                onPressed: () async {
-                  await _permissionUtils!.checkLocationPermission();
-                  if (mounted) Navigator.of(navigatorKey.currentContext!).pop();
-                },
-              ),
-            );
-          },
+  void _showIOSNotificationInstructions() {
+    showDialog(
+      context: navigatorKey.currentContext!,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Enable Notifications'),
+          content: Text(
+            'To enable notifications, please go to Settings > Manong > Notifications and turn on Allow Notifications.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                openAppSettings();
+              },
+              child: Text('Open Settings'),
+            ),
+          ],
         );
-      }
+      },
+    );
+  }
+
+  Future<void> _showLocationPermissionDialog() async {
+    // Only show once and only if permission isn't already granted
+    if (_locationDialogShown || _permissionUtils == null) return;
+    
+    bool granted = await _permissionUtils!.isLocationPermissionGranted();
+    
+    if (!granted && mounted) {
+      _locationDialogShown = true; // Mark as shown
+      
+      showDialog(
+        context: navigatorKey.currentContext!,
+        barrierDismissible: false, // Prevent dismissing by tapping outside
+        builder: (context) {
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ModalIconOverlay(
+              icons: Icons.location_off,
+              description:
+                  'Location permission is required to show your position',
+              onPressed: () async {
+                await _permissionUtils!.checkLocationPermission();
+                if (mounted) Navigator.of(navigatorKey.currentContext!).pop();
+              },
+            ),
+          );
+        },
+      );
+    }
+  }
+
+  // Reset dialog flags when going back to previous pages
+  void _onPageChanged(int index) {
+    setState(() {
+      _currentPage = index;
+    });
+
+    // Reset dialog flags if user goes back to previous pages
+    if (index < 1) {
+      _locationDialogShown = false;
+    }
+    if (index < 2) {
+      _notificationDialogShown = false;
+    }
+
+    // Show dialogs only when moving forward to specific pages
+    if (index == 1 && !_locationDialogShown) {
+      _showLocationPermissionDialog();
+    } else if (index == 2 && !_notificationDialogShown) {
+      _showNotificationPermissionDialog();
     }
   }
 
@@ -131,17 +210,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
               child: PageView.builder(
                 controller: _pageController,
                 itemCount: _instructions.length,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentPage = index;
-                  });
-
-                  if (index == 1) {
-                    _showLocationPermissionDialog();
-                  } else if (index == 2) {
-                    _showNotificationPermissionDialog();
-                  }
-                },
+                onPageChanged: _onPageChanged, // Use the updated method
                 itemBuilder: (context, index) {
                   final item = _instructions[index];
 

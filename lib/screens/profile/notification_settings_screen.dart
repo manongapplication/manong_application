@@ -4,6 +4,7 @@ import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/permission_utils.dart';
 import 'package:manong_application/widgets/card_container_2.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
@@ -25,27 +26,71 @@ class _NotificationScreenState extends State<StatefulWidget> {
 
   Future<void> _initializeComponents() async {
     _permissionUtils = PermissionUtils();
-    await _permissionUtils.isNotificationPermissionGranted();
-    final isGranted = _permissionUtils.locationPermissionGranted;
+    bool isGranted = await _permissionUtils.isNotificationPermissionGranted();
 
     setState(() {
       _notificationOn = isGranted;
     });
   }
 
+  Future<void> _toggleNotification(bool value) async {
+    logger.info('Notification Status $value');
+    
+    setState(() {
+      _notificationOn = value;
+    });
+
+    if (value) {
+      // If turning on, check and request permission
+      await _permissionUtils.checkNotificationPermission();
+      
+      // Update state based on actual permission result
+      bool actualPermission = await _permissionUtils.isNotificationPermissionGranted();
+      setState(() {
+        _notificationOn = actualPermission;
+      });
+      
+      if (actualPermission) {
+        logger.info('Notification permission granted');
+      } else {
+        logger.info('Notification permission not granted');
+        // Show a message to the user
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Notification permission is required to receive alerts'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } else {
+      // If turning off, guide user to app settings
+      await openAppSettings();
+      
+      // After returning from settings, check the current status
+      bool currentPermission = await _permissionUtils.isNotificationPermissionGranted();
+      setState(() {
+        _notificationOn = currentPermission;
+      });
+    }
+  }
+
   Widget _buildSwitchBtn() {
-    if (_notificationOn == null) return SizedBox.shrink();
+    if (_notificationOn == null) {
+      return SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: AppColorScheme.primaryColor,
+        ),
+      );
+    }
+    
     return Switch(
       activeColor: AppColorScheme.primaryColor,
       inactiveTrackColor: AppColorScheme.backgroundGrey,
       value: _notificationOn!,
-      onChanged: (value) {
-        logger.info('Notification Status $value');
-        setState(() {
-          _notificationOn = value;
-        });
-        _permissionUtils.setLocationPermissionGranted(value);
-      },
+      onChanged: _toggleNotification,
     );
   }
 
@@ -79,7 +124,6 @@ class _NotificationScreenState extends State<StatefulWidget> {
                         ),
                       ],
                     ),
-
                     _buildSwitchBtn(),
                   ],
                 ),

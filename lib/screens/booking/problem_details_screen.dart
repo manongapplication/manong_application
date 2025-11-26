@@ -75,6 +75,33 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
   int currentStep = 2;
   List<UrgencyLevel>? _urgencyLevels;
 
+  bool _locationLoading = false;
+  bool _locationError = false;
+  
+  // Add this method to retry location
+  Future<void> _retryLocation() async {
+    setState(() {
+      _locationLoading = true;
+      _locationError = false;
+    });
+    
+    try {
+      await Future.delayed(Duration(milliseconds: 500));
+      
+      setState(() {
+        _locationLoading = false;
+      });
+      
+      // The MapPreview should automatically retry when it rebuilds
+    } catch (e) {
+      setState(() {
+        _locationLoading = false;
+        _locationError = true;
+      });
+    }
+  }
+
+
   void _setActiveUrgencyLevel(int index) {
     setState(() {
       _activeUrgencyLevel = index;
@@ -415,54 +442,117 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
       children: [
         Row(
           children: [
-            Icon(Icons.location_pin),
+            Icon(Icons.location_pin, color: AppColorScheme.primaryColor),
             const SizedBox(width: 8),
             Text(
               'Home Address',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade800,
+              ),
             ),
           ],
         ),
 
         const SizedBox(height: 12),
 
-        MapPreview(
-          enableMarkers: true,
-          onLocationResult: (result) {
-            setState(() {
-              _locationName = result.locationName;
-            });
-          },
-          onPosition: (latitude, longitude) {
-            setState(() {
-              _customerLat = latitude;
-              _customerLng = longitude;
-            });
-          },
+        // Map Preview Section
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: MapPreview(
+            enableMarkers: true,
+            onLocationResult: (result) {
+              if (!mounted) return;
+              setState(() {
+                _locationName = result.locationName;
+              });
+            },
+            onPosition: (latitude, longitude) {
+              if (!mounted) return;
+              setState(() {
+                _customerLat = latitude;
+                _customerLng = longitude;
+              });
+            },
+            onError: () {
+              if (!mounted) return;
+              setState(() {
+                _locationName = 'Location access required';
+              });
+            },
+          ),
         ),
 
         const SizedBox(height: 12),
 
-        Text(_locationName ?? 'Loading...'),
+        // Location Details Section
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.info_outline,
+                color: Colors.blue.shade600,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _locationName ?? 'Getting your location...',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _locationName != null ? Colors.grey.shade800 : Colors.grey.shade500,
+                        fontWeight: _locationName != null ? FontWeight.normal : FontWeight.w300,
+                      ),
+                    ),
+                    if (_customerLat != null && _customerLng != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Lat: ${_customerLat!.toStringAsFixed(6)}, Lng: ${_customerLng!.toStringAsFixed(6)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
 
         const SizedBox(height: 24),
 
+        // Service Name Field (Only for "Other" services)
         if (_isOtherService) ...[
           Container(
-            margin: EdgeInsets.only(bottom: 14),
+            margin: const EdgeInsets.only(bottom: 16),
             child: TextFormField(
               validator: (value) {
-                if (value!.trim().isEmpty) {
+                if (value == null || value.trim().isEmpty) {
                   return "Service name cannot be empty.";
-                } else {
-                  return null;
                 }
+                return null;
               },
               controller: _serviceNameController,
               maxLength: 50,
               decoration: InputDecoration(
                 labelText: 'Service Name *',
-                labelStyle: TextStyle(color: Colors.red),
+                labelStyle: const TextStyle(color: Colors.red),
                 hintText: 'Please specify the service you need',
                 floatingLabelBehavior: FloatingLabelBehavior.always,
                 border: OutlineInputBorder(
@@ -479,22 +569,31 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
                     width: 2,
                   ),
                 ),
-                contentPadding: EdgeInsets.symmetric(
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.red),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.red, width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 12,
                 ),
+                counterText: '',
               ),
             ),
           ),
         ],
 
+        // Service Details Field
         TextFormField(
           controller: _serviceDetailsController,
           decoration: InputDecoration(
             labelText: 'Service Details (Optional)',
             labelStyle: TextStyle(color: AppColorScheme.primaryColor),
-            hintText:
-                'Please describe what needs to be fixed or installed… (e.g. faucet leak, no water)',
+            hintText: 'Please describe what needs to be fixed or installed… (e.g. faucet leak, no water)',
             floatingLabelBehavior: FloatingLabelBehavior.always,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             enabledBorder: OutlineInputBorder(
@@ -508,12 +607,41 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
                 width: 2,
               ),
             ),
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
           maxLines: 5,
           minLines: 3,
           keyboardType: TextInputType.multiline,
+          textInputAction: TextInputAction.done,
         ),
+
+        // Location Help Text
+        if (_customerLat == null || _customerLng == null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.location_searching, color: Colors.orange.shade700, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Please enable location services to set your home address and find nearby Manongs.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.orange.shade800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

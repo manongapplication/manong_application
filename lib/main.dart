@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -47,6 +50,7 @@ import 'package:manong_application/utils/permission_utils.dart';
 import 'package:manong_application/widgets/authenticated_screen.dart';
 import 'package:manong_application/widgets/location_map.dart';
 import 'package:provider/provider.dart';
+import 'firebase_options.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final socketService = SocketApiService();
@@ -55,7 +59,7 @@ final Logger logger = Logger('MainApp');
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  Logger.root.level = Level.ALL; // capture all logs
+  Logger.root.level = Level.ALL;
   Logger.root.onRecord.listen((record) {
     debugPrint(
       '${record.level.name}: ${record.time}: ${record.loggerName}: ${record.message}',
@@ -63,13 +67,15 @@ Future<void> main() async {
   });
 
   await dotenv.load(fileName: ".env");
-
   await GetStorage.init();
-  await Firebase.initializeApp();
-  await Future.delayed(Duration(seconds: 1));
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
+  await Future.delayed(Duration(seconds: 1));
   FlutterNativeSplash.remove();
 
+  // System UI setup...
   SystemChrome.setSystemUIOverlayStyle(
     SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -91,70 +97,11 @@ Future<void> main() async {
 
   socketService.connect();
 
-  final fcmApi = FirebaseApiToken();
-  final fcmToken = await fcmApi.getToken();
-  final String? token = await AuthService().getNodeToken();
-  logger.info("📱 Securely stored FCM Token: $fcmToken");
-  if (fcmToken != null && token != null) {
-    await FirebaseApiToken().saveFcmTokenToDatabase();
-  }
-  await fcmApi.refreshTokenListener();
-
+  // Initialize Local Notifications FIRST (with iOS settings)
   await NotificationService.init();
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // Listen for token changes
-  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
-    if (newToken.isNotEmpty) {
-      await FirebaseApiToken().saveFcmTokenToDatabase();
-    }
-  });
-
-  // Foreground notification
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    final data = message.data;
-
-    // Add back the debug logging to see what's happening
-    logger.info('🔥 FCM Message Received');
-    logger.info('📱 Message Data: $data');
-    logger.info('🔔 Notification: ${message.notification?.toMap()}');
-    logger.info('💬 Full message - $message');
-
-    // Check if we have data or notification content
-    String title = '';
-    String body = '';
-
-    if (data.isNotEmpty) {
-      title = data['title'] ?? '';
-      body = data['body'] ?? '';
-      logger.info('📦 Using data payload - Title: $title, Body: $body');
-    }
-
-    if (title.isEmpty && message.notification != null) {
-      title = message.notification!.title ?? '';
-      body = message.notification!.body ?? '';
-      logger.info('🔔 Using notification payload - Title: $title, Body: $body');
-    }
-
-    if (title.isEmpty && body.isEmpty) {
-      logger.warning('⚠️ No title or body found in message');
-      title = 'New Message';
-      body = 'You have a new notification';
-    }
-
-    logger.info('🎯 Final notification - Title: $title, Body: $body');
-
-    if (PermissionUtils().locationPermissionGranted == false) return;
-
-    NotificationService.showNotification(title: title, body: body);
-
-    logger.info('✅ NotificationService.showNotification called');
-  });
-
-  // App opened from a notification tap
-  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-    logger.info('🔔 Notification tapped: ${message.data}');
-  });
+  // Then setup Firebase Messaging with safe token handling
+  await _setupFirebaseMessaging();
 
   final onboarding = OnboardingStorage();
   await onboarding.init();
@@ -172,6 +119,127 @@ Future<void> main() async {
       child: MyApp(),
     ),
   );
+}
+
+  Future<void> _setupFirebaseMessaging() async {
+    final messaging = FirebaseMessaging.instance;
+
+    // iOS-specific setup
+    await messaging.setForegroundNotificationPresentationOptions(
+      alert: true, // Show alert when in foreground
+      badge: true, // Update badge when in foreground  
+      sound: true, // Play sound when in foreground
+    );
+
+    // Request permissions with provisional for iOS 12+
+    final settings = await messaging.requestPermission(
+      alert: true,
+      badge: true, 
+      sound: true,
+      provisional: true, // Allow silent notifications first (iOS 12+)
+      criticalAlert: false, // Only enable if you need critical alerts
+    );
+
+    logger.info("📱 Notification permission: ${settings.authorizationStatus}");
+
+    // Get APNs token (iOS only)
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final apnsToken = await messaging.getAPNSToken();
+      logger.info("🍎 APNs Token: $apnsToken");
+    }
+
+    // Initialize token refresh listener
+    await FirebaseApiToken().refreshTokenListener();
+
+    // Safe token handling for iOS
+    if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional) {
+      
+      // For iOS, wait longer for APNs token to be ready
+      Future.delayed(Duration(seconds: 5), () async {
+        try {
+          await FirebaseApiToken().saveFcmTokenToDatabase();
+        } catch (e) {
+          logger.warning("⚠️ Initial FCM token save failed: $e");
+          // Retry after longer delay for iOS
+          if (defaultTargetPlatform == TargetPlatform.iOS) {
+            Future.delayed(Duration(seconds: 10), () async {
+              try {
+                await FirebaseApiToken().saveFcmTokenToDatabase();
+              } catch (e) {
+                logger.warning("⚠️ Second FCM token save attempt failed: $e");
+              }
+            });
+          }
+        }
+      });
+    }
+
+    // Background message handler
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    // Foreground message handler
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      logger.info('🔥 FCM Foreground message received');
+      
+      // Handle iOS-specific notification structure
+      _handleForegroundMessage(message);
+    });
+
+    // App opened from notification
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      logger.info('🔔 Notification tapped: ${message.data}');
+      _handleNotificationTap(message);
+    });
+
+    // Get initial notification if app was launched from terminated state
+    final initialMessage = await messaging.getInitialMessage();
+    if (initialMessage != null) {
+      logger.info('🚀 App launched from notification: ${initialMessage.data}');
+      _handleNotificationTap(initialMessage);
+    }
+  }
+
+void _handleForegroundMessage(RemoteMessage message) {
+  final data = message.data;
+  
+  String title = data['title'] ?? message.notification?.title ?? 'New Message';
+  String body = data['body'] ?? message.notification?.body ?? 'You have a new notification';
+
+  // For iOS, we need to handle both notification and data payloads
+  logger.info('📱 Foreground Notification - Title: $title, Body: $body, Data: $data');
+
+  // Show local notification
+  NotificationService.showNotification(
+    title: title, 
+    body: body,
+    payload: data.isNotEmpty ? jsonEncode(data) : null,
+  );
+}
+
+void _handleNotificationTap(RemoteMessage message) {
+  final data = message.data;
+  logger.info('👆 Notification tapped with data: $data');
+  
+  // Handle navigation based on notification data
+  _navigateFromNotification(data);
+}
+
+void _navigateFromNotification(Map<String, dynamic> data) {
+  // Example navigation logic - customize based on your app structure
+  if (data['serviceRequestId'] != null) {
+    // Navigate to service request details
+    navigatorKey.currentState?.pushNamed(
+      '/service-request-details',
+      arguments: {
+        'serviceRequestId': int.tryParse(data['serviceRequestId']),
+      },
+    );
+  } else if (data['type'] == 'chat') {
+    // Navigate to chat
+    // Add your chat navigation logic here
+  }
+  // Add more navigation cases as needed
 }
 
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {

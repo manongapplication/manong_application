@@ -64,16 +64,29 @@ class _MainScreenState extends State<MainScreen> {
     _navProvider = Provider.of<BottomNavProvider>(context, listen: false);
     _navProvider?.setController(_pageController);
     _trackingApiService = TrackingApiService();
-    _navProvider?.fetchOngoingServiceRequest().then((_) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_navProvider?.ongoingServiceRequest == null) return;
+    
+    // Use addPostFrameCallback to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchOngoingServiceRequest();
+    });
+  }
+
+  Future<void> _fetchOngoingServiceRequest() async {
+    try {
+      await _navProvider?.fetchOngoingServiceRequest();
+      final ongoingRequest = _navProvider?.ongoingServiceRequest;
+      
+      if (ongoingRequest != null && mounted) {
+        // Navigate to service requests page if there's an ongoing request
         _pageController.animateToPage(
           1,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
         );
-      });
-    });
+      }
+    } catch (e) {
+      logger.severe('Error fetching ongoing service request: $e');
+    }
   }
 
   Future<void> _loadToken() async {
@@ -95,7 +108,7 @@ class _MainScreenState extends State<MainScreen> {
       _token = token;
     });
 
-    if (_index != null && _token != null) {
+    if (_index != null && _token != null && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_serviceRequestStatusIndex != null && _navProvider != null) {
           _navProvider?.setStatusIndex(_serviceRequestStatusIndex!);
@@ -114,9 +127,12 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _getProfile() async {
+    if (!mounted) return;
+    
     setState(() {
       _isLoading = true;
     });
+    
     try {
       final response = await AuthService().getMyProfile();
 

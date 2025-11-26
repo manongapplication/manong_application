@@ -3,9 +3,8 @@ import 'package:manong_application/main.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/refund_utils.dart';
-import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/widgets/input_decorations.dart';
-import 'package:manong_application/api/service_request_api_service.dart'; // Add this import
+import 'package:manong_application/api/service_request_api_service.dart';
 
 class RefundDialog {
   static Future<void> show(
@@ -37,8 +36,18 @@ class RefundDialog {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
+        // Track if the dialog is still open
+        bool isDialogOpen = true;
+        
         return StatefulBuilder(
           builder: (context, setModalState) {
+            // Helper function to safely update state
+            void safeSetState(VoidCallback fn) {
+              if (isDialogOpen) {
+                setModalState(fn);
+              }
+            }
+
             return SafeArea(
               child: SingleChildScrollView(
                 padding: EdgeInsets.only(
@@ -65,6 +74,7 @@ class RefundDialog {
                           right: 0,
                           child: GestureDetector(
                             onTap: () {
+                              isDialogOpen = false;
                               Navigator.of(context).pop();
                               onClose?.call();
                             },
@@ -94,7 +104,7 @@ class RefundDialog {
                               ),
                               selected: active,
                               onSelected: (_) {
-                                setModalState(() {
+                                safeSetState(() {
                                   selectedReasonIndex = active
                                       ? null
                                       : index; // toggle
@@ -123,7 +133,7 @@ class RefundDialog {
                         children: [
                           TextFormField(
                             onChanged: (value) {
-                              setModalState(() => reasonCount = value.length);
+                              safeSetState(() => reasonCount = value.length);
                             },
                             validator: (value) {
                               // Case 1: No reason selected
@@ -176,7 +186,8 @@ class RefundDialog {
                             ? null
                             : () async {
                                 if (!formKey.currentState!.validate()) return;
-                                setModalState(() => isButtonLoading = true);
+                                
+                                safeSetState(() => isButtonLoading = true);
 
                                 String reasonText = '';
 
@@ -203,9 +214,15 @@ class RefundDialog {
                                       reasonText,
                                     );
 
+                                // Check if dialog is still open before proceeding
+                                if (!isDialogOpen) {
+                                  return;
+                                }
+
                                 if (response != null) {
                                   if (response['data'] != null) {
-                                    // ignore: use_build_context_synchronously
+                                    // Close the refund dialog first
+                                    isDialogOpen = false;
                                     Navigator.of(context).pop();
                                     onClose?.call();
 
@@ -252,19 +269,19 @@ class RefundDialog {
                                                   },
                                                 );
                                               },
-                                              child: Text('Okay'),
+                                              child: const Text('Okay'),
                                             ),
                                           ],
                                         );
                                       },
                                     );
                                   } else {
-                                    // Show error in dialog instead of snackbar
+                                    // Show error in dialog
                                     await showDialog(
-                                      context: navigatorKey.currentContext!,
+                                      context: context,
                                       builder: (context) {
                                         return AlertDialog(
-                                          title: Text('Error'),
+                                          title: const Text('Error'),
                                           content: Text(
                                             response['message'] ??
                                                 'Unknown error occurred',
@@ -277,7 +294,7 @@ class RefundDialog {
                                               onPressed: () {
                                                 Navigator.of(context).pop();
                                               },
-                                              child: Text('Okay'),
+                                              child: const Text('Okay'),
                                             ),
                                           ],
                                         );
@@ -285,22 +302,22 @@ class RefundDialog {
                                     );
                                   }
                                 } else {
-                                  // Show error in dialog instead of snackbar
+                                  // Show error in dialog
                                   await showDialog(
-                                    context: navigatorKey.currentContext!,
+                                    context: context,
                                     builder: (context) {
                                       return AlertDialog(
-                                        title: Text('Error'),
-                                        content: Text(
+                                        title: const Text('Error'),
+                                        content: const Text(
                                           'Error creating refund request! Please Try again later.',
-                                          style: const TextStyle(fontSize: 14),
+                                          style: TextStyle(fontSize: 14),
                                         ),
                                         actions: [
                                           TextButton(
                                             onPressed: () {
                                               Navigator.of(context).pop();
                                             },
-                                            child: Text('Okay'),
+                                            child: const Text('Okay'),
                                           ),
                                         ],
                                       );
@@ -308,7 +325,10 @@ class RefundDialog {
                                   );
                                 }
 
-                                setModalState(() => isButtonLoading = false);
+                                // Only update state if dialog is still open
+                                if (isDialogOpen) {
+                                  safeSetState(() => isButtonLoading = false);
+                                }
                               },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColorScheme.primaryColor,
