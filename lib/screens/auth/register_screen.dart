@@ -6,6 +6,7 @@ import 'package:intl_phone_field/phone_number.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/api/firebase_api_token.dart';
+import 'package:manong_application/api/referral_code_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/screens/home/home_screen.dart';
 import 'package:manong_application/screens/main_screen.dart';
@@ -30,8 +31,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String selectedCountry = 'PH';
   bool _isLoading = false;
   String? _error;
-  final TextEditingController _influenceCodeController =
-      TextEditingController();
+  final TextEditingController _referralCodeController = TextEditingController();
 
   // void _submitRegisterPhone() async {
   //   if (!mounted) return;
@@ -128,6 +128,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
   //   }
   // }
 
+  Future<bool> _validateReferralCode() async {
+    try {
+      final response = await ReferralCodeApiService().validateCode(
+        _referralCodeController.text,
+      );
+
+      if (response != null) {
+        if (response['success'] == true) {
+          return true;
+        } else {
+          SnackBarUtils.showWarning(
+            navigatorKey.currentContext!,
+            response['message'],
+          );
+          return false;
+        }
+      }
+    } catch (e) {
+      if (!mounted) return false;
+      setState(() {
+        _error = e.toString();
+      });
+      logger.severe('Error validating code $_error');
+    }
+
+    return false;
+  }
+
   void _submitRegisterPhone() async {
     if (!mounted) return;
 
@@ -144,6 +172,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
 
       try {
+        if (_referralCodeController.text.isNotEmpty) {
+          if (!(await _validateReferralCode())) {
+            return;
+          }
+        }
+
         await authService.sendVerificationTwilio(phone?.completeNumber ?? '');
 
         if (!mounted) return;
@@ -159,6 +193,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           arguments: {
             'authService': authService,
             'phoneNumber': phone!.completeNumber,
+            'referralCode': _referralCodeController.text,
           },
         );
       } catch (e) {
@@ -206,6 +241,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         if (hasPassword != null) {
           if (hasPassword == true) {
+            if (_referralCodeController.text.isNotEmpty) {
+              SnackBarUtils.showWarning(
+                navigatorKey.currentContext!,
+                'You are already registered. Referral codes are only for new users.',
+              );
+            }
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
+            }
             Navigator.pushNamed(
               navigatorKey.currentContext!,
               '/enter-password',
@@ -230,17 +276,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (!mounted) return;
         setState(() {
           _error = e.toString();
+          _isLoading = false;
         });
 
         logger.severe('Error $_error');
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
       }
-    } else {}
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   void _registerInstant() async {
@@ -310,6 +355,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   exampleNumber,
                   labelText: 'Phone Number',
                 ),
+                enabled: !_isLoading,
                 initialCountryCode: 'PH',
                 onChanged: (phone) {
                   this.phone = phone;
@@ -331,7 +377,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 16),
 
               TextFormField(
-                controller: _influenceCodeController,
+                controller: _referralCodeController,
                 decoration: inputDecoration(
                   'MANGO25',
                   labelText: 'Referral Code (Optional)',
@@ -345,6 +391,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     );
                   }),
                 ],
+                enabled: !_isLoading,
                 validator: (value) {
                   // Since it's optional, only validate if user entered something
                   if (value == null || value.isEmpty) {
@@ -437,7 +484,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
-    _influenceCodeController.dispose();
+    _referralCodeController.dispose();
     super.dispose();
   }
 }

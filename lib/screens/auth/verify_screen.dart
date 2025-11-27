@@ -15,6 +15,7 @@ class VerifyScreen extends StatefulWidget {
   final String? verificationId;
   final String phoneNumber;
   final bool? isPasswordReset;
+  final String? referralCode;
 
   const VerifyScreen({
     super.key,
@@ -22,6 +23,7 @@ class VerifyScreen extends StatefulWidget {
     required this.verificationId,
     required this.phoneNumber,
     this.isPasswordReset,
+    this.referralCode,
   });
 
   @override
@@ -39,6 +41,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
   bool _isLoading = false;
   String? _error;
   late bool? _isPasswordReset;
+  late String? _referralCode;
 
   @override
   void didChangeDependencies() {
@@ -52,6 +55,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
     _verificationId = widget.verificationId ?? '';
     _phoneNumber = widget.phoneNumber;
     _isPasswordReset = widget.isPasswordReset;
+    _referralCode = widget.referralCode;
   }
 
   void _verifySmsCode(String smsCode) async {
@@ -160,9 +164,10 @@ class _VerifyScreenState extends State<VerifyScreen> {
     });
     try {
       final response = await _authService?.verifySmsCodeTwilio(
-        _phoneNumber,
-        code,
-        _isPasswordReset,
+        smsNumber: _phoneNumber,
+        code: code,
+        resetPassword: _isPasswordReset,
+        referralCode: _referralCode,
       );
 
       if (response != null) {
@@ -299,6 +304,36 @@ class _VerifyScreenState extends State<VerifyScreen> {
                 ),
               ),
 
+              if ((_referralCode ?? '').isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.local_offer,
+                        size: 16,
+                        color: Colors.green[800],
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Using referral code: $_referralCode',
+                        style: TextStyle(
+                          color: Colors.green[800],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               // Status messages
               if (_isSuccess) ...[
                 Container(

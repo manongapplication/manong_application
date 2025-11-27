@@ -68,9 +68,7 @@ Future<void> main() async {
 
   await dotenv.load(fileName: ".env");
   await GetStorage.init();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   await Future.delayed(Duration(seconds: 1));
   FlutterNativeSplash.remove();
@@ -121,97 +119,101 @@ Future<void> main() async {
   );
 }
 
-  Future<void> _setupFirebaseMessaging() async {
-    final messaging = FirebaseMessaging.instance;
+Future<void> _setupFirebaseMessaging() async {
+  final messaging = FirebaseMessaging.instance;
 
-    // iOS-specific setup
-    await messaging.setForegroundNotificationPresentationOptions(
-      alert: true, // Show alert when in foreground
-      badge: true, // Update badge when in foreground  
-      sound: true, // Play sound when in foreground
-    );
+  // iOS-specific setup
+  await messaging.setForegroundNotificationPresentationOptions(
+    alert: true, // Show alert when in foreground
+    badge: true, // Update badge when in foreground
+    sound: true, // Play sound when in foreground
+  );
 
-    // Request permissions with provisional for iOS 12+
-    final settings = await messaging.requestPermission(
-      alert: true,
-      badge: true, 
-      sound: true,
-      provisional: true, // Allow silent notifications first (iOS 12+)
-      criticalAlert: false, // Only enable if you need critical alerts
-    );
+  // Request permissions with provisional for iOS 12+
+  final settings = await messaging.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+    provisional: true, // Allow silent notifications first (iOS 12+)
+    criticalAlert: false, // Only enable if you need critical alerts
+  );
 
-    logger.info("📱 Notification permission: ${settings.authorizationStatus}");
+  logger.info("📱 Notification permission: ${settings.authorizationStatus}");
 
-    // Get APNs token (iOS only)
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
-      final apnsToken = await messaging.getAPNSToken();
-      logger.info("🍎 APNs Token: $apnsToken");
-    }
-
-    // Initialize token refresh listener
-    await FirebaseApiToken().refreshTokenListener();
-
-    // Safe token handling for iOS
-    if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-        settings.authorizationStatus == AuthorizationStatus.provisional) {
-      
-      // For iOS, wait longer for APNs token to be ready
-      Future.delayed(Duration(seconds: 5), () async {
-        try {
-          await FirebaseApiToken().saveFcmTokenToDatabase();
-        } catch (e) {
-          logger.warning("⚠️ Initial FCM token save failed: $e");
-          // Retry after longer delay for iOS
-          if (defaultTargetPlatform == TargetPlatform.iOS) {
-            Future.delayed(Duration(seconds: 10), () async {
-              try {
-                await FirebaseApiToken().saveFcmTokenToDatabase();
-              } catch (e) {
-                logger.warning("⚠️ Second FCM token save attempt failed: $e");
-              }
-            });
-          }
-        }
-      });
-    }
-
-    // Background message handler
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-    // Foreground message handler
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      logger.info('🔥 FCM Foreground message received');
-      
-      // Handle iOS-specific notification structure
-      _handleForegroundMessage(message);
-    });
-
-    // App opened from notification
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      logger.info('🔔 Notification tapped: ${message.data}');
-      _handleNotificationTap(message);
-    });
-
-    // Get initial notification if app was launched from terminated state
-    final initialMessage = await messaging.getInitialMessage();
-    if (initialMessage != null) {
-      logger.info('🚀 App launched from notification: ${initialMessage.data}');
-      _handleNotificationTap(initialMessage);
-    }
+  // Get APNs token (iOS only)
+  if (defaultTargetPlatform == TargetPlatform.iOS) {
+    final apnsToken = await messaging.getAPNSToken();
+    logger.info("🍎 APNs Token: $apnsToken");
   }
+
+  // Initialize token refresh listener
+  await FirebaseApiToken().refreshTokenListener();
+
+  // Safe token handling for iOS
+  if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+      settings.authorizationStatus == AuthorizationStatus.provisional) {
+    // For iOS, wait longer for APNs token to be ready
+    Future.delayed(Duration(seconds: 5), () async {
+      try {
+        await FirebaseApiToken().saveFcmTokenToDatabase();
+      } catch (e) {
+        logger.warning("⚠️ Initial FCM token save failed: $e");
+        // Retry after longer delay for iOS
+        if (defaultTargetPlatform == TargetPlatform.iOS) {
+          Future.delayed(Duration(seconds: 10), () async {
+            try {
+              await FirebaseApiToken().saveFcmTokenToDatabase();
+            } catch (e) {
+              logger.warning("⚠️ Second FCM token save attempt failed: $e");
+            }
+          });
+        }
+      }
+    });
+  }
+
+  // Background message handler
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // Foreground message handler
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    logger.info('🔥 FCM Foreground message received');
+
+    // Handle iOS-specific notification structure
+    _handleForegroundMessage(message);
+  });
+
+  // App opened from notification
+  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+    logger.info('🔔 Notification tapped: ${message.data}');
+    _handleNotificationTap(message);
+  });
+
+  // Get initial notification if app was launched from terminated state
+  final initialMessage = await messaging.getInitialMessage();
+  if (initialMessage != null) {
+    logger.info('🚀 App launched from notification: ${initialMessage.data}');
+    _handleNotificationTap(initialMessage);
+  }
+}
 
 void _handleForegroundMessage(RemoteMessage message) {
   final data = message.data;
-  
+
   String title = data['title'] ?? message.notification?.title ?? 'New Message';
-  String body = data['body'] ?? message.notification?.body ?? 'You have a new notification';
+  String body =
+      data['body'] ??
+      message.notification?.body ??
+      'You have a new notification';
 
   // For iOS, we need to handle both notification and data payloads
-  logger.info('📱 Foreground Notification - Title: $title, Body: $body, Data: $data');
+  logger.info(
+    '📱 Foreground Notification - Title: $title, Body: $body, Data: $data',
+  );
 
   // Show local notification
   NotificationService.showNotification(
-    title: title, 
+    title: title,
     body: body,
     payload: data.isNotEmpty ? jsonEncode(data) : null,
   );
@@ -220,7 +222,7 @@ void _handleForegroundMessage(RemoteMessage message) {
 void _handleNotificationTap(RemoteMessage message) {
   final data = message.data;
   logger.info('👆 Notification tapped with data: $data');
-  
+
   // Handle navigation based on notification data
   _navigateFromNotification(data);
 }
@@ -231,9 +233,7 @@ void _navigateFromNotification(Map<String, dynamic> data) {
     // Navigate to service request details
     navigatorKey.currentState?.pushNamed(
       '/service-request-details',
-      arguments: {
-        'serviceRequestId': int.tryParse(data['serviceRequestId']),
-      },
+      arguments: {'serviceRequestId': int.tryParse(data['serviceRequestId'])},
     );
   } else if (data['type'] == 'chat') {
     // Navigate to chat
@@ -336,6 +336,9 @@ class MyApp extends StatelessWidget {
                     : null,
                 isPasswordReset: args?['isPasswordReset'] != null
                     ? args!['isPasswordReset']
+                    : null,
+                referralCode: args?['referralCode'] != null
+                    ? args!['referralCode']
                     : null,
               ),
             );
