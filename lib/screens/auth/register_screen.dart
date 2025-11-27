@@ -172,16 +172,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
 
       try {
-        // ONLY validate referral code if it's not empty
         if (_referralCodeController.text.isNotEmpty) {
           final isValid = await _validateReferralCode();
           if (!isValid) {
             setState(() => _isLoading = false);
-            return; // Stop if referral code is invalid
+            return;
           }
         }
 
-        // Proceed with verification regardless of referral code
         await authService.sendVerificationTwilio(phone?.completeNumber ?? '');
 
         if (!mounted) return;
@@ -201,18 +199,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
             'phoneNumber': phone!.completeNumber,
             'referralCode': _referralCodeController.text.isNotEmpty
                 ? _referralCodeController.text
-                : null, // Send null if empty
+                : null,
           },
         );
       } catch (e) {
         if (!mounted) return;
         setState(() => _isLoading = false);
 
-        final errorMessage = e.toString().contains('blocked')
-            ? 'This number prefix is temporarily blocked. Please try a different number.'
-            : 'Failed to send code: $e';
+        // ✅ IMPROVED ERROR DETECTION
+        String errorMessage;
+        final errorString = e.toString();
+
+        if (errorString.contains('blocked') ||
+            errorString.contains('60410') ||
+            errorString.contains('temporarily blocked')) {
+          errorMessage =
+              'This number prefix (+63995) is temporarily blocked by our provider. Please try a different mobile number.';
+        } else if (errorString.contains('invalid') ||
+            errorString.contains('not valid')) {
+          errorMessage = 'Please enter a valid Philippine mobile number.';
+        } else if (errorString.contains('quota') ||
+            errorString.contains('limit')) {
+          errorMessage = 'SMS sending limit reached. Please try again later.';
+        } else {
+          errorMessage = 'Failed to send verification code: $e';
+        }
 
         SnackBarUtils.showError(context, errorMessage);
+
+        // Also log the actual error for debugging
+        logger.severe('SMS sending error: $e');
       }
     } else {
       setState(() => _isLoading = false);

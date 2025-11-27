@@ -274,16 +274,15 @@ class AuthService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return jsonData;
       } else {
-        logger.warning(
-          'Failed to send sms ${response.statusCode} $responseBody',
-        );
+        // Throw the actual error message from backend
+        final errorMessage = jsonData['message'] ?? 'Failed to send SMS';
+        throw Exception(errorMessage);
       }
-      return null;
     } catch (e) {
       logger.severe('Error sending sms $e');
+      // Re-throw the error so it can be caught in the UI
+      rethrow;
     }
-
-    return null;
   }
 
   Future<Map<String, dynamic>?> verifySmsCodeTwilio({
