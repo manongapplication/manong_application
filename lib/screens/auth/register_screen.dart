@@ -172,12 +172,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
 
       try {
+        // ONLY validate referral code if it's not empty
         if (_referralCodeController.text.isNotEmpty) {
-          if (!(await _validateReferralCode())) {
-            return;
+          final isValid = await _validateReferralCode();
+          if (!isValid) {
+            setState(() => _isLoading = false);
+            return; // Stop if referral code is invalid
           }
         }
 
+        // Proceed with verification regardless of referral code
         await authService.sendVerificationTwilio(phone?.completeNumber ?? '');
 
         if (!mounted) return;
@@ -187,33 +191,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'We\'ve sent a 6-digit code to your phone. Enter it below to verify your number.',
         );
 
+        setState(() => _isLoading = false);
+
         Navigator.pushNamed(
           context,
           '/verify',
           arguments: {
             'authService': authService,
             'phoneNumber': phone!.completeNumber,
-            'referralCode': _referralCodeController.text,
+            'referralCode': _referralCodeController.text.isNotEmpty
+                ? _referralCodeController.text
+                : null, // Send null if empty
           },
         );
       } catch (e) {
         if (!mounted) return;
+        setState(() => _isLoading = false);
 
         final errorMessage = e.toString().contains('blocked')
             ? 'This number prefix is temporarily blocked. Please try a different number.'
             : 'Failed to send code: $e';
 
         SnackBarUtils.showError(context, errorMessage);
-
-        setState(() {
-          _error = errorMessage;
-        });
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
       }
     } else {
       setState(() => _isLoading = false);
@@ -352,25 +351,71 @@ class _RegisterScreenState extends State<RegisterScreen> {
               SizedBox(height: 20),
               IntlPhoneField(
                 decoration: inputDecoration(
-                  exampleNumber,
+                  getExampleNumber(selectedCountry),
                   labelText: 'Phone Number',
                 ),
                 enabled: !_isLoading,
                 initialCountryCode: 'PH',
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  TextInputFormatter.withFunction((oldValue, newValue) {
+                    String newText = newValue.text;
+
+                    // For Philippines only, remove leading zero
+                    if (selectedCountry == 'PH' && newText.startsWith('0')) {
+                      newText = newText.substring(1);
+                    }
+
+                    return TextEditingValue(
+                      text: newText,
+                      selection: TextSelection.collapsed(
+                        offset: newText.length,
+                      ),
+                    );
+                  }),
+                ],
                 onChanged: (phone) {
-                  this.phone = phone;
+                  // Process the number to remove leading zero
+                  String processedNumber = phone.number;
+                  if (selectedCountry == 'PH' &&
+                      processedNumber.startsWith('0')) {
+                    processedNumber = processedNumber.substring(1);
+                  }
+
+                  // Create a new phone object with processed number
+                  this.phone = PhoneNumber(
+                    countryCode: phone.countryCode,
+                    countryISOCode: phone.countryISOCode,
+                    number: processedNumber,
+                  );
+                },
+                validator: (phone) {
+                  if (phone == null || phone.number.isEmpty) {
+                    return 'Please enter your phone number';
+                  }
+
+                  String processedNumber = phone.number;
+                  if (selectedCountry == 'PH' &&
+                      processedNumber.startsWith('0')) {
+                    processedNumber = processedNumber.substring(1);
+                  }
+
+                  if (selectedCountry == 'PH') {
+                    if (processedNumber.length != 10) {
+                      return 'Please enter a valid 10-digit Philippine number';
+                    }
+
+                    if (!processedNumber.startsWith('9')) {
+                      return 'Philippine mobile numbers must start with 9';
+                    }
+                  }
+
+                  return null;
                 },
                 onCountryChanged: (country) {
                   setState(() {
                     selectedCountry = country.code;
                   });
-                },
-                validator: (phone) {
-                  if (phone == null || phone.number.isEmpty) {
-                    return 'Please enter your phone number';
-                  } else {
-                    return null;
-                  }
                 },
               ),
 

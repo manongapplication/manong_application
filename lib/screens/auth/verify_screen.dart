@@ -161,7 +161,10 @@ class _VerifyScreenState extends State<VerifyScreen> {
     setState(() {
       _isLoading = true;
       _error = null;
+      _isError = false; // Reset error state
+      _isSuccess = false; // Reset success state
     });
+
     try {
       final response = await _authService?.verifySmsCodeTwilio(
         smsNumber: _phoneNumber,
@@ -171,6 +174,13 @@ class _VerifyScreenState extends State<VerifyScreen> {
       );
 
       if (response != null) {
+        // SUCCESS
+        setState(() {
+          _isSuccess = true;
+          _isError = false;
+          _isLoading = false;
+        });
+
         SnackBarUtils.showSuccess(
           navigatorKey.currentContext!,
           'Phone number verified successfully!',
@@ -191,13 +201,43 @@ class _VerifyScreenState extends State<VerifyScreen> {
             (route) => false,
           );
         }
+      } else {
+        // FAILURE - response is null
+        setState(() {
+          _isError = true;
+          _isSuccess = false;
+          _isLoading = false;
+          _error = 'Verification failed. Please try again.';
+        });
+
+        SnackBarUtils.showError(
+          navigatorKey.currentContext!,
+          'The verification code is incorrect. Please try again.',
+        );
       }
     } catch (e) {
       if (!mounted) return;
+
+      // ERROR - exception occurred
+      String errorMessage = 'Verification failed';
+      if (e.toString().contains('incorrect') ||
+          e.toString().contains('invalid')) {
+        errorMessage = 'The verification code is incorrect. Please try again.';
+      } else if (e.toString().contains('referral')) {
+        errorMessage = 'Referral code issue: ${e.toString()}';
+      } else {
+        errorMessage = 'Verification failed: ${e.toString()}';
+      }
+
       setState(() {
-        _error = e.toString();
+        _isError = true;
+        _isSuccess = false;
+        _isLoading = false;
+        _error = errorMessage;
       });
-      logger.severe('Error verifying sms code $_error');
+
+      SnackBarUtils.showError(navigatorKey.currentContext!, errorMessage);
+      logger.severe('Error verifying sms code: $e');
     } finally {
       if (mounted) {
         setState(() {
