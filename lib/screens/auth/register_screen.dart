@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:intl_phone_field/phone_number.dart';
 import 'package:logging/logging.dart';
@@ -11,6 +12,7 @@ import 'package:manong_application/screens/main_screen.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/hint_phone_numbers.dart';
 import 'package:manong_application/utils/snackbar_utils.dart';
+import 'package:manong_application/widgets/input_decorations.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -28,6 +30,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String selectedCountry = 'PH';
   bool _isLoading = false;
   String? _error;
+  final TextEditingController _influenceCodeController =
+      TextEditingController();
 
   // void _submitRegisterPhone() async {
   //   if (!mounted) return;
@@ -302,11 +306,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Text("Mobile"),
               SizedBox(height: 20),
               IntlPhoneField(
-                decoration: InputDecoration(
+                decoration: inputDecoration(
+                  exampleNumber,
                   labelText: 'Phone Number',
-                  hintText: exampleNumber,
-                  hintStyle: TextStyle(color: Colors.grey),
-                  border: OutlineInputBorder(borderSide: BorderSide()),
                 ),
                 initialCountryCode: 'PH',
                 onChanged: (phone) {
@@ -323,6 +325,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   } else {
                     return null;
                   }
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: _influenceCodeController,
+                decoration: inputDecoration(
+                  'MANGO25',
+                  labelText: 'Referral Code (Optional)',
+                ),
+                textCapitalization: TextCapitalization.words,
+                inputFormatters: [
+                  TextInputFormatter.withFunction((oldValue, newValue) {
+                    return TextEditingValue(
+                      text: newValue.text.toUpperCase(),
+                      selection: newValue.selection,
+                    );
+                  }),
+                ],
+                validator: (value) {
+                  // Since it's optional, only validate if user entered something
+                  if (value == null || value.isEmpty) {
+                    return null; // No error for empty optional field
+                  }
+
+                  // Remove any spaces and check length
+                  final cleanedValue = value.trim();
+
+                  // Check minimum length
+                  if (cleanedValue.length < 6) {
+                    return 'Referral code must be at least 6 characters';
+                  }
+
+                  // Check maximum length
+                  if (cleanedValue.length > 12) {
+                    return 'Referral code cannot exceed 12 characters';
+                  }
+
+                  // Check format - only letters and numbers allowed
+                  if (!RegExp(r'^[A-Z0-9]+$').hasMatch(cleanedValue)) {
+                    return 'Referral code can only contain letters and numbers';
+                  }
+
+                  // No errors
+                  return null;
                 },
               ),
             ],
@@ -385,5 +433,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _influenceCodeController.dispose();
+    super.dispose();
   }
 }

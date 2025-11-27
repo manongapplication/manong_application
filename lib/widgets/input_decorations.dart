@@ -27,7 +27,7 @@ InputDecoration inputDecoration(
     ),
     suffixIcon: suffixIcon,
     labelText: labelText,
-    labelStyle: labelStyle,
+    labelStyle: labelStyle ?? TextStyle(color: AppColorScheme.primaryDark),
     floatingLabelBehavior: floatingLabelBehavior,
   );
 }

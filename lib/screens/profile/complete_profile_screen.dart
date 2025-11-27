@@ -186,6 +186,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             labelText: 'First Name',
             floatingLabelBehavior: FloatingLabelBehavior.always,
           ),
+          textCapitalization: TextCapitalization.words,
         ),
 
         TextFormField(
@@ -207,6 +208,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             labelText: 'Last Name',
             floatingLabelBehavior: FloatingLabelBehavior.always,
           ),
+          textCapitalization: TextCapitalization.words,
         ),
 
         TextFormField(
@@ -227,6 +229,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             labelText: 'Nickname (Optional)',
             floatingLabelBehavior: FloatingLabelBehavior.always,
           ),
+          textCapitalization: TextCapitalization.words,
         ),
 
         TextFormField(
