@@ -166,7 +166,7 @@ class _EditProfileState extends State<EditProfile> {
       children: [
         _buildTextFields(title: 'First Name', controller: firstNameController),
         _buildTextFields(title: 'Last Name', controller: lastNameController),
-        _buildTextFields(title: 'Email', controller: emailController),
+        // _buildTextFields(title: 'Email', controller: emailController),
       ],
     );
   }

@@ -39,6 +39,7 @@ import 'package:manong_application/screens/main_screen.dart';
 import 'package:manong_application/screens/onboarding_screen.dart';
 import 'package:manong_application/screens/profile/complete_profile_screen.dart';
 import 'package:manong_application/screens/profile/edit_profile.dart';
+import 'package:manong_application/screens/profile/help_and_support_screen.dart';
 import 'package:manong_application/screens/profile/notification_settings_screen.dart';
 import 'package:manong_application/screens/service_requests/chat_manong_screen.dart';
 import 'package:manong_application/screens/service_requests/route_tracking_screen.dart';
@@ -507,6 +508,8 @@ class MyApp extends StatelessWidget {
             return MaterialPageRoute(builder: (_) => UserNotificationScreen());
           case '/complete-profile':
             return MaterialPageRoute(builder: (_) => CompleteProfileScreen());
+          case '/help-and-support':
+            return MaterialPageRoute(builder: (_) => HelpAndSupportScreen());
         }
         return null;
       },

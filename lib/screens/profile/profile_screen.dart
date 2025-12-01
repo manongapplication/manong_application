@@ -241,6 +241,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             subtitle: 'Get help and contact support',
             onTap: () {
               // Navigate to help
+              Navigator.pushNamed(context, '/help-and-support');
             },
           ),
           const SizedBox(height: 12),
