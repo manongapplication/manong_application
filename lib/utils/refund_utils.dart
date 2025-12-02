@@ -36,15 +36,6 @@ class RefundUtils {
       );
 
       if (response != null) {
-        // Check if response has a specific available date
-        if (response.containsKey('availableDate') &&
-            response['availableDate'] != null) {
-          return {
-            ...response,
-            'message':
-                'Refund scheduled for ${response['availableDate']}. Our payment processor holds funds for security before refunds can be processed.',
-          };
-        }
         return response;
       }
     } catch (e) {
