@@ -16,6 +16,7 @@ class RefundRequest {
 
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final DateTime? availableAt;
 
   final AppUser? reviewedByUser;
 
@@ -34,6 +35,7 @@ class RefundRequest {
 
     this.createdAt,
     this.updatedAt,
+    this.availableAt,
 
     this.reviewedByUser,
   });
@@ -60,6 +62,10 @@ class RefundRequest {
           : null,
       updatedAt: json['updatedAt'] != null
           ? DateTime.parse(json['updatedAt'].toString())
+          : null,
+
+      availableAt: json['availableAt'] != null
+          ? DateTime.parse(json['availableAt'].toString())
           : null,
 
       reviewedByUser: json['reviewedByUser'] != null
