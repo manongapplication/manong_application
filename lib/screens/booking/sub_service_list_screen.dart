@@ -4,8 +4,8 @@ import 'package:manong_application/models/service_item.dart';
 import 'package:manong_application/models/sub_service_item.dart';
 import 'package:manong_application/utils/color_utils.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
-import 'package:manong_application/widgets/icon_card.dart';
 import 'package:manong_application/widgets/sub_service_card.dart';
+import 'package:manong_application/api/bookmark_item_api_service.dart';
 
 class SubServiceListScreen extends StatefulWidget {
   final ServiceItem serviceItem;
@@ -35,15 +35,85 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
   bool _isLoadingMore = false;
   bool _hasMore = true;
 
+  // Bookmark state
+  Map<int, bool> _bookmarkStatus = {};
+  bool _isLoadingBookmarks = false;
+
   @override
   void initState() {
     super.initState();
-    _filteredSubServiceItems = widget.serviceItem.subServiceItems;
-    _updateDisplayedItems();
     _searchController.addListener(_onSearchChanged);
-
-    // Setup scroll listener for pagination
     _scrollController.addListener(_onScroll);
+    _fetchAllBookmarks();
+  }
+
+  Future<void> _fetchAllBookmarks() async {
+    setState(() {
+      _isLoadingBookmarks = true;
+    });
+
+    try {
+      // Fetch all bookmarked sub-service items
+      final bookmarks = await BookmarkItemApiService()
+          .fetchBookmarkSubServiceItems();
+
+      final bookmarkedIds = <int>{};
+      if (bookmarks != null) {
+        for (final bookmark in bookmarks) {
+          if (bookmark.subServiceItemId != null) {
+            bookmarkedIds.add(bookmark.subServiceItemId!);
+          }
+        }
+      }
+
+      // Update bookmark status for all items
+      final newBookmarkStatus = <int, bool>{};
+      for (final item in widget.serviceItem.subServiceItems) {
+        newBookmarkStatus[item.id] = bookmarkedIds.contains(item.id);
+      }
+
+      if (mounted) {
+        setState(() {
+          _bookmarkStatus = newBookmarkStatus;
+          // Initialize filtered items with sorting
+          _filteredSubServiceItems = List.from(
+            widget.serviceItem.subServiceItems,
+          );
+          _sortItemsByBookmark();
+          _updateDisplayedItems();
+        });
+      }
+    } catch (e) {
+      print('Error fetching bookmarks: $e');
+      // Fallback to original items
+      if (mounted) {
+        setState(() {
+          _filteredSubServiceItems = widget.serviceItem.subServiceItems;
+          _updateDisplayedItems();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingBookmarks = false;
+        });
+      }
+    }
+  }
+
+  void _sortItemsByBookmark() {
+    // Sort: bookmarked items first, then alphabetical
+    _filteredSubServiceItems.sort((a, b) {
+      final aBookmarked = _bookmarkStatus[a.id] ?? false;
+      final bBookmarked = _bookmarkStatus[b.id] ?? false;
+
+      // Bookmarked items come first
+      if (aBookmarked && !bBookmarked) return -1;
+      if (!aBookmarked && bBookmarked) return 1;
+
+      // Then sort alphabetically by title
+      return a.title.compareTo(b.title);
+    });
   }
 
   void _onSearchChanged() {
@@ -52,7 +122,10 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
       _resetPagination();
 
       if (_searchQuery.isEmpty) {
-        _filteredSubServiceItems = widget.serviceItem.subServiceItems;
+        _filteredSubServiceItems = List.from(
+          widget.serviceItem.subServiceItems,
+        );
+        _sortItemsByBookmark();
       } else {
         _filteredSubServiceItems = widget.serviceItem.subServiceItems.where((
           item,
@@ -63,6 +136,17 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
           return title.contains(_searchQuery) ||
               description.contains(_searchQuery);
         }).toList();
+
+        // Sort search results by bookmark too
+        _filteredSubServiceItems.sort((a, b) {
+          final aBookmarked = _bookmarkStatus[a.id] ?? false;
+          final bBookmarked = _bookmarkStatus[b.id] ?? false;
+
+          if (aBookmarked && !bBookmarked) return -1;
+          if (!aBookmarked && bBookmarked) return 1;
+
+          return a.title.compareTo(b.title);
+        });
       }
 
       _updateDisplayedItems();
@@ -101,7 +185,6 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
   }
 
   void _updateDisplayedItems() {
-    final startIndex = 0;
     final endIndex = _currentPage * _itemsPerPage;
 
     _displayedSubServiceItems = _filteredSubServiceItems.sublist(
@@ -129,9 +212,44 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
     _searchController.clear();
     setState(() {
       _searchQuery = '';
-      _filteredSubServiceItems = widget.serviceItem.subServiceItems;
+      _filteredSubServiceItems = List.from(widget.serviceItem.subServiceItems);
+      _sortItemsByBookmark();
       _resetPagination();
     });
+  }
+
+  void _onBookmarkToggled(int subServiceItemId) {
+    // Store the current state before update
+    final wasBookmarked = _bookmarkStatus[subServiceItemId] ?? false;
+    final isAddingBookmark = !wasBookmarked;
+
+    // Update the local bookmark status
+    setState(() {
+      final currentStatus = _bookmarkStatus[subServiceItemId] ?? false;
+      _bookmarkStatus[subServiceItemId] = !currentStatus;
+
+      // Re-sort items after toggling bookmark
+      _sortItemsByBookmark();
+
+      // If adding a bookmark and not on first page, reset to first page
+      // so the newly bookmarked item is visible at the top
+      if (isAddingBookmark && _currentPage > 1) {
+        _currentPage = 1;
+      }
+
+      _updateDisplayedItems();
+    });
+
+    // Optional: Scroll to top when bookmarking an item (so user sees it move to top)
+    if (isAddingBookmark && _scrollController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollController.animateTo(
+          0,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      });
+    }
   }
 
   @override
@@ -225,7 +343,13 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
             SizedBox(height: 2),
 
             Expanded(
-              child: _displayedSubServiceItems.isEmpty
+              child: _isLoadingBookmarks && _filteredSubServiceItems.isEmpty
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        color: colorFromHex(serviceItem.iconTextColor),
+                      ),
+                    )
+                  : _displayedSubServiceItems.isEmpty
                   ? _buildEmptyState()
                   : SafeArea(
                       child: Column(
@@ -234,37 +358,59 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
                           SizedBox(height: 4),
 
                           Expanded(
-                            child: Scrollbar(
+                            child: AnimatedList(
+                              key: ValueKey(
+                                _displayedSubServiceItems.length,
+                              ), // Rebuild when items change
                               controller: _scrollController,
-                              thumbVisibility: true,
-                              child: ListView.builder(
-                                itemCount:
-                                    _displayedSubServiceItems.length +
-                                    (_hasMore ? 1 : 0) +
-                                    1, // +1 for upcoming services card
-                                controller: _scrollController,
-                                itemBuilder: (context, index) {
-                                  // Loading indicator for pagination (only show if there are more items to load)
-                                  if (_hasMore &&
-                                      index ==
-                                          _displayedSubServiceItems.length) {
-                                    return _buildLoadingIndicator();
-                                  }
+                              initialItemCount:
+                                  _displayedSubServiceItems.length +
+                                  (_hasMore ? 1 : 0) +
+                                  1,
+                              itemBuilder: (context, index, animation) {
+                                // Loading indicator for pagination (only show if there are more items to load)
+                                if (_hasMore &&
+                                    index == _displayedSubServiceItems.length) {
+                                  return SlideTransition(
+                                    position: animation.drive(
+                                      Tween<Offset>(
+                                        begin: Offset(0, 1),
+                                        end: Offset.zero,
+                                      ),
+                                    ),
+                                    child: _buildLoadingIndicator(),
+                                  );
+                                }
 
-                                  // "Upcoming Services" card at the end
-                                  if (index ==
-                                      _displayedSubServiceItems.length +
-                                          (_hasMore ? 1 : 0)) {
-                                    return _buildUpcomingServicesCard(
+                                // "Upcoming Services" card at the end
+                                if (index ==
+                                    _displayedSubServiceItems.length +
+                                        (_hasMore ? 1 : 0)) {
+                                  return SlideTransition(
+                                    position: animation.drive(
+                                      Tween<Offset>(
+                                        begin: Offset(0, 1),
+                                        end: Offset.zero,
+                                      ),
+                                    ),
+                                    child: _buildUpcomingServicesCard(
                                       iconColor,
                                       serviceItem,
-                                    );
-                                  }
+                                    ),
+                                  );
+                                }
 
-                                  final subServiceItem =
-                                      _displayedSubServiceItems[index];
+                                final subServiceItem =
+                                    _displayedSubServiceItems[index];
 
-                                  return Padding(
+                                return SlideTransition(
+                                  position: animation.drive(
+                                    Tween<Offset>(
+                                      begin: Offset(0, 1),
+                                      end: Offset.zero,
+                                    ),
+                                  ),
+                                  child: Padding(
                                     padding: EdgeInsets.only(bottom: 12),
                                     child: SubServiceCard(
                                       onTap: () {
@@ -283,10 +429,14 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
                                       iconTextColor: colorFromHex(
                                         serviceItem.iconTextColor,
                                       ),
+                                      isBookmarked:
+                                          _bookmarkStatus[subServiceItem.id],
+                                      onBookmarkToggled: () =>
+                                          _onBookmarkToggled(subServiceItem.id),
                                     ),
-                                  );
-                                },
-                              ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                         ],

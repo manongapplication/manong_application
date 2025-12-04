@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
@@ -54,11 +52,9 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
 
   bool _isLoading = true;
   String? _error;
-  late PermissionUtils _permissionUtils;
+  late PermissionUtils? _permissionUtils;
   ValueNotifier<latlong.LatLng?>? _manongLatLngNotifier;
   late ServiceRequest? _serviceRequest;
-  bool _locationPermissionGranted = false;
-  bool _showFarApartDialog = false;
 
   String googleAPIKey = dotenv.env['GOOGLE_API_KEY']!;
 
@@ -66,7 +62,6 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
   void initState() {
     super.initState();
     _initializeComponents();
-    _initializePermission();
   }
 
   void _initializeComponents() {
@@ -77,192 +72,74 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
     _manongName = widget.manongName;
     _manongLatLngNotifier = widget.manongLatLngNotifier;
 
-    circles = {
-      if (_manongLatLng != null)
+    // OLD CODE: Circle setup
+    if (_manongLatLng != null) {
+      circles = {
         Circle(
-          circleId: const CircleId('manongCircle'),
+          circleId: CircleId('manongCircle'),
           center: _manongLatLng!,
           radius: 30,
           strokeColor: AppColorScheme.primaryColor,
           strokeWidth: 2,
           fillColor: AppColorScheme.primaryColor.withOpacity(0.2),
         ),
-    };
-  }
-
-  Future<void> _initializePermission() async {
-    try {
-      // Check current permission status without requesting
-      _locationPermissionGranted = await _permissionUtils.isLocationPermissionGranted();
-      
-      // Only request permission if features are enabled and we don't have permission
-      if (widget.enableLocationFeatures && !_locationPermissionGranted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _showPermissionDialog();
-        });
-      }
-
-      // Load map data regardless of permission
+      };
+    } else {
+      circles = {}; // Empty set if no manong location
+    }
+    // OLD CODE: Permission check and initialization
+    _permissionUtils?.checkLocationPermission().then((_) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
+        setState(() {
+          _isLoading = false;
+        });
         if (_currentLatLng != null && _manongLatLng != null) {
-          // Check if coordinates are valid and not too far apart
-          if (_areCoordinatesValid()) {
-            if (_serviceRequest?.status != ServiceRequestStatus.inProgress) {
-              await _getPolyline();
-            }
-            _listenToManongMovement();
-          } else {
-            // Show dialog for far apart locations instead of error
-            setState(() {
-              _showFarApartDialog = true;
-              _isLoading = false;
-            });
-            _showFarApartLocationDialog();
+          if (_serviceRequest?.status != ServiceRequestStatus.inProgress) {
+            await _getPolyline();
           }
+          _listenToManongMovement();
         } else {
           setState(() {
-            _error = 'Location data not available';
+            _error = 'Invalid location data provided';
             _isLoading = false;
           });
         }
       });
-    } catch (e) {
-      logger.severe('Error initializing permissions: $e');
-      setState(() {
-        _isLoading = false;
-      });
+    });
+  }
+
+  // NEW CODE: Better permission handling
+  Future<void> _showPermissionDialog() async {
+    if (_permissionUtils != null) {
+      // NEW CODE: Check permission without requesting first
+      bool granted = await _permissionUtils!.isLocationPermissionGranted();
+
+      // NEW CODE: Only show dialog if features are enabled and no permission
+      if (widget.enableLocationFeatures && !granted && mounted) {
+        showDialog(
+          context: navigatorKey.currentContext!,
+          builder: (context) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ModalIconOverlay(
+                icons: Icons.location_off,
+                description:
+                    'Location permission is required to show your current position on the map',
+                onPressed: () async {
+                  await _permissionUtils!.checkLocationPermission();
+                  if (mounted) Navigator.of(navigatorKey.currentContext!).pop();
+                },
+              ),
+            );
+          },
+        );
+      }
     }
   }
 
-  bool _areCoordinatesValid() {
-    if (_currentLatLng == null || _manongLatLng == null) return false;
-    
-    // Check if coordinates are within reasonable distance (same country/city)
-    // Calculate approximate distance in kilometers
-    double distance = _calculateDistance(
-      _currentLatLng!.latitude,
-      _currentLatLng!.longitude,
-      _manongLatLng!.latitude,
-      _manongLatLng!.longitude,
-    );
-    
-    logger.info('Distance between points: ${distance.toStringAsFixed(2)} km');
-    
-    // If distance is more than 500km, likely invalid for driving
-    return distance < 500;
-  }
-
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const double earthRadius = 6371; // Earth's radius in kilometers
-    
-    double dLat = _toRadians(lat2 - lat1);
-    double dLon = _toRadians(lon2 - lon1);
-    
-    double a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) *
-        sin(dLon / 2) * sin(dLon / 2);
-    
-    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    return earthRadius * c;
-  }
-
-  double _toRadians(double degrees) {
-    return degrees * pi / 180;
-  }
-
-  // Convert latlong2.LatLng to Google Maps LatLng
-  LatLng _toGoogleLatLng(latlong.LatLng latLng) {
-    return LatLng(latLng.latitude, latLng.longitude);
-  }
-
-  Future<void> _showFarApartLocationDialog() async {
-    if (!mounted || !_showFarApartDialog) return;
-
-    double distance = _calculateDistance(
-      _currentLatLng!.latitude,
-      _currentLatLng!.longitude,
-      _manongLatLng!.latitude,
-      _manongLatLng!.longitude,
-    );
-
-    showDialog(
-      context: navigatorKey.currentContext!,
-      barrierDismissible: false,
-      builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.location_on_outlined,
-                  size: 48,
-                  color: Colors.orange,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Locations Are Far Apart',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'The driver is approximately ${distance.toStringAsFixed(0)} km away. '
-                  'You can still view their location on the map.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          setState(() {
-                            _showFarApartDialog = false;
-                          });
-                          Navigator.of(context).pop();
-                        },
-                        child: const Text('Close'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            _showFarApartDialog = false;
-                          });
-                          Navigator.of(context).pop();
-                          _centerOnManong();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColorScheme.primaryColor,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('View Driver'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
+  // OLD CODE: Polyline update for manong movement
   Future<void> _updatePolylineForManong(LatLng manongPosition) async {
     _manongLatLng = manongPosition;
     try {
@@ -298,7 +175,7 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
 
           circles = {
             Circle(
-              circleId: const CircleId('manongCircle'),
+              circleId: CircleId('manongCircle'),
               center: manongPosition,
               radius: 30,
               strokeColor: AppColorScheme.primaryColor,
@@ -307,14 +184,13 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
             ),
           };
         });
-      } else {
-        logger.warning('No route found for updated manong position');
       }
     } catch (e) {
       logger.severe('Error updating polyline for current Manong: $e');
     }
   }
 
+  // OLD CODE: Listen to manong movement
   void _listenToManongMovement() {
     if (_manongLatLngNotifier != null &&
         _serviceRequest?.status == ServiceRequestStatus.inProgress) {
@@ -322,7 +198,7 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
         final value = _manongLatLngNotifier?.value;
         if (value == null) return;
 
-        final newLatLng = _toGoogleLatLng(value);
+        final newLatLng = DistanceMatrix().toGoogleLatLng(value);
         _manongLatLng = newLatLng;
 
         _updatePolylineForManong(newLatLng);
@@ -336,6 +212,7 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
     }
   }
 
+  // OLD CODE: Get polyline
   Future<void> _getPolyline() async {
     try {
       setState(() {
@@ -345,7 +222,7 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
 
       if (!mounted) return;
 
-      logger.info('Getting route for Manong $_manongName');
+      logger.info('Manong $_manongName');
 
       PolylinePoints polylinePoints = PolylinePoints(apiKey: googleAPIKey);
 
@@ -361,8 +238,6 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
         mode: TravelMode.driving,
       );
 
-      logger.info('Requesting route from (${_currentLatLng!.latitude}, ${_currentLatLng!.longitude}) to (${_manongLatLng!.latitude}, ${_manongLatLng!.longitude})');
-
       PolylineResult result = await polylinePoints.getRouteBetweenCoordinates(
         request: request,
       );
@@ -375,14 +250,15 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
         }
 
         setState(() {
-          polylines = {
+          polylines.add(
             Polyline(
               polylineId: const PolylineId('route'),
               points: polylineCoordinates,
               color: AppColorScheme.primaryColor,
               width: 5,
+              patterns: [],
             ),
-          };
+          );
         });
 
         // Adjust camera to show both markers
@@ -392,14 +268,18 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
           'Polyline created with ${polylineCoordinates.length} points',
         );
       } else {
-        logger.warning('No route found - result: ${result.errorMessage}');
-        // Don't show error for far apart locations, just show markers
-        _fitCameraToBounds();
+        logger.warning('No route found');
+      }
+
+      if (result.points.isEmpty) {
+        logger.warning('No polyline points returned.');
+        return;
       }
     } catch (e) {
+      setState(() {
+        _error = 'Error getting route: ${e.toString()}';
+      });
       logger.severe('Error getting polyline: $e');
-      // Don't show error for far apart locations, just show markers
-      _fitCameraToBounds();
     } finally {
       if (mounted) {
         setState(() {
@@ -409,8 +289,9 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
     }
   }
 
+  // OLD CODE: Fit camera to bounds
   void _fitCameraToBounds() {
-    if (mapController == null || _currentLatLng == null || _manongLatLng == null) return;
+    if (mapController == null) return;
 
     double minLat = _currentLatLng!.latitude < _manongLatLng!.latitude
         ? _currentLatLng!.latitude
@@ -433,60 +314,61 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
     mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 100.0));
   }
 
+  // OLD CODE: Build Google Map
   Widget _buildGoogleMap() {
-    if (_currentLatLng == null || _manongLatLng == null) {
-      return const Center(
-        child: Text(
-          'Location data not available',
-          style: TextStyle(fontSize: 16, color: Colors.grey),
-        ),
-      );
+    if (_currentLatLng == null ||
+        _manongLatLng == null ||
+        _permissionUtils == null) {
+      return const Center(child: Text('Location data not available'));
     }
-
     logger.info(
-      'Map coordinates - Current: ${_currentLatLng?.latitude}, ${_currentLatLng?.longitude} | Manong: ${_manongLatLng?.latitude}, ${_manongLatLng?.longitude}',
+      'Swer 2 ${_manongLatLng?.latitude} ${_manongLatLng?.longitude}',
     );
-
-    // Only enable location features if permission is granted AND explicitly enabled
-    bool enableLocation = widget.enableLocationFeatures && _locationPermissionGranted;
 
     if (_manongLatLngNotifier != null &&
         _serviceRequest?.status == ServiceRequestStatus.inProgress) {
       return ValueListenableBuilder<latlong.LatLng?>(
         valueListenable: _manongLatLngNotifier!,
         builder: (context, value, child) {
-          LatLng? newLatLng;
-          if (value != null) {
-            newLatLng = _toGoogleLatLng(value);
-          } else {
-            newLatLng = _manongLatLng;
-          }
-
-          if (newLatLng == null) {
-            return const Center(child: Text('No manong location available'));
+          latlong.LatLng? newLatLng = value;
+          if (value == null) {
+            if (_manongLatLng != null) {
+              newLatLng = latlong.LatLng(
+                _manongLatLng!.latitude,
+                _manongLatLng!.longitude,
+              );
+            }
           }
 
           return SafeArea(
             child: GoogleMap(
               initialCameraPosition: CameraPosition(
                 target: _currentLatLng!,
-                zoom: _getInitialZoomLevel(),
+                zoom: 12,
               ),
               onMapCreated: (controller) {
                 mapController = controller;
                 if (polylineCoordinates.isNotEmpty) {
                   _fitCameraToBounds();
-                } else {
-                  // If no polyline, still fit bounds
-                  _fitCameraToBounds();
                 }
               },
-              markers: _buildMarkers(newLatLng),
+              markers: {
+                Marker(
+                  markerId: MarkerId('origin'),
+                  position: _currentLatLng!,
+                  infoWindow: const InfoWindow(title: "You"),
+                ),
+                Marker(
+                  markerId: MarkerId('destination'),
+                  position: DistanceMatrix().toGoogleLatLng(newLatLng),
+                  infoWindow: InfoWindow(title: "Manong $_manongName"),
+                ),
+              },
               polylines: polylines,
               circles: circles,
-              myLocationEnabled: enableLocation,
-              myLocationButtonEnabled: enableLocation,
-              zoomControlsEnabled: false,
+              myLocationEnabled: _permissionUtils!.locationPermissionGranted,
+              myLocationButtonEnabled:
+                  _permissionUtils!.locationPermissionGranted,
             ),
           );
         },
@@ -497,77 +379,77 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
       child: GoogleMap(
         initialCameraPosition: CameraPosition(
           target: _currentLatLng!,
-          zoom: _getInitialZoomLevel(),
+          zoom: 12,
         ),
         onMapCreated: (controller) {
           mapController = controller;
           if (polylineCoordinates.isNotEmpty) {
             _fitCameraToBounds();
-          } else {
-            // If no polyline, still fit bounds
-            _fitCameraToBounds();
           }
         },
-        markers: _buildMarkers(_manongLatLng!),
+        markers: {
+          Marker(
+            markerId: MarkerId('origin'),
+            position: _currentLatLng!,
+            infoWindow: const InfoWindow(title: "You"),
+          ),
+          Marker(
+            markerId: MarkerId('destination'),
+            position: _manongLatLng!,
+            infoWindow: InfoWindow(title: "Manong $_manongName"),
+          ),
+        },
         polylines: polylines,
         circles: circles,
-        myLocationEnabled: enableLocation,
-        myLocationButtonEnabled: enableLocation,
-        zoomControlsEnabled: false,
+        myLocationEnabled: _permissionUtils!.locationPermissionGranted,
+        myLocationButtonEnabled: _permissionUtils!.locationPermissionGranted,
       ),
     );
   }
 
-  double _getInitialZoomLevel() {
-    if (_currentLatLng == null || _manongLatLng == null) return 12;
-    
-    double distance = _calculateDistance(
-      _currentLatLng!.latitude,
-      _currentLatLng!.longitude,
-      _manongLatLng!.latitude,
-      _manongLatLng!.longitude,
-    );
-    
-    // Adjust zoom based on distance
-    if (distance > 1000) return 4;   // Country level
-    if (distance > 100) return 8;    // Regional level
-    if (distance > 10) return 10;    // City level
-    return 12;                       // Local level
-  }
-
-  Set<Marker> _buildMarkers(LatLng manongPosition) {
-    return {
-      Marker(
-        markerId: const MarkerId('origin'),
-        position: _currentLatLng!,
-        infoWindow: const InfoWindow(title: "You"),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-      ),
-      Marker(
-        markerId: const MarkerId('destination'),
-        position: manongPosition,
-        infoWindow: InfoWindow(title: "Manong $_manongName"),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-      ),
-    };
-  }
-
+  // MODIFIED: Loading overlay that doesn't block the map
   Widget _buildLoadingOverlay() {
-    return Container(
-      color: Colors.black.withOpacity(0.3),
-      child: const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Loading route...',
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
-          ],
+    return Positioned(
+      bottom: 200,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          margin: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.7),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Loading route...',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -584,23 +466,17 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.warning, color: Colors.orange, size: 48),
+                const Icon(Icons.error, color: Colors.red, size: 48),
                 const SizedBox(height: 16),
                 Text(
-                  _error ?? 'Unable to calculate route',
+                  _error ?? 'Unknown error occurred',
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Showing locations without route',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: _getPolyline,
-                  child: const Text('Try Again'),
+                  child: const Text('Retry'),
                 ),
               ],
             ),
@@ -611,11 +487,36 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
   }
 
   void _centerOnManong() {
-    if (mapController != null && _manongLatLng != null) {
+    LatLng? targetLocation;
+
+    // Check if service is in progress and we have a notifier with value
+    if (_serviceRequest?.status == ServiceRequestStatus.inProgress &&
+        _manongLatLngNotifier != null &&
+        _manongLatLngNotifier!.value != null) {
+      // Service is in progress: use real-time location from notifier
+      targetLocation = DistanceMatrix().toGoogleLatLng(
+        _manongLatLngNotifier!.value!,
+      );
+      logger.info(
+        'Service IN PROGRESS - Centering on manong using notifier: ${targetLocation.latitude}, ${targetLocation.longitude}',
+      );
+    } else {
+      // Service is NOT in progress: use the base/stored location
+      targetLocation = _manongLatLng;
+      logger.info(
+        'Service NOT in progress - Centering on manong using base location: ${targetLocation?.latitude}, ${targetLocation?.longitude}',
+      );
+    }
+
+    if (mapController != null && targetLocation != null) {
       mapController!.animateCamera(
         CameraUpdate.newCameraPosition(
-          CameraPosition(target: _manongLatLng!, zoom: 16),
+          CameraPosition(target: targetLocation, zoom: 16),
         ),
+      );
+    } else {
+      logger.warning(
+        'Cannot center on manong - mapController: ${mapController != null}, targetLocation: $targetLocation',
       );
     }
   }
@@ -630,69 +531,6 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
     }
   }
 
-  Future<void> _requestLocationPermission() async {
-    try {
-      await _permissionUtils.checkLocationPermission();
-      bool granted = await _permissionUtils.isLocationPermissionGranted();
-      
-      setState(() {
-        _locationPermissionGranted = granted;
-      });
-      
-      if (!granted && mounted) {
-        _showPermissionDialog();
-      }
-    } catch (e) {
-      logger.severe('Error requesting location permission: $e');
-    }
-  }
-
-  Future<void> _showPermissionDialog() async {
-    if (!mounted) return;
-
-    showDialog(
-      context: navigatorKey.currentContext!,
-      builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: ModalIconOverlay(
-            icons: Icons.location_off,
-            description: 'Location permission is required to show your current position on the map',
-            onPressed: () async {
-              await _requestLocationPermission();
-              if (mounted) Navigator.of(navigatorKey.currentContext!).pop();
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildLocationRequestButton() {
-    if (_locationPermissionGranted || !widget.enableLocationFeatures) {
-      return const SizedBox.shrink();
-    }
-
-    return Positioned(
-      bottom: 80,
-      right: 10,
-      child: Material(
-        elevation: 4,
-        shape: const CircleBorder(),
-        child: IconButton(
-          onPressed: _requestLocationPermission,
-          icon: const Icon(Icons.my_location),
-          style: IconButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.blue,
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -700,56 +538,48 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
         title: widget.useManongAsTitle == true
             ? 'Manong ${_manongName.toString()}'
             : _serviceRequest?.status == ServiceRequestStatus.inProgress
-                ? _serviceRequest?.arrivedAt != null
-                    ? 'Manong has arrived!'
-                    : 'Manong is on the way...'
-                : '${_serviceRequest?.serviceItem?.title != null ? '${_serviceRequest?.serviceItem?.title} ->' : ''}  ${_serviceRequest!.otherServiceName.toString().trim().isNotEmpty ? _serviceRequest?.otherServiceName : _serviceRequest?.subServiceItem?.title ?? ''}',
+            ? _serviceRequest?.arrivedAt != null
+                  ? 'Manong has arrived!'
+                  : 'Manong is on the way...'
+            : '${_serviceRequest?.serviceItem?.title != null ? '${_serviceRequest?.serviceItem?.title} ->' : ''}  ${_serviceRequest!.otherServiceName.toString().trim().isNotEmpty ? _serviceRequest?.otherServiceName : _serviceRequest?.subServiceItem?.title ?? ''}',
         fontSize: 18,
       ),
       body: Stack(
         children: [
           _buildGoogleMap(),
 
-          // Navigation buttons
-          if (_currentLatLng != null && _manongLatLng != null)
-            Positioned(
-              top: 10,
-              left: 10,
-              child: Column(
-                children: [
-                  Material(
-                    elevation: 4,
-                    shape: const CircleBorder(),
-                    child: IconButton(
-                      onPressed: _centerOnManong,
-                      icon: const Icon(Icons.directions_car),
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.grey.shade700,
-                      ),
-                    ),
+          Positioned(
+            top: 10,
+            left: 10,
+            child: Column(
+              children: [
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: FloatingActionButton(
+                    onPressed: _centerOnManong,
+                    backgroundColor: Colors.white.withOpacity(0.8),
+                    foregroundColor: Colors.grey.shade600,
+                    child: const Icon(Icons.directions_car),
                   ),
-                  const SizedBox(height: 8),
-                  Material(
-                    elevation: 4,
-                    shape: const CircleBorder(),
-                    child: IconButton(
-                      onPressed: _centerOnUser,
-                      icon: const Icon(Icons.person),
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.grey.shade700,
-                      ),
-                    ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: FloatingActionButton(
+                    onPressed: _centerOnUser,
+                    backgroundColor: Colors.white.withOpacity(0.8),
+                    foregroundColor: Colors.grey.shade600,
+                    child: const Icon(Icons.person),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+          ),
 
-          // Location request button
-          _buildLocationRequestButton(),
-
-          if (_isLoading) _buildLoadingOverlay(),
+          // Non-blocking loading indicator - ONLY SHOW WHEN NO POLYLINES
+          if (_isLoading && polylines.isEmpty) _buildLoadingOverlay(),
 
           if (_error != null && !_isLoading) _buildErrorOverlay(),
         ],

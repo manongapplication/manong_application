@@ -220,6 +220,7 @@ class AuthService {
     String? firstName,
     String? lastName,
     String? email,
+    String? password,
     bool? hasSeenVerificationCongrats,
   }) async {
     try {
@@ -237,6 +238,7 @@ class AuthService {
               'firstName': firstName,
               'lastName': lastName,
               'email': email,
+              'password': password,
               'hasSeenVerificationCongrats': hasSeenVerificationCongrats,
             }),
           )
@@ -404,7 +406,7 @@ class AuthService {
     required String addressLine,
     required ValidIdType validIdType,
     required File validId,
-    required String password,
+    required String? password,
   }) async {
     try {
       final token = await getNodeToken();
@@ -423,8 +425,11 @@ class AuthService {
         ..fields['email'] = email
         ..fields['addressCategory'] = addressCategory.value
         ..fields['addressLine'] = addressLine
-        ..fields['validIdType'] = validIdType.value
-        ..fields['password'] = password;
+        ..fields['validIdType'] = validIdType.value;
+
+      if (password != null && password.isNotEmpty) {
+        request.fields['password'] = password;
+      }
 
       if (nickname != null && nickname.isNotEmpty) {
         request.fields['nickname'] = nickname;

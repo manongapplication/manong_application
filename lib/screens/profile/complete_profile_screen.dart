@@ -28,9 +28,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _isButtonLoading = false;
+  bool _isCheckingPassword = false;
   String? _error;
   AppUser? _user;
   bool _hasReadInstructions = false;
+  bool _hasPassword = false; // Track if user already has password
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _nicknameController = TextEditingController();
@@ -46,70 +48,40 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _getProfile();
+    _getProfileAndCheckPassword();
   }
 
-  void submitCompletedProfile({
-    required String firstName,
-    required String lastName,
-    String? nickname,
-    required String email,
-    required AddressCategory addressCategory,
-    required String addressLine,
-    required ValidIdType validIdType,
-    required File validId,
-    required String password,
-  }) async {
+  Future<void> _checkIfUserHasPassword() async {
+    if (_user == null || _user!.phone.isEmpty) return;
+
     setState(() {
-      _isButtonLoading = true;
+      _isCheckingPassword = true;
     });
+
     try {
-      final response = await AuthService().completeProfile(
-        firstName: firstName,
-        lastName: lastName,
-        email: email,
-        addressCategory: addressCategory,
-        addressLine: addressLine,
-        validIdType: validIdType,
-        validId: validId,
-        password: password,
-      );
+      final hasPassword = await AuthService().checkIfHasPassword(_user!.phone);
 
-      if (response != null) {
-        SnackBarUtils.showSuccess(
-          navigatorKey.currentContext!,
-          response['message'],
-        );
-
-        Navigator.pop(navigatorKey.currentContext!, {'update': true});
-      } else {
-        SnackBarUtils.showWarning(
-          navigatorKey.currentContext!,
-          response?['message'] ??
-              'Failed completing profile. Please try again later.',
-        );
+      if (mounted) {
+        setState(() {
+          _hasPassword = hasPassword ?? false;
+          _isCheckingPassword = false;
+        });
       }
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-      });
-
-      SnackBarUtils.showError(
-        navigatorKey.currentContext!,
-        'Error completing profile $_error',
-      );
-    } finally {
-      setState(() {
-        _isButtonLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isCheckingPassword = false;
+        });
+      }
+      logger.severe('Error checking password status: $e');
     }
   }
 
-  Future<void> _getProfile() async {
+  Future<void> _getProfileAndCheckPassword() async {
     setState(() {
       _isLoading = true;
     });
+
     try {
       final response = await AuthService().getMyProfile();
 
@@ -117,7 +89,27 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
       setState(() {
         _user = response;
+
+        // Pre-fill form with existing user data
+        if (response.firstName != null) {
+          _firstNameController.text = response.firstName!;
+        }
+        if (response.lastName != null) {
+          _lastNameController.text = response.lastName!;
+        }
+        if (response.nickname != null) {
+          _nicknameController.text = response.nickname!;
+        }
+        if (response.email != null) {
+          _emailController.text = response.email!;
+        }
+        if (response.addressLine != null) {
+          _addressLineController.text = response.addressLine!;
+        }
       });
+
+      // After getting profile, check if user has password
+      await _checkIfUserHasPassword();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -133,33 +125,261 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     }
   }
 
+  void submitCompletedProfile({
+    required String firstName,
+    required String lastName,
+    String? nickname,
+    required String email,
+    required AddressCategory addressCategory,
+    required String addressLine,
+    required ValidIdType validIdType,
+    required File validId,
+    String? password, // Make password optional
+  }) async {
+    setState(() {
+      _isButtonLoading = true;
+    });
+    try {
+      final response = await AuthService().completeProfile(
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
+        addressCategory: addressCategory,
+        addressLine: addressLine,
+        validIdType: validIdType,
+        validId: validId,
+        password: password, // Pass password (could be null)
+      );
+
+      if (response != null) {
+        SnackBarUtils.showSuccess(
+          navigatorKey.currentContext!,
+          response['message'] ?? 'Profile completed successfully!',
+        );
+
+        Navigator.pop(navigatorKey.currentContext!, {'update': true});
+      } else {
+        SnackBarUtils.showWarning(
+          navigatorKey.currentContext!,
+          'Failed completing profile. Please try again later.',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+
+      SnackBarUtils.showError(
+        navigatorKey.currentContext!,
+        'Error completing profile: ${e.toString()}',
+      );
+    } finally {
+      setState(() {
+        _isButtonLoading = false;
+      });
+    }
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter a password';
+    }
+    if (value.length < 8) {
+      return 'Password must be at least 8 characters';
+    }
+    return null;
+  }
+
+  String? _validateConfirmPassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please confirm your password';
+    }
+    if (value != _passwordController.text) {
+      return 'Passwords do not match';
+    }
+    return null;
+  }
+
   void _submitInit() {
     if (!_hasReadInstructions) {
       SnackBarUtils.showWarning(
         navigatorKey.currentContext!,
         'Please read the instructions first',
       );
-
       return;
     }
+
     if (!_formKey.currentState!.validate()) return;
 
     if (_selectedCategory == null ||
         _selectedValidIdType == null ||
         _validId == null) {
+      SnackBarUtils.showWarning(
+        navigatorKey.currentContext!,
+        'Please fill all required fields',
+      );
       return;
+    }
+
+    // Validate password only if user doesn't have one
+    if (!_hasPassword) {
+      if (_passwordController.text.isEmpty) {
+        SnackBarUtils.showWarning(
+          navigatorKey.currentContext!,
+          'Please enter a password',
+        );
+        return;
+      }
+
+      if (_passwordController.text.length < 8) {
+        SnackBarUtils.showWarning(
+          navigatorKey.currentContext!,
+          'Password must be at least 8 characters',
+        );
+        return;
+      }
+
+      if (_passwordController.text != _confirmPasswordController.text) {
+        SnackBarUtils.showWarning(
+          navigatorKey.currentContext!,
+          'Passwords do not match',
+        );
+        return;
+      }
     }
 
     submitCompletedProfile(
       firstName: _firstNameController.text,
       lastName: _lastNameController.text,
       email: _emailController.text,
-      nickname: _nicknameController.text,
+      nickname: _nicknameController.text.isNotEmpty
+          ? _nicknameController.text
+          : null,
       addressCategory: _selectedCategory!,
       addressLine: _addressLineController.text,
       validIdType: _selectedValidIdType!,
       validId: _validId!,
-      password: _passwordController.text,
+      password: _hasPassword ? null : _passwordController.text,
+    );
+  }
+
+  Widget _buildPasswordRequirements() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Password Requirements:',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildRequirementItem(
+            'At least 8 characters long',
+            _passwordController.text.length >= 8,
+          ),
+          _buildRequirementItem(
+            'Passwords match',
+            _passwordController.text.isNotEmpty &&
+                _passwordController.text == _confirmPasswordController.text,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRequirementItem(String text, bool met) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Icon(
+            met ? Icons.check_circle : Icons.radio_button_unchecked,
+            color: met ? Colors.green : Colors.grey.shade400,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: TextStyle(
+              color: met ? Colors.green : Colors.grey.shade600,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPasswordFields() {
+    return Column(
+      children: [
+        TextFormField(
+          controller: _passwordController,
+          enabled: !_isButtonLoading,
+          obscureText: true,
+          validator: _validatePassword,
+          maxLength: 128,
+          onChanged: (value) {
+            // Re-validate confirm password when password changes
+            if (_confirmPasswordController.text.isNotEmpty) {
+              _formKey.currentState!.validate();
+            }
+            setState(() {}); // Update UI for password requirements
+          },
+          decoration: inputDecoration(
+            'Enter new password',
+            labelStyle: TextStyle(color: AppColorScheme.primaryDark),
+            labelText: 'Password',
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            prefixIcon: Icon(
+              Icons.lock_outline,
+              color: AppColorScheme.primaryDark,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        TextFormField(
+          controller: _confirmPasswordController,
+          enabled: !_isButtonLoading,
+          obscureText: true,
+          validator: _validateConfirmPassword,
+          maxLength: 128,
+          onChanged: (value) {
+            if (_formKey.currentState != null) {
+              _formKey.currentState!.validate();
+            }
+            setState(() {}); // Update UI for password requirements
+          },
+          decoration: inputDecoration(
+            'Confirm your password',
+            labelStyle: TextStyle(color: AppColorScheme.primaryDark),
+            labelText: 'Confirm Password',
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            prefixIcon: Icon(
+              Icons.lock_outline,
+              color: AppColorScheme.primaryDark,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        _buildPasswordRequirements(),
+
+        const SizedBox(height: 16),
+      ],
     );
   }
 
@@ -185,9 +405,15 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             labelStyle: TextStyle(color: AppColorScheme.primaryDark),
             labelText: 'First Name',
             floatingLabelBehavior: FloatingLabelBehavior.always,
+            prefixIcon: Icon(
+              Icons.person_outline,
+              color: AppColorScheme.primaryDark,
+            ),
           ),
           textCapitalization: TextCapitalization.words,
         ),
+
+        const SizedBox(height: 16),
 
         TextFormField(
           controller: _lastNameController,
@@ -207,9 +433,15 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             labelStyle: TextStyle(color: AppColorScheme.primaryDark),
             labelText: 'Last Name',
             floatingLabelBehavior: FloatingLabelBehavior.always,
+            prefixIcon: Icon(
+              Icons.person_outline,
+              color: AppColorScheme.primaryDark,
+            ),
           ),
           textCapitalization: TextCapitalization.words,
         ),
+
+        const SizedBox(height: 16),
 
         TextFormField(
           controller: _nicknameController,
@@ -228,9 +460,15 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             labelStyle: TextStyle(color: AppColorScheme.primaryDark),
             labelText: 'Nickname (Optional)',
             floatingLabelBehavior: FloatingLabelBehavior.always,
+            prefixIcon: Icon(
+              Icons.alternate_email,
+              color: AppColorScheme.primaryDark,
+            ),
           ),
           textCapitalization: TextCapitalization.words,
         ),
+
+        const SizedBox(height: 16),
 
         TextFormField(
           controller: _emailController,
@@ -251,10 +489,14 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             labelStyle: TextStyle(color: AppColorScheme.primaryDark),
             labelText: 'Email',
             floatingLabelBehavior: FloatingLabelBehavior.always,
+            prefixIcon: Icon(
+              Icons.email_outlined,
+              color: AppColorScheme.primaryDark,
+            ),
           ),
         ),
 
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
 
         DropdownButtonFormField<AddressCategory>(
           dropdownColor: Colors.white,
@@ -270,6 +512,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               borderSide: BorderSide(color: AppColorScheme.primaryColor),
             ),
             labelStyle: TextStyle(color: AppColorScheme.primaryColor),
+            prefixIcon: Icon(
+              Icons.category_outlined,
+              color: AppColorScheme.primaryDark,
+            ),
           ),
           items: AddressCategory.values.map((category) {
             return DropdownMenuItem<AddressCategory>(
@@ -288,7 +534,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               : null,
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
 
         TextFormField(
           controller: _addressLineController,
@@ -307,10 +553,14 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             labelStyle: TextStyle(color: AppColorScheme.primaryDark),
             labelText: 'Address',
             floatingLabelBehavior: FloatingLabelBehavior.always,
+            prefixIcon: Icon(
+              Icons.location_on_outlined,
+              color: AppColorScheme.primaryDark,
+            ),
           ),
         ),
 
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
 
         DropdownButtonFormField<ValidIdType>(
           dropdownColor: Colors.white,
@@ -326,6 +576,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               borderSide: BorderSide(color: AppColorScheme.primaryColor),
             ),
             labelStyle: TextStyle(color: AppColorScheme.primaryColor),
+            prefixIcon: Icon(
+              Icons.badge_outlined,
+              color: AppColorScheme.primaryDark,
+            ),
           ),
           items: ValidIdType.values.map((type) {
             return DropdownMenuItem<ValidIdType>(
@@ -344,7 +598,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               : null,
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
 
         SingleImagePickerCard(
           image: _validId,
@@ -357,60 +611,45 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
           },
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
 
-        TextFormField(
-          controller: _passwordController,
-          enabled: !_isButtonLoading,
-          obscureText: true,
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter a password';
-            }
-            if (value.length < 8) {
-              return 'Password must be at least 8 characters';
-            }
-            return null;
-          },
-          maxLength: 128,
-          decoration: inputDecoration(
-            'Password',
-            labelStyle: TextStyle(color: AppColorScheme.primaryDark),
-            labelText: 'Password',
-            floatingLabelBehavior: FloatingLabelBehavior.always,
+        // Show loading while checking password status
+        if (_isCheckingPassword) ...[
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: CircularProgressIndicator(
+                color: AppColorScheme.primaryColor,
+              ),
+            ),
           ),
-        ),
-
-        const SizedBox(height: 14),
-
-        TextFormField(
-          controller: _confirmPasswordController,
-          enabled: !_isButtonLoading,
-          obscureText: true,
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please confirm your password';
-            }
-            if (value != _passwordController.text) {
-              return 'Passwords do not match';
-            }
-            return null;
-          },
-          maxLength: 128,
-          onChanged: (value) {
-            if (_formKey.currentState != null) {
-              _formKey.currentState!.validate();
-            }
-          },
-          decoration: inputDecoration(
-            'Confirm Password',
-            labelStyle: TextStyle(color: AppColorScheme.primaryDark),
-            labelText: 'Confirm Password',
-            floatingLabelBehavior: FloatingLabelBehavior.always,
+        ] else if (!_hasPassword) ...[
+          // Only show password fields if user doesn't have password
+          _buildPasswordFields(),
+        ] else ...[
+          // Show message if user already has password
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade100),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.blue.shade600, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'You already have a password set. No need to create a new one.',
+                    style: TextStyle(color: Colors.blue.shade800, fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-
-        const SizedBox(height: 24),
+          const SizedBox(height: 16),
+        ],
 
         SizedBox(
           width: double.infinity,
@@ -418,15 +657,14 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColorScheme.primaryColor,
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
             ),
             onPressed: !_isButtonLoading ? _submitInit : null,
             child: _isButtonLoading
                 ? const SizedBox(
                     height: 22,
                     width: 22,
-                    child: CircularProgressIndicator(
-                      color: AppColorScheme.primaryColor,
-                    ),
+                    child: CircularProgressIndicator(color: Colors.white),
                   )
                 : const Text('Submit'),
           ),
@@ -480,6 +718,16 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                   ],
                 ),
                 const SizedBox(height: 4),
+                Text(
+                  _hasPassword
+                      ? 'Complete your profile details'
+                      : 'Complete your profile and set a password',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColorScheme.primaryLight.withOpacity(0.9),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ],
             ),
           ),
@@ -498,7 +746,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     ),
                     const Expanded(
                       child: Text(
-                        'I’ve read and understood the profile completion instructions.',
+                        'I\'ve read and understood the profile completion instructions.',
                         style: TextStyle(fontSize: 13),
                       ),
                     ),
@@ -513,7 +761,14 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
           // -- Form --
           Stack(
             children: [
-              _buildFormInputs(),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Form(
+                  key: _formKey,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  child: _buildFormInputs(),
+                ),
+              ),
               if (!_hasReadInstructions) ...[
                 Positioned.fill(
                   child: Container(
@@ -550,7 +805,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     if (_error != null) {
       return ErrorStateWidget(
         errorText: _error.toString(),
-        onPressed: _getProfile,
+        onPressed: _getProfileAndCheckPassword,
       );
     }
 
@@ -560,10 +815,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Form(key: _formKey, child: _buildForm()),
-    );
+    return _buildForm();
   }
 
   @override

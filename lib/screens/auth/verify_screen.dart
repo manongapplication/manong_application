@@ -195,11 +195,13 @@ class _VerifyScreenState extends State<VerifyScreen> {
             arguments: {'resetPassword': response['resetPassword']},
           );
         } else {
-          Navigator.pushNamedAndRemoveUntil(
-            navigatorKey.currentContext!,
-            '/',
-            (route) => false,
-          );
+          // Navigator.pushNamedAndRemoveUntil(
+          //   navigatorKey.currentContext!,
+          //   '/',
+          //   (route) => false,
+          // );
+
+          Navigator.pushNamed(navigatorKey.currentContext!, '/create-password');
         }
       } else {
         // FAILURE - response is null

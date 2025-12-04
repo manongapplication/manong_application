@@ -465,7 +465,7 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
                       Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          if (_selectedRating == 0 && widget.isManong == false)
+                          if (_selectedRating == 0)
                             Icon(
                               widget.meters != null
                                   ? Icons.location_on

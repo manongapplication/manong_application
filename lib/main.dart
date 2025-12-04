@@ -20,6 +20,7 @@ import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/providers/app_maintenance_provider.dart';
 import 'package:manong_application/providers/bottom_nav_provider.dart';
 import 'package:manong_application/screens/app_maintenance_screen.dart';
+import 'package:manong_application/screens/auth/create_password_Screen.dart';
 import 'package:manong_application/screens/auth/enter_password_screen.dart';
 import 'package:manong_application/screens/auth/password_reset.dart';
 import 'package:manong_application/screens/auth/register_screen.dart';
@@ -510,6 +511,8 @@ class MyApp extends StatelessWidget {
             return MaterialPageRoute(builder: (_) => CompleteProfileScreen());
           case '/help-and-support':
             return MaterialPageRoute(builder: (_) => HelpAndSupportScreen());
+          case '/create-password':
+            return MaterialPageRoute(builder: (_) => CreatePasswordScreen());
         }
         return null;
       },

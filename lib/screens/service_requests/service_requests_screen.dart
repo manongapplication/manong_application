@@ -99,15 +99,15 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     _countUnseenPaymentTransactions();
   }
 
-    Future<void> _showPermissionDialog() async {
+  Future<void> _showPermissionDialog() async {
     // Only show once and only if permission isn't already granted
     if (_permissionDialogShown || _permissionUtils == null) return;
-    
+
     bool granted = await _permissionUtils!.isLocationPermissionGranted();
-    
+
     if (!granted && mounted) {
       _permissionDialogShown = true; // Mark as shown
-      
+
       showDialog(
         context: navigatorKey.currentContext!,
         barrierDismissible: false,
@@ -792,6 +792,11 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
           if (result['status'] != null) {
             _statusIndex = getTabIndex(result['status'])!;
           }
+        }
+
+        if (result['startJob'] == true) {
+          _fetchServiceRequests();
+          _getOngoingServiceRequest();
         }
       }
     } else {

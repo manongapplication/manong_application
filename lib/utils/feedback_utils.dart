@@ -67,170 +67,173 @@ class FeedbackUtils {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return SingleChildScrollView(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom + 18,
-                left: 18,
-                right: 18,
-                top: 18,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Leave a star rating and an optional comment to share your experience.',
-                  ),
-                  const SizedBox(height: 8),
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+                  left: 18,
+                  right: 18,
+                  top: 18,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Leave a star rating and an optional comment to share your experience.',
+                    ),
+                    const SizedBox(height: 8),
 
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(5, (index) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: GestureDetector(
-                          onTap: () {
-                            setModalState(() {
-                              rating = index + 1;
-                              errorRating = null;
-                            });
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (index) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: GestureDetector(
+                            onTap: () {
+                              setModalState(() {
+                                rating = index + 1;
+                                errorRating = null;
+                              });
 
-                            if (rating <= 2) {
-                              dissastisfiedDialog(
-                                context: context,
-                                rating: rating,
-                                serviceRequestId: serviceRequest.id!,
-                                reveweeId: serviceRequest.manongId!,
-                                formKey: formKey,
-                                commentController: commentController,
-                                commentCount: commentCount,
-                                onClose: () => onClose,
-                              );
-                              return;
-                            }
-                          },
-                          child: Icon(
-                            index < rating ? Icons.star : Icons.star_border,
-                            color: AppColorScheme.gold,
-                            size: 48,
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 8),
-
-                  Column(
-                    children: [
-                      Form(
-                        key: formKey,
-                        child: Stack(
-                          children: [
-                            TextFormField(
-                              onChanged: (value) {
-                                setModalState(
-                                  () => commentCount = value.length,
+                              if (rating <= 2) {
+                                dissastisfiedDialog(
+                                  context: context,
+                                  rating: rating,
+                                  serviceRequestId: serviceRequest.id!,
+                                  reveweeId: serviceRequest.manongId!,
+                                  formKey: formKey,
+                                  commentController: commentController,
+                                  commentCount: commentCount,
+                                  onClose: () => onClose,
                                 );
-                              },
-                              validator: (value) {
-                                if (value != null && value.isNotEmpty) {
-                                  if (value.length < 20 || value.length > 300) {
-                                    return 'Review must be between 20 and 300 characters.';
-                                  }
-                                }
-                                return null;
-                              },
-                              controller: commentController,
-                              decoration: inputDecoration(
-                                'Write a comment (optional)',
-                              ),
-                              maxLines: 5,
-                              minLines: 3,
-                              keyboardType: TextInputType.multiline,
+                                return;
+                              }
+                            },
+                            child: Icon(
+                              index < rating ? Icons.star : Icons.star_border,
+                              color: AppColorScheme.gold,
+                              size: 48,
                             ),
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 8),
 
-                            Positioned(
-                              bottom: 4,
-                              right: 8,
-                              child: Text(
-                                '$commentCount/300',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
+                    Column(
+                      children: [
+                        Form(
+                          key: formKey,
+                          child: Stack(
+                            children: [
+                              TextFormField(
+                                onChanged: (value) {
+                                  setModalState(
+                                    () => commentCount = value.length,
+                                  );
+                                },
+                                validator: (value) {
+                                  if (value != null && value.isNotEmpty) {
+                                    if (value.length < 20 ||
+                                        value.length > 300) {
+                                      return 'Review must be between 20 and 300 characters.';
+                                    }
+                                  }
+                                  return null;
+                                },
+                                controller: commentController,
+                                decoration: inputDecoration(
+                                  'Write a comment (optional)',
+                                ),
+                                maxLines: 5,
+                                minLines: 3,
+                                keyboardType: TextInputType.multiline,
+                              ),
+
+                              Positioned(
+                                bottom: 4,
+                                right: 8,
+                                child: Text(
+                                  '$commentCount/300',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      Text(
-                        errorRating ?? '',
-                        style: TextStyle(fontSize: 14, color: Colors.red),
-                      ),
-
-                      const SizedBox(height: 4),
-
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: isButtonLoadingModal
-                              ? null
-                              : () async {
-                                  if (rating == 0) {
-                                    setModalState(() {
-                                      errorRating =
-                                          'Please select a star rating before submitting.';
-                                    });
-
-                                    return;
-                                  }
-
-                                  setModalState(() {
-                                    isButtonLoadingModal = true;
-                                  });
-
-                                  if (!formKey.currentState!.validate()) {
-                                    setModalState(() {
-                                      isButtonLoadingModal = false;
-                                    });
-                                    return;
-                                  }
-
-                                  await createFeedback(
-                                    serviceRequestId: serviceRequest.id!,
-                                    revieweeId: serviceRequest.manongId!,
-                                    rating: rating,
-                                    comment: commentController.text.isNotEmpty
-                                        ? commentController.text
-                                        : null,
-                                    navProvider: navProvider,
-                                  );
-
-                                  Navigator.of(
-                                    navigatorKey.currentContext!,
-                                  ).pop();
-
-                                  if (onClose != null) onClose();
-                                },
-                          style: ElevatedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            backgroundColor: AppColorScheme.primaryColor,
+                            ],
                           ),
-                          child: isButtonLoadingModal
-                              ? SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Text('Submit'),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+
+                        Text(
+                          errorRating ?? '',
+                          style: TextStyle(fontSize: 14, color: Colors.red),
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: isButtonLoadingModal
+                                ? null
+                                : () async {
+                                    if (rating == 0) {
+                                      setModalState(() {
+                                        errorRating =
+                                            'Please select a star rating before submitting.';
+                                      });
+
+                                      return;
+                                    }
+
+                                    setModalState(() {
+                                      isButtonLoadingModal = true;
+                                    });
+
+                                    if (!formKey.currentState!.validate()) {
+                                      setModalState(() {
+                                        isButtonLoadingModal = false;
+                                      });
+                                      return;
+                                    }
+
+                                    await createFeedback(
+                                      serviceRequestId: serviceRequest.id!,
+                                      revieweeId: serviceRequest.manongId!,
+                                      rating: rating,
+                                      comment: commentController.text.isNotEmpty
+                                          ? commentController.text
+                                          : null,
+                                      navProvider: navProvider,
+                                    );
+
+                                    Navigator.of(
+                                      navigatorKey.currentContext!,
+                                    ).pop();
+
+                                    if (onClose != null) onClose();
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              backgroundColor: AppColorScheme.primaryColor,
+                            ),
+                            child: isButtonLoadingModal
+                                ? SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text('Submit'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             );
           },

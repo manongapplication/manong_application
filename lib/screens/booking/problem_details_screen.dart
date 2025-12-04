@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/auth_service.dart';
+import 'package:manong_application/api/bookmark_item_api_service.dart';
 import 'package:manong_application/api/service_request_api_service.dart';
 import 'package:manong_application/api/urgency_level_api_service.dart';
 import 'package:manong_application/api/user_payment_method_api_service.dart';
@@ -62,6 +63,7 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
   String? _selectedPaymentName;
   int? _selectedPaymentId;
   String? _userPaymentMethodLast4;
+  bool? _isBookmarked;
 
   // Text Controller
   final TextEditingController _serviceNameController = TextEditingController();
@@ -77,21 +79,21 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
 
   bool _locationLoading = false;
   bool _locationError = false;
-  
+
   // Add this method to retry location
   Future<void> _retryLocation() async {
     setState(() {
       _locationLoading = true;
       _locationError = false;
     });
-    
+
     try {
       await Future.delayed(Duration(milliseconds: 500));
-      
+
       setState(() {
         _locationLoading = false;
       });
-      
+
       // The MapPreview should automatically retry when it rebuilds
     } catch (e) {
       setState(() {
@@ -100,7 +102,6 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
       });
     }
   }
-
 
   void _setActiveUrgencyLevel(int index) {
     setState(() {
@@ -115,6 +116,7 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
     _fetchUser();
     _getDefaultPaymentMethod();
     _fetchUrgencyLevels();
+    _fetchIsBookmarked();
   }
 
   void initializedComponents() {
@@ -500,11 +502,7 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.info_outline,
-                color: Colors.blue.shade600,
-                size: 16,
-              ),
+              Icon(Icons.info_outline, color: Colors.blue.shade600, size: 16),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -514,8 +512,12 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
                       _locationName ?? 'Getting your location...',
                       style: TextStyle(
                         fontSize: 14,
-                        color: _locationName != null ? Colors.grey.shade800 : Colors.grey.shade500,
-                        fontWeight: _locationName != null ? FontWeight.normal : FontWeight.w300,
+                        color: _locationName != null
+                            ? Colors.grey.shade800
+                            : Colors.grey.shade500,
+                        fontWeight: _locationName != null
+                            ? FontWeight.normal
+                            : FontWeight.w300,
                       ),
                     ),
                     if (_customerLat != null && _customerLng != null) ...[
@@ -593,7 +595,8 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
           decoration: InputDecoration(
             labelText: 'Service Details (Optional)',
             labelStyle: TextStyle(color: AppColorScheme.primaryColor),
-            hintText: 'Please describe what needs to be fixed or installed… (e.g. faucet leak, no water)',
+            hintText:
+                'Please describe what needs to be fixed or installed… (e.g. faucet leak, no water)',
             floatingLabelBehavior: FloatingLabelBehavior.always,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             enabledBorder: OutlineInputBorder(
@@ -607,7 +610,10 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
                 width: 2,
               ),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
           ),
           maxLines: 5,
           minLines: 3,
@@ -627,7 +633,11 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
             ),
             child: Row(
               children: [
-                Icon(Icons.location_searching, color: Colors.orange.shade700, size: 16),
+                Icon(
+                  Icons.location_searching,
+                  color: Colors.orange.shade700,
+                  size: 16,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -808,6 +818,50 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
     );
   }
 
+  Future<void> _fetchIsBookmarked() async {
+    if (_selectedSubServiceItem == null) {
+      setState(() {
+        _isBookmarked = false;
+      });
+      return;
+    }
+
+    try {
+      final response = await BookmarkItemApiService()
+          .isSubServiceItemBookmarked(_selectedSubServiceItem!.id);
+
+      setState(() {
+        _isBookmarked = response ?? false;
+      });
+    } catch (e) {
+      logger.info('Error checking bookmark status: ${e.toString()}');
+      setState(() {
+        _isBookmarked = false;
+      });
+    }
+  }
+
+  void _toggleBookmarkSubServiceItem() async {
+    if (_selectedSubServiceItem == null) return null;
+    try {
+      final response = _isBookmarked != null && _isBookmarked == true
+          ? await BookmarkItemApiService().removeBookmarkSubServiceItem(
+              _selectedSubServiceItem!.id,
+            )
+          : await BookmarkItemApiService().addBookmarkSubServiceItem(
+              _selectedSubServiceItem!.id,
+            );
+
+      if (response != null) {
+        if (response['success'] == true) {
+          await _fetchIsBookmarked();
+        }
+      }
+    } catch (e) {
+      logger.info('Error bookmarking sub service item ${e.toString()}');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -819,8 +873,19 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
         currentStep: currentStep,
         totalSteps: stepFlow.totalSteps,
         trailing: GestureDetector(
-          onTap: () {},
-          child: Icon(Icons.bookmark_add_outlined),
+          onTap: _toggleBookmarkSubServiceItem,
+          child: _isBookmarked == null
+              ? SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColorScheme.primaryColor,
+                  ),
+                )
+              : _isBookmarked == true
+              ? Icon(Icons.bookmark_added)
+              : Icon(Icons.bookmark_add_outlined),
         ),
       ),
       resizeToAvoidBottomInset: true,

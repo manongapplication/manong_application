@@ -1623,6 +1623,8 @@ class _ServiceRequestsDetailsScreenState
                 _refundButton(),
               ],
 
+              _buildStartJobBtn(),
+
               // -- Complete Button
               if (_serviceRequest?.arrivedAt != null &&
                   _serviceRequest?.status == ServiceRequestStatus.inProgress &&
@@ -1812,6 +1814,103 @@ class _ServiceRequestsDetailsScreenState
       navigatorKey.currentContext!,
       '/chat-manong',
       arguments: {'serviceRequest': _serviceRequest},
+    );
+  }
+
+  void _startServiceRequest(ServiceRequest serviceRequest) async {
+    setState(() {
+      _isButtonLoading = true;
+      _error = null;
+    });
+    try {
+      if (serviceRequest.id == null) return;
+      final response = await ServiceRequestApiService().startServiceRequest(
+        serviceRequest.id!,
+      );
+
+      setState(() {
+        _error = null;
+      });
+
+      if (response != null) {
+        if (response['data'] != null) {
+          final sr = ServiceRequest.fromJson(response['data']);
+          SnackBarUtils.showInfo(
+            navigatorKey.currentContext!,
+            'Service Request ${sr.status}',
+          );
+          if (sr.status != serviceRequest.status) {
+            Navigator.pop(navigatorKey.currentContext!, {
+              'updated': true,
+              'status': sr.status,
+              'startJob': true,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+      logger.severe('Error accepting service request $_error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isButtonLoading = false;
+        });
+      }
+    }
+  }
+
+  void _onStartJob(ServiceRequest serviceRequestItem) async {
+    if (_isManong == true && serviceRequestItem.userId != null) {
+      _startServiceRequest(serviceRequestItem);
+      await NotificationUtils.sendStatusUpdateNotification(
+        status: parseRequestStatus(serviceRequestItem.status!.value)!,
+        token: serviceRequestItem.user?.fcmToken ?? '',
+        serviceRequestId: serviceRequestItem.id.toString(),
+        userId: serviceRequestItem.userId!,
+      );
+    }
+  }
+
+  Widget _buildStartJobBtn() {
+    if (_serviceRequest == null) return const SizedBox.shrink();
+
+    if (_serviceRequest!.status != ServiceRequestStatus.accepted) {
+      return const SizedBox.shrink();
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton(
+            onPressed: _isButtonLoading
+                ? null
+                : () async => _onStartJob(_serviceRequest!),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColorScheme.primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: _isButtonLoading
+                ? SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: AppColorScheme.primaryColor,
+                      ),
+                    ),
+                  )
+                : const Text('Start Job'),
+          ),
+        ),
+      ],
     );
   }
 
