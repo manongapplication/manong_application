@@ -619,7 +619,7 @@ class _DetailedManongReportCardState extends State<DetailedManongReportCard> {
   Widget build(BuildContext context) {
     return Card(
       color: AppColorScheme.backgroundGrey,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(

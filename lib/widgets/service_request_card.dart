@@ -22,6 +22,7 @@ class ServiceRequestCard extends StatefulWidget {
   final bool? disableOnStartJob;
   final Function(int rating)? onTapRate;
   final VoidCallback? onTapReview;
+  final VoidCallback? onRefresh;
 
   const ServiceRequestCard({
     super.key,
@@ -34,6 +35,7 @@ class ServiceRequestCard extends StatefulWidget {
     this.disableOnStartJob = false,
     this.onTapRate,
     this.onTapReview,
+    this.onRefresh,
   });
 
   @override
@@ -44,6 +46,9 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
   late int _selectedRating;
   late String _rateText;
   late Function(int rating)? _onTapRate;
+  final TextEditingController _commentController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final int _commentCount = 0;
 
   @override
   void initState() {
@@ -59,6 +64,34 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
         : widget.isManong == true
         ? 'Service Rating'
         : 'Rate this service';
+    _updateRatingFromServiceRequest();
+  }
+
+  void _updateRatingFromServiceRequest() {
+    // Check if feedback exists and has a rating
+    if (widget.serviceRequestItem.feedback != null &&
+        widget.serviceRequestItem.feedback!.rating != null) {
+      _selectedRating = widget.serviceRequestItem.feedback!.rating;
+      _rateText = widget.serviceRequestItem.feedback!.rating > 0
+          ? 'Thank you for rating!'
+          : '';
+    } else {
+      _selectedRating = 0;
+      _rateText = widget.isManong == true
+          ? 'Service Rating'
+          : 'Rate this service';
+    }
+  }
+
+  @override
+  void didUpdateWidget(ServiceRequestCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Check if feedback has changed
+    if (oldWidget.serviceRequestItem.feedback?.rating !=
+        widget.serviceRequestItem.feedback?.rating) {
+      _updateRatingFromServiceRequest();
+    }
   }
 
   void _updateRatingDialog(int oldRating) {
@@ -100,6 +133,27 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
                     comment: '',
                   );
                   Navigator.of(context).pop();
+                  if (widget.onRefresh != null) {
+                    widget.onRefresh!();
+                  }
+
+                  if (_selectedRating <= 2) {
+                    FeedbackUtils().dissastisfiedDialog(
+                      context: context,
+                      rating: _selectedRating,
+                      serviceRequestId: widget.serviceRequestItem.id!,
+                      reveweeId: widget.serviceRequestItem.manongId!,
+                      formKey: _formKey,
+                      commentController: _commentController,
+                      commentCount: _commentCount,
+                      onClose: () {
+                        if (widget.onRefresh != null) {
+                          widget.onRefresh!();
+                        }
+                      },
+                    );
+                    return;
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColorScheme.primaryColor,
@@ -176,6 +230,8 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
             ?.where((e) => e.seenAt == null)
             .length ??
         0;
+    final bool hasReviewFeedback =
+        widget.serviceRequestItem.feedback?.comment != null;
 
     return Card(
       color: status == 'inProgress'
@@ -502,7 +558,10 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
 
                           if (_selectedRating > 0 && widget.isManong == false)
                             const SizedBox(height: 4),
-                          if (_selectedRating > 0 && widget.isManong == false)
+                          if (_selectedRating > 0 &&
+                              widget.isManong == false &&
+                              widget.serviceRequestItem.status ==
+                                  ServiceRequestStatus.completed)
                             ElevatedButton(
                               onPressed: widget.onTapReview,
                               style: ElevatedButton.styleFrom(
@@ -515,9 +574,11 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
                                   vertical: 6,
                                 ),
                               ),
-                              child: const Text(
-                                'Leave A Review',
-                                style: TextStyle(
+                              child: Text(
+                                hasReviewFeedback
+                                    ? 'Update Review'
+                                    : 'Leave A Review',
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 12,
                                 ),

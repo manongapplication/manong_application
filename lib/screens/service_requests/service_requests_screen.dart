@@ -908,6 +908,9 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
                 },
               );
             },
+            onRefresh: () {
+              _fetchServiceRequests();
+            },
           ),
         );
       },

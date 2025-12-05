@@ -468,6 +468,7 @@ class _ServiceRequestsDetailsScreenState
             ],
           ),
         ],
+        const SizedBox(height: 12),
         Text(
           "Request Number",
           style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
@@ -1361,7 +1362,7 @@ class _ServiceRequestsDetailsScreenState
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(12),
+      padding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(

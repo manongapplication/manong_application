@@ -278,193 +278,197 @@ class FeedbackUtils {
                 setModalState(() => commentCount = 0);
                 return true;
               },
-              child: SingleChildScrollView(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).viewInsets.bottom + 18,
-                  left: 18,
-                  right: 18,
-                  top: 18,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    Stack(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Why were you dissatisfied?',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                          ],
-                        ),
-
-                        Positioned(
-                          top: 0,
-                          right: 4,
-                          child: GestureDetector(
-                            onTap: () {
-                              commentController.clear();
-                              setModalState(() => commentCount = 0);
-                              Navigator.of(context).pop();
-
-                              if (onClose != null) onClose();
-                            },
-                            child: Icon(Icons.close, color: Colors.grey),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    Text(
-                      'Please select at least 1 reason for your rating, or optionally leave a comment.',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-
-                    const SizedBox(height: 22),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Wrap(
-                            spacing: 2,
-                            runSpacing: 2,
-                            children: List.generate(reasons.length, (index) {
-                              final selectedReason = reasons[index];
-                              final active = selectedReasonIndex == index;
-                              return FilterChip(
-                                label: Text(
-                                  selectedReason,
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                                onSelected: (_) {
-                                  setModalState(() {
-                                    if (selectedReasonIndex == index) {
-                                      selectedReasonIndex = null;
-                                    } else {
-                                      selectedReasonIndex = index;
-                                    }
-                                  });
-                                },
-                                selectedColor: AppColorScheme.primaryColor,
-                                backgroundColor: Colors.grey.shade300,
-                                selected: active,
-                                labelStyle: TextStyle(
-                                  color: active
-                                      ? Colors.white
-                                      : Colors.grey.shade700,
-                                  fontWeight: active
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                showCheckmark: false,
-                              );
-                            }),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    Form(
-                      key: formKey,
-                      child: Stack(
+              child: SafeArea(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+                    left: 18,
+                    right: 18,
+                    top: 18,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      Stack(
                         children: [
-                          TextFormField(
-                            onChanged: (value) {
-                              setModalState(() => commentCount = value.length);
-                            },
-                            validator: (value) {
-                              if (value != null && value.isNotEmpty) {
-                                if (value.length < 20 || value.length > 300) {
-                                  return 'Review must be between 20 and 300 characters.';
-                                }
-                              }
-                              return null;
-                            },
-                            controller: commentController,
-                            decoration: inputDecoration(
-                              'Write a comment (optional)',
-                            ),
-                            maxLines: 5,
-                            minLines: 3,
-                            keyboardType: TextInputType.multiline,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Why were you dissatisfied?',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ],
                           ),
 
                           Positioned(
-                            bottom: 4,
-                            right: 8,
-                            child: Text(
-                              '$commentCount/300',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
+                            top: 0,
+                            right: 4,
+                            child: GestureDetector(
+                              onTap: () {
+                                commentController.clear();
+                                setModalState(() => commentCount = 0);
+                                Navigator.of(context).pop();
+
+                                if (onClose != null) onClose();
+                              },
+                              child: Icon(Icons.close, color: Colors.grey),
                             ),
                           ),
                         ],
                       ),
-                    ),
 
-                    const SizedBox(height: 18),
+                      const SizedBox(height: 12),
 
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: isButtonLoadingModal
-                            ? null
-                            : () {
-                                setModalState(() {
-                                  isButtonLoadingModal = true;
-                                });
-
-                                if (!formKey.currentState!.validate()) {
-                                  setModalState(() {
-                                    isButtonLoadingModal = false;
-                                  });
-                                  return;
-                                }
-
-                                createFeedback(
-                                  serviceRequestId: serviceRequestId,
-                                  revieweeId: reveweeId,
-                                  rating: rating,
-                                  comment: selectedReasonIndex != null
-                                      ? '${reasons[selectedReasonIndex!]}${commentController.text.isNotEmpty ? ' - ${commentController.text}' : ''}'
-                                      : (commentController.text.isNotEmpty
-                                            ? commentController.text
-                                            : null),
-                                );
-
-                                Navigator.of(
-                                  navigatorKey.currentContext!,
-                                ).pop();
-                              },
-                        style: ElevatedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          backgroundColor: AppColorScheme.primaryColor,
-                        ),
-                        child: isButtonLoadingModal
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text('Update'),
+                      Text(
+                        'Please select at least 1 reason for your rating, or optionally leave a comment.',
+                        style: TextStyle(color: Colors.grey),
                       ),
-                    ),
-                  ],
+
+                      const SizedBox(height: 22),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Wrap(
+                              spacing: 2,
+                              runSpacing: 2,
+                              children: List.generate(reasons.length, (index) {
+                                final selectedReason = reasons[index];
+                                final active = selectedReasonIndex == index;
+                                return FilterChip(
+                                  label: Text(
+                                    selectedReason,
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                  onSelected: (_) {
+                                    setModalState(() {
+                                      if (selectedReasonIndex == index) {
+                                        selectedReasonIndex = null;
+                                      } else {
+                                        selectedReasonIndex = index;
+                                      }
+                                    });
+                                  },
+                                  selectedColor: AppColorScheme.primaryColor,
+                                  backgroundColor: Colors.grey.shade300,
+                                  selected: active,
+                                  labelStyle: TextStyle(
+                                    color: active
+                                        ? Colors.white
+                                        : Colors.grey.shade700,
+                                    fontWeight: active
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  showCheckmark: false,
+                                );
+                              }),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      Form(
+                        key: formKey,
+                        child: Stack(
+                          children: [
+                            TextFormField(
+                              onChanged: (value) {
+                                setModalState(
+                                  () => commentCount = value.length,
+                                );
+                              },
+                              validator: (value) {
+                                if (value != null && value.isNotEmpty) {
+                                  if (value.length < 20 || value.length > 300) {
+                                    return 'Review must be between 20 and 300 characters.';
+                                  }
+                                }
+                                return null;
+                              },
+                              controller: commentController,
+                              decoration: inputDecoration(
+                                'Write a comment (optional)',
+                              ),
+                              maxLines: 5,
+                              minLines: 3,
+                              keyboardType: TextInputType.multiline,
+                            ),
+
+                            Positioned(
+                              bottom: 4,
+                              right: 8,
+                              child: Text(
+                                '$commentCount/300',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: isButtonLoadingModal
+                              ? null
+                              : () {
+                                  setModalState(() {
+                                    isButtonLoadingModal = true;
+                                  });
+
+                                  if (!formKey.currentState!.validate()) {
+                                    setModalState(() {
+                                      isButtonLoadingModal = false;
+                                    });
+                                    return;
+                                  }
+
+                                  createFeedback(
+                                    serviceRequestId: serviceRequestId,
+                                    revieweeId: reveweeId,
+                                    rating: rating,
+                                    comment: selectedReasonIndex != null
+                                        ? '${reasons[selectedReasonIndex!]}${commentController.text.isNotEmpty ? ' - ${commentController.text}' : ''}'
+                                        : (commentController.text.isNotEmpty
+                                              ? commentController.text
+                                              : null),
+                                  );
+
+                                  Navigator.of(
+                                    navigatorKey.currentContext!,
+                                  ).pop();
+                                },
+                          style: ElevatedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            backgroundColor: AppColorScheme.primaryColor,
+                          ),
+                          child: isButtonLoadingModal
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text('Update'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );

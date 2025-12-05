@@ -641,7 +641,7 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Please enable location services to set your home address and find nearby Manongs.',
+                    'Hang tight… Locating your home and nearby Manongs.',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.orange.shade800,
