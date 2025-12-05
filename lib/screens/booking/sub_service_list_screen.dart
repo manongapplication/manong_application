@@ -218,27 +218,51 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
     });
   }
 
-  void _onBookmarkToggled(int subServiceItemId) {
+  Future<void> _onBookmarkToggled(int subServiceItemId) async {
     // Store the current state before update
     final wasBookmarked = _bookmarkStatus[subServiceItemId] ?? false;
     final isAddingBookmark = !wasBookmarked;
 
-    // Update the local bookmark status
-    setState(() {
-      final currentStatus = _bookmarkStatus[subServiceItemId] ?? false;
-      _bookmarkStatus[subServiceItemId] = !currentStatus;
-
-      // Re-sort items after toggling bookmark
-      _sortItemsByBookmark();
-
-      // If adding a bookmark and not on first page, reset to first page
-      // so the newly bookmarked item is visible at the top
-      if (isAddingBookmark && _currentPage > 1) {
-        _currentPage = 1;
+    // Call API first
+    try {
+      if (isAddingBookmark) {
+        await BookmarkItemApiService().addBookmarkSubServiceItem(
+          subServiceItemId,
+        );
+      } else {
+        await BookmarkItemApiService().removeBookmarkSubServiceItem(
+          subServiceItemId,
+        );
       }
+    } catch (e) {
+      print('Error toggling bookmark: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update bookmark'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
-      _updateDisplayedItems();
-    });
+    // Update the local bookmark status
+    if (mounted) {
+      setState(() {
+        final currentStatus = _bookmarkStatus[subServiceItemId] ?? false;
+        _bookmarkStatus[subServiceItemId] = !currentStatus;
+
+        // Re-sort items after toggling bookmark
+        _sortItemsByBookmark();
+
+        // If adding a bookmark and not on first page, reset to first page
+        // so the newly bookmarked item is visible at the top
+        if (isAddingBookmark && _currentPage > 1) {
+          _currentPage = 1;
+        }
+
+        _updateDisplayedItems();
+      });
+    }
 
     // Optional: Scroll to top when bookmarking an item (so user sees it move to top)
     if (isAddingBookmark && _scrollController.hasClients) {
@@ -358,82 +382,61 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
                           SizedBox(height: 4),
 
                           Expanded(
-                            child: AnimatedList(
-                              key: ValueKey(
-                                _displayedSubServiceItems.length,
-                              ), // Rebuild when items change
+                            child: ListView.builder(
+                              key: PageStorageKey<String>(
+                                'subServiceList_${widget.serviceItem.id}',
+                              ), // Add this
                               controller: _scrollController,
-                              initialItemCount:
+                              itemCount:
                                   _displayedSubServiceItems.length +
                                   (_hasMore ? 1 : 0) +
                                   1,
-                              itemBuilder: (context, index, animation) {
+                              itemBuilder: (context, index) {
                                 // Loading indicator for pagination (only show if there are more items to load)
                                 if (_hasMore &&
                                     index == _displayedSubServiceItems.length) {
-                                  return SlideTransition(
-                                    position: animation.drive(
-                                      Tween<Offset>(
-                                        begin: Offset(0, 1),
-                                        end: Offset.zero,
-                                      ),
-                                    ),
-                                    child: _buildLoadingIndicator(),
-                                  );
+                                  return _buildLoadingIndicator();
                                 }
 
                                 // "Upcoming Services" card at the end
                                 if (index ==
                                     _displayedSubServiceItems.length +
                                         (_hasMore ? 1 : 0)) {
-                                  return SlideTransition(
-                                    position: animation.drive(
-                                      Tween<Offset>(
-                                        begin: Offset(0, 1),
-                                        end: Offset.zero,
-                                      ),
-                                    ),
-                                    child: _buildUpcomingServicesCard(
-                                      iconColor,
-                                      serviceItem,
-                                    ),
+                                  return _buildUpcomingServicesCard(
+                                    iconColor,
+                                    serviceItem,
                                   );
                                 }
 
                                 final subServiceItem =
                                     _displayedSubServiceItems[index];
 
-                                return SlideTransition(
-                                  position: animation.drive(
-                                    Tween<Offset>(
-                                      begin: Offset(0, 1),
-                                      end: Offset.zero,
+                                return Padding(
+                                  key: Key(
+                                    'subService_${subServiceItem.id}_${_bookmarkStatus[subServiceItem.id] ?? false}',
+                                  ), // IMPORTANT: Add unique key
+                                  padding: EdgeInsets.only(bottom: 12),
+                                  child: SubServiceCard(
+                                    onTap: () {
+                                      Navigator.pushNamed(
+                                        context,
+                                        '/problem-details',
+                                        arguments: {
+                                          'serviceItem': serviceItem,
+                                          'subServiceItem': subServiceItem,
+                                          'iconColor': iconColor,
+                                        },
+                                      );
+                                    },
+                                    subServiceItem: subServiceItem,
+                                    iconColor: iconColor,
+                                    iconTextColor: colorFromHex(
+                                      serviceItem.iconTextColor,
                                     ),
-                                  ),
-                                  child: Padding(
-                                    padding: EdgeInsets.only(bottom: 12),
-                                    child: SubServiceCard(
-                                      onTap: () {
-                                        Navigator.pushNamed(
-                                          context,
-                                          '/problem-details',
-                                          arguments: {
-                                            'serviceItem': serviceItem,
-                                            'subServiceItem': subServiceItem,
-                                            'iconColor': iconColor,
-                                          },
-                                        );
-                                      },
-                                      subServiceItem: subServiceItem,
-                                      iconColor: iconColor,
-                                      iconTextColor: colorFromHex(
-                                        serviceItem.iconTextColor,
-                                      ),
-                                      isBookmarked:
-                                          _bookmarkStatus[subServiceItem.id],
-                                      onBookmarkToggled: () =>
-                                          _onBookmarkToggled(subServiceItem.id),
-                                    ),
+                                    isBookmarked:
+                                        _bookmarkStatus[subServiceItem.id],
+                                    onBookmarkToggled: () =>
+                                        _onBookmarkToggled(subServiceItem.id),
                                   ),
                                 );
                               },

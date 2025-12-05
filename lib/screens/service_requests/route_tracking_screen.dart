@@ -531,19 +531,46 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
     }
   }
 
+  String _buildAppBarTitle() {
+    if (widget.useManongAsTitle == true) {
+      final manongName = _manongName?.toString() ?? '';
+      return 'Manong $manongName'.trim();
+    }
+
+    if (_serviceRequest?.status == ServiceRequestStatus.inProgress) {
+      return _serviceRequest?.arrivedAt != null
+          ? 'Manong has arrived!'
+          : 'Manong is on the way...';
+    }
+
+    // Build the service title
+    final serviceTitle = _serviceRequest?.serviceItem?.title ?? '';
+    final hasServiceTitle = serviceTitle.isNotEmpty;
+
+    String subServiceTitle = '';
+    if (_serviceRequest?.otherServiceName?.trim().isNotEmpty == true) {
+      subServiceTitle = _serviceRequest!.otherServiceName!;
+    } else if (_serviceRequest?.subServiceItem?.title?.isNotEmpty == true) {
+      subServiceTitle = _serviceRequest!.subServiceItem!.title!;
+    }
+
+    final hasSubServiceTitle = subServiceTitle.isNotEmpty;
+
+    if (hasServiceTitle && hasSubServiceTitle) {
+      return '$serviceTitle -> $subServiceTitle';
+    } else if (hasServiceTitle) {
+      return serviceTitle;
+    } else if (hasSubServiceTitle) {
+      return subServiceTitle;
+    }
+
+    return ''; // Fallback empty title
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: myAppBar(
-        title: widget.useManongAsTitle == true
-            ? 'Manong ${_manongName.toString()}'
-            : _serviceRequest?.status == ServiceRequestStatus.inProgress
-            ? _serviceRequest?.arrivedAt != null
-                  ? 'Manong has arrived!'
-                  : 'Manong is on the way...'
-            : '${_serviceRequest?.serviceItem?.title != null ? '${_serviceRequest?.serviceItem?.title} ->' : ''}  ${_serviceRequest!.otherServiceName.toString().trim().isNotEmpty ? _serviceRequest?.otherServiceName : _serviceRequest?.subServiceItem?.title ?? ''}',
-        fontSize: 18,
-      ),
+      appBar: myAppBar(title: _buildAppBarTitle(), fontSize: 18),
       body: Stack(
         children: [
           _buildGoogleMap(),
