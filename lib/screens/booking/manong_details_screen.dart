@@ -3,6 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:iconify_design/iconify_design.dart';
 import 'package:manong_application/main.dart';
+import 'package:manong_application/models/bookmark_item_type.dart';
 import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/screens/service_requests/route_tracking_screen.dart';
@@ -11,9 +12,9 @@ import 'package:latlong2/latlong.dart' as latlong;
 import 'package:manong_application/utils/calculation_totals.dart';
 import 'package:manong_application/utils/color_utils.dart';
 import 'package:manong_application/utils/distance_matrix.dart';
-import 'package:manong_application/utils/icon_mapper.dart';
 import 'package:manong_application/widgets/instruction_steps.dart';
 import 'package:manong_application/widgets/price_tag.dart';
+import 'package:manong_application/api/bookmark_item_api_service.dart'; // Add this import
 
 class ManongDetailsScreen extends StatefulWidget {
   final Manong? manong;
@@ -39,16 +40,91 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
   late ServiceRequest? _serviceRequest;
   late Manong? _manong;
 
+  // Bookmark state
+  bool _isBookmarked = false;
+  bool _isLoadingBookmark = false;
+
   @override
   void initState() {
     super.initState();
     _initializeComponents();
     showInstructionSheet(navigatorKey.currentContext!);
+    _fetchBookmarkStatus();
   }
 
   void _initializeComponents() {
     _serviceRequest = widget.serviceRequest;
     _manong = widget.manong;
+  }
+
+  Future<void> _fetchBookmarkStatus() async {
+    if (_manong == null) return;
+
+    setState(() {
+      _isLoadingBookmark = true;
+    });
+
+    try {
+      final isBookmarked = await BookmarkItemApiService().isItemBookmarked(
+        itemId: _manong!.appUser.id,
+        type: BookmarkItemType.MANONG,
+      );
+
+      if (mounted) {
+        setState(() {
+          _isBookmarked = isBookmarked ?? false;
+          _isLoadingBookmark = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isBookmarked = false;
+          _isLoadingBookmark = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleBookmark() async {
+    if (_manong == null || _isLoadingBookmark) return;
+
+    setState(() {
+      _isLoadingBookmark = true;
+    });
+
+    try {
+      if (_isBookmarked) {
+        await BookmarkItemApiService().removeBookmark(
+          itemId: _manong!.appUser.id,
+          type: BookmarkItemType.MANONG,
+        );
+      } else {
+        await BookmarkItemApiService().addBookmark(
+          itemId: _manong!.appUser.id,
+          type: BookmarkItemType.MANONG,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _isBookmarked = !_isBookmarked;
+          _isLoadingBookmark = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update bookmark'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _isLoadingBookmark = false;
+        });
+      }
+    }
   }
 
   Future<void> showInstructionSheet(BuildContext context) async {
@@ -149,6 +225,40 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildBookmarkButton() {
+    if (_isLoadingBookmark) {
+      return SizedBox(
+        width: 32,
+        height: 32,
+        child: Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColorScheme.primaryColor,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: _toggleBookmark,
+      child: Container(
+        width: 32,
+        height: 32,
+        child: Center(
+          child: Icon(
+            _isBookmarked ? Icons.bookmark_added : Icons.bookmark_add_outlined,
+            color: _isBookmarked ? Colors.amber : Colors.grey[600],
+            size: 28,
+          ),
+        ),
+      ),
     );
   }
 
@@ -270,23 +380,45 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
           ),
           SizedBox(height: 12),
 
-          // -- Manong Name
-          Text(
-            "Name",
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-          ),
-          SizedBox(height: 4),
-
+          // -- Manong Name with bookmark
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                _manong?.appUser.firstName ?? "No name",
-                style: TextStyle(fontSize: 18, color: Colors.black),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Name",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _manong?.appUser.firstName ?? "No name",
+                            style: TextStyle(fontSize: 18, color: Colors.black),
+                          ),
+                        ),
+                        if (_manong?.profile!.isProfessionallyVerified ==
+                            true) ...[
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.verified_rounded,
+                            size: 20,
+                            color: Colors.lightBlue,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              if (_manong?.profile!.isProfessionallyVerified == true) ...[
-                const SizedBox(width: 4),
-                Icon(Icons.verified_rounded, size: 20, color: Colors.lightBlue),
-              ],
+              _buildBookmarkButton(),
             ],
           ),
           SizedBox(height: 8),

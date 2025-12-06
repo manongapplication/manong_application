@@ -24,11 +24,11 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   late FlutterSecureStorage _storage;
   int _currentPage = 0;
   late OnboardingStorage _onboardingStorage;
-  
+
   // Track which dialogs have been shown
   bool _locationDialogShown = false;
   bool _notificationDialogShown = false;
-  
+
   final List<Map<String, String>> _instructions = [
     {
       'text': 'Welcome to Manong – Home services anytime you need.',
@@ -78,12 +78,12 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   Future<void> _showNotificationPermissionDialog() async {
     // Only show once and only if permission isn't already granted
     if (_notificationDialogShown || _permissionUtils == null) return;
-    
+
     bool granted = await _permissionUtils!.isNotificationPermissionGranted();
-    
+
     if (!granted && mounted) {
       _notificationDialogShown = true; // Mark as shown
-      
+
       showDialog(
         context: navigatorKey.currentContext!,
         barrierDismissible: false,
@@ -95,13 +95,14 @@ class _OnboardingScreenState extends State<StatefulWidget> {
             child: ModalIconOverlay(
               onPressed: () async {
                 await _permissionUtils!.checkNotificationPermission();
-                
+
                 // Check if permission was granted after the action
-                bool newStatus = await _permissionUtils!.isNotificationPermissionGranted();
-                
+                bool newStatus = await _permissionUtils!
+                    .isNotificationPermissionGranted();
+
                 if (mounted) {
                   Navigator.of(navigatorKey.currentContext!).pop();
-                  
+
                   // Show a follow-up message if on iOS and permission was denied
                   if (Platform.isIOS && !newStatus) {
                     _showIOSNotificationInstructions();
@@ -109,7 +110,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                 }
               },
               icons: Icons.notifications_active,
-              description: Platform.isIOS 
+              description: Platform.isIOS
                   ? 'Enable notifications to get updates about your bookings and important alerts. You can manage this later in Settings.'
                   : 'We\'d like to send you notifications about updates, reminders, and important alerts.',
             ),
@@ -149,12 +150,12 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   Future<void> _showLocationPermissionDialog() async {
     // Only show once and only if permission isn't already granted
     if (_locationDialogShown || _permissionUtils == null) return;
-    
+
     bool granted = await _permissionUtils!.isLocationPermissionGranted();
-    
+
     if (!granted && mounted) {
       _locationDialogShown = true; // Mark as shown
-      
+
       showDialog(
         context: navigatorKey.currentContext!,
         barrierDismissible: false, // Prevent dismissing by tapping outside

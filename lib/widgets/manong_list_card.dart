@@ -12,6 +12,8 @@ class ManongListCard extends StatelessWidget {
   final VoidCallback onTap;
   final double? meters;
   final SubServiceItem? subServiceItem;
+  final bool? isBookmarked;
+  final VoidCallback? onBookmarkToggled;
 
   const ManongListCard({
     super.key,
@@ -20,7 +22,29 @@ class ManongListCard extends StatelessWidget {
     required this.onTap,
     this.meters,
     this.subServiceItem,
+    this.isBookmarked,
+    this.onBookmarkToggled,
   });
+
+  Widget _buildBookmarkButton() {
+    return GestureDetector(
+      onTap: onBookmarkToggled,
+      child: Container(
+        width: 32,
+        height: 32,
+        margin: EdgeInsets.only(left: 4),
+        child: Center(
+          child: Icon(
+            isBookmarked == true
+                ? Icons.bookmark_added
+                : Icons.bookmark_add_outlined,
+            color: isBookmarked == true ? Colors.amber : Colors.grey[600],
+            size: 24,
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildSpecialities() {
     final remaining = manong.profile!.specialities!.skip(5).toList();
@@ -59,7 +83,7 @@ class ManongListCard extends StatelessWidget {
                     item.subServiceItem.title,
                     style: const TextStyle(fontSize: 12, color: Colors.black87),
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis, // <-- truncate long text
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -287,7 +311,10 @@ class ManongListCard extends StatelessWidget {
             children: [
               const SizedBox(width: 4),
               _buildManongInfo(),
-              _buildDistanceInfo(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [_buildBookmarkButton(), _buildDistanceInfo()],
+              ),
             ],
           ),
         ),

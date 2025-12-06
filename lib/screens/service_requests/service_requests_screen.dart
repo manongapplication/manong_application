@@ -574,16 +574,20 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       final reqStatus = req.status ?? ServiceRequestStatus.pending;
       final paymentStatus = req.paymentStatus ?? PaymentStatus.pending;
 
-      if (tab == 'To Pay' && reqStatus == ServiceRequestStatus.expired) {
+      if (tab == 'To Pay' &&
+          [
+            ServiceRequestStatus.expired,
+            ServiceRequestStatus.cancelled,
+          ].contains(reqStatus)) {
         return false;
       }
-      if (tab == 'To Pay' && reqStatus == ServiceRequestStatus.cancelled) {
-        return false;
-      }
-      if (tab == 'Upcoming' && reqStatus == ServiceRequestStatus.completed) {
-        return false;
-      }
-      if (tab == 'Upcoming' && reqStatus == ServiceRequestStatus.inProgress) {
+
+      if (tab == 'Upcoming' &&
+          [
+            ServiceRequestStatus.completed,
+            ServiceRequestStatus.inProgress,
+            ServiceRequestStatus.cancelled,
+          ].contains(reqStatus)) {
         return false;
       }
 

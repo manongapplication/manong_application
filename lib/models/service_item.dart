@@ -12,6 +12,7 @@ class ServiceItem {
   final String iconColor;
   final String iconTextColor;
   final ServiceItemStatus status;
+  final DateTime? createdAt;
   final DateTime? updatedAt;
   final List<SubServiceItem> subServiceItems;
 
@@ -26,6 +27,7 @@ class ServiceItem {
     this.iconColor = '#3B82F6',
     this.iconTextColor = '#FFFFFF',
     required this.status,
+    this.createdAt,
     this.updatedAt,
     this.subServiceItems = const [],
   });
@@ -51,6 +53,9 @@ class ServiceItem {
         (e) => e.name == json['status'].toString(),
         orElse: () => ServiceItemStatus.inactive,
       ),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : null,
       updatedAt: json['updatedAt'] != null
           ? DateTime.parse(json['updatedAt'])
           : null,

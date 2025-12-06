@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:manong_application/api/bookmark_item_manager.dart';
+import 'package:manong_application/models/bookmark_item_type.dart';
 import 'package:manong_application/models/sub_service_item.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/widgets/icon_card.dart';
-import 'package:manong_application/api/bookmark_item_api_service.dart';
 
 class SubServiceCard extends StatefulWidget {
   final SubServiceItem subServiceItem;
   final VoidCallback onTap;
   final Color iconColor;
   final Color iconTextColor;
-  final bool? isBookmarked;
-  final VoidCallback? onBookmarkToggled;
+  final bool? isBookmarked; // IMPORTANT: Parent will pass this
+  final VoidCallback onBookmarkToggled; // Changed to required
 
   const SubServiceCard({
     super.key,
@@ -18,8 +19,8 @@ class SubServiceCard extends StatefulWidget {
     required this.onTap,
     required this.iconColor,
     required this.iconTextColor,
-    this.isBookmarked,
-    this.onBookmarkToggled,
+    required this.isBookmarked, // Now required
+    required this.onBookmarkToggled, // Now required
   });
 
   @override
@@ -33,8 +34,8 @@ class _SubServiceCardState extends State<SubServiceCard> {
   @override
   void initState() {
     super.initState();
+    // REMOVED: No individual API call
     _isBookmarked = widget.isBookmarked;
-    _fetchBookmarkStatus();
   }
 
   @override
@@ -47,27 +48,6 @@ class _SubServiceCardState extends State<SubServiceCard> {
     }
   }
 
-  Future<void> _fetchBookmarkStatus() async {
-    if (_isBookmarked != null) return; // Already set from parent
-
-    try {
-      final isBookmarked = await BookmarkItemApiService()
-          .isSubServiceItemBookmarked(widget.subServiceItem.id);
-
-      if (mounted) {
-        setState(() {
-          _isBookmarked = isBookmarked ?? false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isBookmarked = false;
-        });
-      }
-    }
-  }
-
   Future<void> _toggleBookmark() async {
     if (_isLoading) return;
 
@@ -76,26 +56,27 @@ class _SubServiceCardState extends State<SubServiceCard> {
     });
 
     try {
-      if (_isBookmarked == true) {
-        await BookmarkItemApiService().removeBookmarkSubServiceItem(
-          widget.subServiceItem.id,
-        );
-      } else {
-        await BookmarkItemApiService().addBookmarkSubServiceItem(
-          widget.subServiceItem.id,
-        );
-      }
+      final wasBookmarked = _isBookmarked ?? false;
+      final newBookmarkStatus = !wasBookmarked;
+
+      // CRITICAL: Use the instance method to update status
+      BookmarkItemManager().updateBookmarkStatus(
+        itemId: widget.subServiceItem.id,
+        type: BookmarkItemType.SUB_SERVICE_ITEM,
+        isBookmarked: newBookmarkStatus,
+      );
 
       if (mounted) {
         setState(() {
-          _isBookmarked = !(_isBookmarked ?? false);
+          _isBookmarked = newBookmarkStatus;
         });
       }
 
-      // Notify parent if callback provided
-      widget.onBookmarkToggled?.call();
+      // Let parent handle the API call
+      widget.onBookmarkToggled();
     } catch (e) {
-      // Handle error - maybe show a snackbar
+      debugPrint('Error toggling bookmark: $e');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -140,9 +121,7 @@ class _SubServiceCardState extends State<SubServiceCard> {
                       children: [
                         Expanded(
                           child: Padding(
-                            padding: EdgeInsets.only(
-                              top: 2,
-                            ), // Small vertical centering
+                            padding: EdgeInsets.only(top: 2),
                             child: Text(
                               widget.subServiceItem.title,
                               style: TextStyle(

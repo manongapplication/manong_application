@@ -67,6 +67,9 @@
         </array>
       </dict>
     </array>
+
+    <key>GMSApiKey</key>
+    <string>AIzaSyA_YAEjghqFM4JEzp63zsbzdd0Mpo7ULqA</string>
     
   </dict>
 </plist>

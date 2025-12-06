@@ -122,7 +122,7 @@ class DeviceIdService {
       await _secureStorage.write(key: _deviceIdKey, value: deviceId);
       await _secureStorage.write(key: _backupDeviceIdKey, value: deviceId);
     } catch (e) {
-      print('Error storing device ID: $e');
+      debugPrint('Error storing device ID: $e');
     }
   }
 

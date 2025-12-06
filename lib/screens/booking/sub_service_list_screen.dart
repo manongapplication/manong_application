@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:iconify_design/iconify_design.dart';
+import 'package:manong_application/api/bookmark_item_manager.dart';
+import 'package:manong_application/models/bookmark_item_type.dart';
 import 'package:manong_application/models/service_item.dart';
 import 'package:manong_application/models/sub_service_item.dart';
 import 'package:manong_application/utils/color_utils.dart';
@@ -10,11 +14,13 @@ import 'package:manong_application/api/bookmark_item_api_service.dart';
 class SubServiceListScreen extends StatefulWidget {
   final ServiceItem serviceItem;
   final Color? iconColor;
+  final String? search;
 
   const SubServiceListScreen({
     super.key,
     required this.serviceItem,
     this.iconColor,
+    this.search,
   });
 
   @override
@@ -39,21 +45,197 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
   Map<int, bool> _bookmarkStatus = {};
   bool _isLoadingBookmarks = false;
 
+  // Service item bookmark state
+  bool _isServiceBookmarked = false;
+  bool _isLoadingServiceBookmark = false;
+
+  // Track if any bookmarks were updated
+  bool _hasBookmarkUpdates = false;
+
+  Timer? _searchDebounceTimer;
+
   @override
   void initState() {
     super.initState();
+
+    if (widget.search != null && widget.search!.isNotEmpty) {
+      _searchController.text = widget.search!;
+      _searchQuery = widget.search!;
+    }
+
     _searchController.addListener(_onSearchChanged);
     _scrollController.addListener(_onScroll);
     _fetchAllBookmarks();
+    _fetchServiceBookmarkStatus();
   }
 
+  Future<void> _fetchServiceBookmarkStatus() async {
+    setState(() {
+      _isLoadingServiceBookmark = true;
+    });
+
+    try {
+      final isBookmarked = await BookmarkItemApiService().isItemBookmarked(
+        itemId: widget.serviceItem.id,
+        type: BookmarkItemType.SERVICE_ITEM,
+      );
+
+      if (mounted) {
+        setState(() {
+          _isServiceBookmarked = isBookmarked ?? false;
+          _isLoadingServiceBookmark = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching service bookmark: $e');
+      if (mounted) {
+        setState(() {
+          _isServiceBookmarked = false;
+          _isLoadingServiceBookmark = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleServiceBookmark() async {
+    if (_isLoadingServiceBookmark) return;
+
+    setState(() {
+      _isLoadingServiceBookmark = true;
+    });
+
+    try {
+      if (_isServiceBookmarked) {
+        await BookmarkItemApiService().removeBookmark(
+          itemId: widget.serviceItem.id,
+          type: BookmarkItemType.SERVICE_ITEM,
+        );
+      } else {
+        await BookmarkItemApiService().addBookmark(
+          itemId: widget.serviceItem.id,
+          type: BookmarkItemType.SERVICE_ITEM,
+        );
+      }
+
+      BookmarkItemManager.updateCache(
+        widget.serviceItem.id,
+        BookmarkItemType.SERVICE_ITEM,
+        !_isServiceBookmarked,
+      );
+
+      if (mounted) {
+        setState(() {
+          _isServiceBookmarked = !_isServiceBookmarked;
+          _isLoadingServiceBookmark = false;
+          _hasBookmarkUpdates = true;
+        });
+      }
+    } catch (e) {
+      print('Error toggling service bookmark: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update bookmark'),
+          backgroundColor: Colors.red,
+        ),
+      );
+
+      if (mounted) {
+        setState(() {
+          _isLoadingServiceBookmark = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildBookmarkButton() {
+    if (_isLoadingServiceBookmark) {
+      return SizedBox(
+        width: 32,
+        height: 32,
+        child: Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return IconButton(
+      icon: Icon(
+        _isServiceBookmarked
+            ? Icons.bookmark_added
+            : Icons.bookmark_add_outlined,
+        color: _isServiceBookmarked ? Colors.amber : Colors.white,
+      ),
+      onPressed: _toggleServiceBookmark,
+    );
+  }
+
+  // OPTIMIZED VERSION: Use your old working structure but with batch API
   Future<void> _fetchAllBookmarks() async {
     setState(() {
       _isLoadingBookmarks = true;
     });
 
     try {
-      // Fetch all bookmarked sub-service items
+      // Try batch API first (fastest)
+      final subServiceIds = widget.serviceItem.subServiceItems
+          .map((item) => item.id)
+          .toList();
+
+      final batchResult = await BookmarkItemApiService().batchCheckBookmarks(
+        type: BookmarkItemType.SUB_SERVICE_ITEM,
+        ids: subServiceIds,
+      );
+
+      if (batchResult != null && batchResult.isNotEmpty) {
+        // Update cache with batch results
+        BookmarkItemManager().updateMultipleBookmarks(
+          batchResult,
+          BookmarkItemType.SUB_SERVICE_ITEM,
+        );
+
+        final newBookmarkStatus = <int, bool>{};
+        for (final item in widget.serviceItem.subServiceItems) {
+          newBookmarkStatus[item.id] = batchResult[item.id] ?? false;
+        }
+
+        if (mounted) {
+          setState(() {
+            _bookmarkStatus = newBookmarkStatus;
+            _filteredSubServiceItems = List.from(
+              widget.serviceItem.subServiceItems,
+            );
+            _sortItemsByBookmark();
+            _updateDisplayedItems();
+          });
+        }
+      } else {
+        // Fallback to your old working method
+        await _fetchBookmarksOldWay();
+      }
+    } catch (e) {
+      debugPrint('Error with batch bookmarks: $e');
+      // Fallback to old method
+      await _fetchBookmarksOldWay();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingBookmarks = false;
+        });
+      }
+    }
+  }
+
+  // Your old working method (as fallback)
+  Future<void> _fetchBookmarksOldWay() async {
+    try {
+      // Fetch all bookmarked sub-service items (single API call)
       final bookmarks = await BookmarkItemApiService()
           .fetchBookmarkSubServiceItems();
 
@@ -70,12 +252,46 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
       final newBookmarkStatus = <int, bool>{};
       for (final item in widget.serviceItem.subServiceItems) {
         newBookmarkStatus[item.id] = bookmarkedIds.contains(item.id);
+
+        // Also update cache
+        BookmarkItemManager.updateCache(
+          item.id,
+          BookmarkItemType.SUB_SERVICE_ITEM,
+          bookmarkedIds.contains(item.id),
+        );
       }
 
       if (mounted) {
         setState(() {
           _bookmarkStatus = newBookmarkStatus;
-          // Initialize filtered items with sorting
+          _filteredSubServiceItems = List.from(
+            widget.serviceItem.subServiceItems,
+          );
+          _sortItemsByBookmark();
+          _updateDisplayedItems();
+
+          if (widget.search != null && widget.search!.isNotEmpty) {
+            _processSearch(widget.search!);
+          } else {
+            _updateDisplayedItems();
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching bookmarks old way: $e');
+      // Final fallback: check cache only
+      final newBookmarkStatus = <int, bool>{};
+      for (final item in widget.serviceItem.subServiceItems) {
+        final cached = BookmarkItemManager.getCachedStatus(
+          item.id,
+          BookmarkItemType.SUB_SERVICE_ITEM,
+        );
+        newBookmarkStatus[item.id] = cached ?? false;
+      }
+
+      if (mounted) {
+        setState(() {
+          _bookmarkStatus = newBookmarkStatus;
           _filteredSubServiceItems = List.from(
             widget.serviceItem.subServiceItems,
           );
@@ -83,42 +299,41 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
           _updateDisplayedItems();
         });
       }
-    } catch (e) {
-      print('Error fetching bookmarks: $e');
-      // Fallback to original items
-      if (mounted) {
-        setState(() {
-          _filteredSubServiceItems = widget.serviceItem.subServiceItems;
-          _updateDisplayedItems();
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingBookmarks = false;
-        });
-      }
     }
   }
 
   void _sortItemsByBookmark() {
-    // Sort: bookmarked items first, then alphabetical
     _filteredSubServiceItems.sort((a, b) {
       final aBookmarked = _bookmarkStatus[a.id] ?? false;
       final bBookmarked = _bookmarkStatus[b.id] ?? false;
 
-      // Bookmarked items come first
       if (aBookmarked && !bBookmarked) return -1;
       if (!aBookmarked && bBookmarked) return 1;
 
-      // Then sort alphabetically by title
       return a.title.compareTo(b.title);
     });
   }
 
   void _onSearchChanged() {
+    _searchDebounceTimer?.cancel();
+
+    final query = _searchController.text.trim().toLowerCase();
+
+    if (query.isEmpty) {
+      _processSearch(query);
+      return;
+    }
+
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        _processSearch(query);
+      }
+    });
+  }
+
+  void _processSearch(String query) {
     setState(() {
-      _searchQuery = _searchController.text.trim().toLowerCase();
+      _searchQuery = query;
       _resetPagination();
 
       if (_searchQuery.isEmpty) {
@@ -137,7 +352,6 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
               description.contains(_searchQuery);
         }).toList();
 
-        // Sort search results by bookmark too
         _filteredSubServiceItems.sort((a, b) {
           final aBookmarked = _bookmarkStatus[a.id] ?? false;
           final bBookmarked = _bookmarkStatus[b.id] ?? false;
@@ -167,7 +381,6 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
       _isLoadingMore = true;
     });
 
-    // Simulate API call delay
     Future.delayed(Duration(milliseconds: 500), () {
       if (!mounted) return;
 
@@ -176,7 +389,6 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
         _updateDisplayedItems();
         _isLoadingMore = false;
 
-        // Check if we've reached the end
         final totalItems = _filteredSubServiceItems.length;
         final displayedCount = _displayedSubServiceItems.length;
         _hasMore = displayedCount < totalItems;
@@ -194,7 +406,6 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
           : endIndex,
     );
 
-    // Update hasMore based on current state
     final totalItems = _filteredSubServiceItems.length;
     final displayedCount = _displayedSubServiceItems.length;
     _hasMore = displayedCount < totalItems;
@@ -219,12 +430,11 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
   }
 
   Future<void> _onBookmarkToggled(int subServiceItemId) async {
-    // Store the current state before update
     final wasBookmarked = _bookmarkStatus[subServiceItemId] ?? false;
     final isAddingBookmark = !wasBookmarked;
 
-    // Call API first
     try {
+      // USE YOUR WORKING OLD API METHODS
       if (isAddingBookmark) {
         await BookmarkItemApiService().addBookmarkSubServiceItem(
           subServiceItemId,
@@ -234,8 +444,29 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
           subServiceItemId,
         );
       }
+
+      // UPDATE THE CACHE
+      BookmarkItemManager.updateCache(
+        subServiceItemId,
+        BookmarkItemType.SUB_SERVICE_ITEM,
+        !wasBookmarked,
+      );
+
+      if (mounted) {
+        setState(() {
+          _bookmarkStatus[subServiceItemId] = !wasBookmarked;
+          _hasBookmarkUpdates = true;
+          _sortItemsByBookmark();
+
+          if (isAddingBookmark && _currentPage > 1) {
+            _currentPage = 1;
+          }
+
+          _updateDisplayedItems();
+        });
+      }
     } catch (e) {
-      print('Error toggling bookmark: $e');
+      debugPrint('Error toggling bookmark: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to update bookmark'),
@@ -245,26 +476,6 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
       return;
     }
 
-    // Update the local bookmark status
-    if (mounted) {
-      setState(() {
-        final currentStatus = _bookmarkStatus[subServiceItemId] ?? false;
-        _bookmarkStatus[subServiceItemId] = !currentStatus;
-
-        // Re-sort items after toggling bookmark
-        _sortItemsByBookmark();
-
-        // If adding a bookmark and not on first page, reset to first page
-        // so the newly bookmarked item is visible at the top
-        if (isAddingBookmark && _currentPage > 1) {
-          _currentPage = 1;
-        }
-
-        _updateDisplayedItems();
-      });
-    }
-
-    // Optional: Scroll to top when bookmarking an item (so user sees it move to top)
     if (isAddingBookmark && _scrollController.hasClients) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollController.animateTo(
@@ -276,8 +487,17 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
     }
   }
 
+  Future<bool> _onWillPop() async {
+    Navigator.of(context).pop({
+      'updated': _hasBookmarkUpdates,
+      'refreshNeeded': _hasBookmarkUpdates,
+    });
+    return false;
+  }
+
   @override
   void dispose() {
+    _searchDebounceTimer?.cancel();
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -288,172 +508,201 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
     final serviceItem = widget.serviceItem;
     final iconColor = widget.iconColor ?? Colors.black;
 
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: myAppBar(
-        title: serviceItem.title,
-        leading: IconifyIcon(
-          icon: serviceItem.iconName,
-          size: 24,
-          color: colorFromHex(serviceItem.iconTextColor),
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        backgroundColor: Colors.grey[100],
+        appBar: myAppBar(
+          title: serviceItem.title,
+          leading: IconifyIcon(
+            icon: serviceItem.iconName,
+            size: 24,
+            color: Colors.white,
+          ),
+          trailing: _buildBookmarkButton(),
+          onBackPressed: () {
+            Navigator.of(context).pop({'updated': _hasBookmarkUpdates});
+          },
         ),
-      ),
-      body: Container(
-        padding: EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(height: 14),
+        body: Container(
+          padding: EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(height: 14),
 
-            // Search Bar
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search services...',
-                  prefixIcon: Icon(Icons.search, color: Colors.grey.shade600),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(Icons.clear, color: Colors.grey.shade600),
-                          onPressed: _clearSearch,
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
+              // Search Bar
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search services...',
+                    prefixIcon: Icon(Icons.search, color: Colors.grey.shade600),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(
+                              Icons.clear,
+                              color: Colors.grey.shade600,
+                            ),
+                            onPressed: _clearSearch,
+                          )
+                        : null,
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                   ),
                 ),
               ),
-            ),
 
-            SizedBox(height: 16),
+              SizedBox(height: 16),
 
-            // Results count with pagination info
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _searchQuery.isEmpty
-                        ? '${_displayedSubServiceItems.length} of ${_filteredSubServiceItems.length} services'
-                        : '${_displayedSubServiceItems.length} of ${_filteredSubServiceItems.length} found',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-                  ),
-                  if (_hasMore && _displayedSubServiceItems.isNotEmpty)
+              // Results count with pagination info
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
                     Text(
-                      'Page $_currentPage',
+                      _searchQuery.isEmpty
+                          ? '${_displayedSubServiceItems.length} of ${_filteredSubServiceItems.length} services'
+                          : '${_displayedSubServiceItems.length} of ${_filteredSubServiceItems.length} found',
                       style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        fontSize: 14,
                       ),
                     ),
-                ],
+                    if (_hasMore && _displayedSubServiceItems.isNotEmpty)
+                      Text(
+                        'Page $_currentPage',
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
 
-            SizedBox(height: 2),
+              SizedBox(height: 2),
 
-            Expanded(
-              child: _isLoadingBookmarks && _filteredSubServiceItems.isEmpty
-                  ? Center(
-                      child: CircularProgressIndicator(
-                        color: colorFromHex(serviceItem.iconTextColor),
-                      ),
-                    )
-                  : _displayedSubServiceItems.isEmpty
-                  ? _buildEmptyState()
-                  : SafeArea(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          SizedBox(height: 4),
+              Expanded(
+                child: _isLoadingBookmarks && _filteredSubServiceItems.isEmpty
+                    ? Center(
+                        child: CircularProgressIndicator(
+                          color: colorFromHex(serviceItem.iconTextColor),
+                        ),
+                      )
+                    : _displayedSubServiceItems.isEmpty
+                    ? _buildEmptyState()
+                    : SafeArea(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            SizedBox(height: 4),
 
-                          Expanded(
-                            child: ListView.builder(
-                              key: PageStorageKey<String>(
-                                'subServiceList_${widget.serviceItem.id}',
-                              ), // Add this
-                              controller: _scrollController,
-                              itemCount:
-                                  _displayedSubServiceItems.length +
-                                  (_hasMore ? 1 : 0) +
-                                  1,
-                              itemBuilder: (context, index) {
-                                // Loading indicator for pagination (only show if there are more items to load)
-                                if (_hasMore &&
-                                    index == _displayedSubServiceItems.length) {
-                                  return _buildLoadingIndicator();
-                                }
-
-                                // "Upcoming Services" card at the end
-                                if (index ==
-                                    _displayedSubServiceItems.length +
-                                        (_hasMore ? 1 : 0)) {
-                                  return _buildUpcomingServicesCard(
-                                    iconColor,
-                                    serviceItem,
-                                  );
-                                }
-
-                                final subServiceItem =
-                                    _displayedSubServiceItems[index];
-
-                                return Padding(
-                                  key: Key(
-                                    'subService_${subServiceItem.id}_${_bookmarkStatus[subServiceItem.id] ?? false}',
-                                  ), // IMPORTANT: Add unique key
-                                  padding: EdgeInsets.only(bottom: 12),
-                                  child: SubServiceCard(
-                                    onTap: () {
-                                      Navigator.pushNamed(
-                                        context,
-                                        '/problem-details',
-                                        arguments: {
-                                          'serviceItem': serviceItem,
-                                          'subServiceItem': subServiceItem,
-                                          'iconColor': iconColor,
+                            Expanded(
+                              child:
+                                  NotificationListener<
+                                    OverscrollIndicatorNotification
+                                  >(
+                                    onNotification:
+                                        (
+                                          OverscrollIndicatorNotification
+                                          overscroll,
+                                        ) {
+                                          overscroll.disallowIndicator();
+                                          return true;
                                         },
-                                      );
-                                    },
-                                    subServiceItem: subServiceItem,
-                                    iconColor: iconColor,
-                                    iconTextColor: colorFromHex(
-                                      serviceItem.iconTextColor,
+                                    child: ListView.builder(
+                                      key: PageStorageKey<String>(
+                                        'subServiceList_${widget.serviceItem.id}',
+                                      ),
+                                      controller: _scrollController,
+                                      itemCount:
+                                          _displayedSubServiceItems.length +
+                                          (_hasMore ? 1 : 0) +
+                                          1,
+                                      itemBuilder: (context, index) {
+                                        if (_hasMore &&
+                                            index ==
+                                                _displayedSubServiceItems
+                                                    .length) {
+                                          return _buildLoadingIndicator();
+                                        }
+
+                                        if (index ==
+                                            _displayedSubServiceItems.length +
+                                                (_hasMore ? 1 : 0)) {
+                                          return _buildUpcomingServicesCard(
+                                            iconColor,
+                                            serviceItem,
+                                          );
+                                        }
+
+                                        final subServiceItem =
+                                            _displayedSubServiceItems[index];
+
+                                        return Padding(
+                                          key: Key(
+                                            'subService_${subServiceItem.id}_${_bookmarkStatus[subServiceItem.id] ?? false}',
+                                          ),
+                                          padding: EdgeInsets.only(bottom: 12),
+                                          child: SubServiceCard(
+                                            onTap: () {
+                                              Navigator.pushNamed(
+                                                context,
+                                                '/problem-details',
+                                                arguments: {
+                                                  'serviceItem': serviceItem,
+                                                  'subServiceItem':
+                                                      subServiceItem,
+                                                  'iconColor': iconColor,
+                                                },
+                                              );
+                                            },
+                                            subServiceItem: subServiceItem,
+                                            iconColor: iconColor,
+                                            iconTextColor: colorFromHex(
+                                              serviceItem.iconTextColor,
+                                            ),
+                                            isBookmarked:
+                                                _bookmarkStatus[subServiceItem
+                                                    .id],
+                                            onBookmarkToggled: () =>
+                                                _onBookmarkToggled(
+                                                  subServiceItem.id,
+                                                ),
+                                          ),
+                                        );
+                                      },
                                     ),
-                                    isBookmarked:
-                                        _bookmarkStatus[subServiceItem.id],
-                                    onBookmarkToggled: () =>
-                                        _onBookmarkToggled(subServiceItem.id),
                                   ),
-                                );
-                              },
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildLoadingIndicator() {
-    // Only show loading indicator if we're actually loading OR if there are more items to load
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 16),
       child: Center(
@@ -479,7 +728,7 @@ class _SubServiceListScreenState extends State<SubServiceListScreen> {
                 'Scroll to load more',
                 style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
               )
-            : SizedBox.shrink(), // Hide completely when all items are shown
+            : SizedBox.shrink(),
       ),
     );
   }

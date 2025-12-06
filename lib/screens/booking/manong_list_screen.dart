@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/manong_api_service.dart';
 import 'package:manong_application/main.dart';
+import 'package:manong_application/models/bookmark_item_type.dart';
 import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/service_item.dart';
 import 'package:manong_application/models/service_request.dart';
@@ -15,6 +16,7 @@ import 'package:manong_application/widgets/manong_list_card.dart';
 import 'package:manong_application/widgets/search_input.dart';
 import 'package:manong_application/widgets/step_appbar.dart';
 import 'package:latlong2/latlong.dart' as latlong;
+import 'package:manong_application/api/bookmark_item_api_service.dart'; // Add this import
 
 class ManongListScreen extends StatefulWidget {
   final ServiceRequest serviceRequest;
@@ -42,9 +44,13 @@ class _ManongListScreenState extends State<ManongListScreen> {
 
   // Manong Pages
   int _currentPage = 1;
-  final int _limit = 10; // Items per page
+  final int _limit = 10;
   bool _isLoadingMore = false;
   bool _hasMore = true;
+
+  // Bookmark state
+  Map<int, bool> _bookmarkStatus = {};
+  bool _isLoadingBookmarks = false;
 
   @override
   void didChangeDependencies() {
@@ -62,6 +68,7 @@ class _ManongListScreenState extends State<ManongListScreen> {
     _serviceRequest = widget.serviceRequest;
     _fetchManongs();
     setupScrollListener();
+    _fetchAllBookmarks(); // Fetch bookmarks on init
   }
 
   void _initializeComponents() {
@@ -79,6 +86,33 @@ class _ManongListScreenState extends State<ManongListScreen> {
     });
   }
 
+  Future<void> _fetchAllBookmarks() async {
+    setState(() {
+      _isLoadingBookmarks = true;
+    });
+
+    try {
+      // Fetch all bookmarked manongs
+      for (var manong in manongs) {
+        final isBookmarked = await BookmarkItemApiService().isItemBookmarked(
+          itemId: manong.appUser.id,
+          type: BookmarkItemType.MANONG,
+        );
+        if (isBookmarked != null) {
+          _bookmarkStatus[manong.appUser.id] = isBookmarked;
+        }
+      }
+    } catch (e) {
+      logger.warning('Error fetching bookmarks: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingBookmarks = false;
+        });
+      }
+    }
+  }
+
   Future<void> _fetchManongs({
     bool loadMore = false,
     bool fromRefresh = false,
@@ -90,7 +124,6 @@ class _ManongListScreenState extends State<ManongListScreen> {
       if (loadMore) {
         setState(() => _isLoadingMore = true);
       } else if (!fromRefresh) {
-        // only show loader on first load, not when refreshing
         setState(() {
           isLoading = true;
           _error = null;
@@ -99,7 +132,6 @@ class _ManongListScreenState extends State<ManongListScreen> {
           manongs.clear();
         });
       } else {
-        // from pull-to-refresh
         setState(() {
           _error = null;
           _currentPage = 1;
@@ -120,6 +152,17 @@ class _ManongListScreenState extends State<ManongListScreen> {
       final parsedResponse = data
           .map((json) => Manong.fromJson(json as Map<String, dynamic>))
           .toList();
+
+      // Fetch bookmark status for new manongs
+      for (var manong in parsedResponse) {
+        if (!_bookmarkStatus.containsKey(manong.appUser.id)) {
+          final isBookmarked = await BookmarkItemApiService().isItemBookmarked(
+            itemId: manong.appUser.id,
+            type: BookmarkItemType.MANONG,
+          );
+          _bookmarkStatus[manong.appUser.id] = isBookmarked ?? false;
+        }
+      }
 
       setState(() {
         if (loadMore) {
@@ -146,6 +189,40 @@ class _ManongListScreenState extends State<ManongListScreen> {
     }
   }
 
+  Future<void> _onBookmarkToggled(int manongId) async {
+    // Store the current state before update
+    final wasBookmarked = _bookmarkStatus[manongId] ?? false;
+    final isAddingBookmark = !wasBookmarked;
+
+    try {
+      if (isAddingBookmark) {
+        await BookmarkItemApiService().addBookmark(
+          itemId: manongId,
+          type: BookmarkItemType.MANONG,
+        );
+      } else {
+        await BookmarkItemApiService().removeBookmark(
+          itemId: manongId,
+          type: BookmarkItemType.MANONG,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _bookmarkStatus[manongId] = !wasBookmarked;
+        });
+      }
+    } catch (e) {
+      logger.severe('Error toggling bookmark: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update bookmark'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Widget _buildResultsInfo(int count) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -162,7 +239,7 @@ class _ManongListScreenState extends State<ManongListScreen> {
   }
 
   List<Manong> _getFilteredManongs() {
-    List<Manong>? filtered = List.from(manongs);
+    List<Manong> filtered = List.from(manongs);
 
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
@@ -182,7 +259,16 @@ class _ManongListScreenState extends State<ManongListScreen> {
       }).toList();
     }
 
+    // Sort by bookmarked first, then by distance
     filtered.sort((a, b) {
+      final aBookmarked = _bookmarkStatus[a.appUser.id] ?? false;
+      final bBookmarked = _bookmarkStatus[b.appUser.id] ?? false;
+
+      // Bookmarked items come first
+      if (aBookmarked && !bBookmarked) return -1;
+      if (!aBookmarked && bBookmarked) return 1;
+
+      // Then sort by distance
       final distA = _calculateDistance(a);
       final distB = _calculateDistance(b);
 
@@ -320,6 +406,8 @@ class _ManongListScreenState extends State<ManongListScreen> {
                 },
                 meters: meters,
                 subServiceItem: _serviceRequest!.subServiceItem,
+                isBookmarked: _bookmarkStatus[manong.appUser.id] ?? false,
+                onBookmarkToggled: () => _onBookmarkToggled(manong.appUser.id),
               ),
             );
           },
@@ -363,7 +451,7 @@ class _ManongListScreenState extends State<ManongListScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: isLoading
+                  child: isLoading || _isLoadingBookmarks
                       ? const Center(
                           child: CircularProgressIndicator(
                             color: AppColorScheme.primaryColor,

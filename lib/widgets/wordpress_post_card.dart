@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:logging/logging.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class WordpressPostCard extends StatelessWidget {
@@ -10,7 +11,7 @@ class WordpressPostCard extends StatelessWidget {
   final String? imageUrl;
   final String link;
 
-  const WordpressPostCard({
+  WordpressPostCard({
     super.key,
     required this.id,
     required this.title,
@@ -20,10 +21,52 @@ class WordpressPostCard extends StatelessWidget {
     required this.link,
   });
 
-  void _openLink() async {
-    final uri = Uri.parse(link);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+  final Logger logger = Logger('WordPressPostCard');
+
+  Future<void> _launchUrl(BuildContext context) async {
+    if (link.isEmpty) {
+      logger.info('URL is empty');
+      return;
+    }
+
+    // Ensure URL has proper scheme
+    String formattedUrl = link;
+    if (!link.startsWith('http://') && !link.startsWith('https://')) {
+      formattedUrl = 'https://$link';
+    }
+
+    final uri = Uri.tryParse(formattedUrl);
+    if (uri == null) {
+      logger.info('Failed to parse URI from: $formattedUrl');
+      return;
+    }
+
+    try {
+      // Direct launch with in-app WebView and custom configuration
+      await launchUrl(
+        uri,
+        mode: LaunchMode.inAppWebView,
+        webViewConfiguration: const WebViewConfiguration(
+          enableJavaScript: true,
+          enableDomStorage: true,
+        ),
+        webOnlyWindowName: '_self', // This is crucial
+      );
+    } catch (e) {
+      logger.info('Error launching URL: $e');
+
+      // Fallback to external browser
+      try {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (e2) {
+        logger.info('Fallback also failed: $e2');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open the link'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -34,7 +77,7 @@ class WordpressPostCard extends StatelessWidget {
     const double contentHeight = 150;
 
     return GestureDetector(
-      onTap: _openLink,
+      onTap: () => _launchUrl(context),
       child: Card(
         color: Colors.grey.shade100,
         elevation: 2,

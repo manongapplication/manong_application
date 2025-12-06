@@ -120,6 +120,73 @@ class BookmarkItemApiService {
     return null;
   }
 
+  Future<bool?> isManongItemBookmarked(int manongId) async {
+    try {
+      final token = await AuthService().getNodeToken();
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/bookmark-item/is-bookmarked'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'subServiceItemId': manongId, 'type': 'MANONG'}),
+      );
+
+      final responseBody = response.body;
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonData['data'];
+      } else {
+        logger.warning(
+          'Failed to check bookmark status: ${response.statusCode} $responseBody',
+        );
+        return null;
+      }
+    } catch (e, stacktrace) {
+      logger.severe('Error checking bookmark status', e, stacktrace);
+    }
+
+    return null;
+  }
+
+  Future<bool?> isServiceItemItemBookmarked(int serviceItemId) async {
+    try {
+      final token = await AuthService().getNodeToken();
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/bookmark-item/is-bookmarked'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'serviceItemId': serviceItemId,
+          'type': 'SERVICE_ITEM',
+        }),
+      );
+
+      final responseBody = response.body;
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonData['data'];
+      } else {
+        logger.warning(
+          'Failed to check bookmark status: ${response.statusCode} $responseBody',
+        );
+        return null;
+      }
+    } catch (e, stacktrace) {
+      logger.severe('Error checking bookmark status', e, stacktrace);
+    }
+
+    return null;
+  }
+
   // Fetch all bookmarked sub-service items for the current user
   Future<List<BookmarkItem>?> fetchBookmarkSubServiceItems() async {
     try {
@@ -311,5 +378,55 @@ class BookmarkItemApiService {
     }
 
     return null;
+  }
+
+  Future<Map<int, bool>?> batchCheckBookmarks({
+    required BookmarkItemType type,
+    required List<int> ids,
+  }) async {
+    try {
+      final token = await AuthService().getNodeToken();
+
+      final response = await http.get(
+        Uri.parse(
+          '$baseUrl/bookmark-item/batch-check',
+        ).replace(queryParameters: {'type': type.value, 'ids': ids.join(',')}),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final responseBody = response.body;
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200) {
+        // The API returns a map in the 'data' field
+        if (jsonData['success'] == true && jsonData['data'] != null) {
+          // Convert the JSON map to Map<int, bool>
+          final Map<String, dynamic> data = jsonData['data'];
+          final Map<int, bool> result = {};
+
+          data.forEach((key, value) {
+            final id = int.tryParse(key);
+            if (id != null && value is bool) {
+              result[id] = value;
+            }
+          });
+
+          return result;
+        }
+        return {};
+      } else {
+        logger.warning(
+          'Failed to batch check bookmarks: ${response.statusCode} $responseBody',
+        );
+        return null;
+      }
+    } catch (e, stacktrace) {
+      logger.severe('Error batch checking bookmarks', e, stacktrace);
+      return null;
+    }
   }
 }

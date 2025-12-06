@@ -1,5 +1,6 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'dart:convert';
 
 import 'package:manong_application/main.dart';
@@ -12,11 +13,12 @@ class NotificationService {
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    const DarwinInitializationSettings darwinSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
+    const DarwinInitializationSettings darwinSettings =
+        DarwinInitializationSettings(
+          requestAlertPermission: true,
+          requestBadgePermission: true,
+          requestSoundPermission: true,
+        );
 
     final InitializationSettings settings = InitializationSettings(
       android: androidSettings,
@@ -39,10 +41,12 @@ class NotificationService {
 
   static Future<void> _requestIosPermissions() async {
     // For version 19.4.2, use the correct class name
-    final IOSFlutterLocalNotificationsPlugin? iosImplementation = 
-        _notificationsPlugin.resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>();
-    
+    final IOSFlutterLocalNotificationsPlugin? iosImplementation =
+        _notificationsPlugin
+            .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin
+            >();
+
     if (iosImplementation != null) {
       await iosImplementation.requestPermissions(
         alert: true,
@@ -60,13 +64,13 @@ class NotificationService {
   }) async {
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
-      'manong_channel',
-      'Manong Notifications',
-      channelDescription: 'Important notifications from Manong App',
-      importance: Importance.max,
-      priority: Priority.high,
-      playSound: true,
-    );
+          'manong_channel',
+          'Manong Notifications',
+          channelDescription: 'Important notifications from Manong App',
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
+        );
 
     const DarwinNotificationDetails darwinDetails = DarwinNotificationDetails(
       presentAlert: true,
@@ -89,7 +93,7 @@ class NotificationService {
         final data = jsonDecode(payload) as Map<String, dynamic>;
         _navigateFromNotification(data);
       } catch (e) {
-        print('Error parsing notification payload: $e');
+        debugPrint('Error parsing notification payload: $e');
       }
     }
   }

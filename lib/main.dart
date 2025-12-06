@@ -356,6 +356,7 @@ class MyApp extends StatelessWidget {
               builder: (_) => SubServiceListScreen(
                 serviceItem: args['serviceItem'],
                 iconColor: args['iconColor'],
+                search: args['search'],
               ),
             );
           case '/problem-details':

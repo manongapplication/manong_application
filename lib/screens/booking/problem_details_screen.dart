@@ -64,6 +64,7 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
   int? _selectedPaymentId;
   String? _userPaymentMethodLast4;
   bool? _isBookmarked;
+  bool _isBookmarkLoading = true;
 
   // Text Controller
   final TextEditingController _serviceNameController = TextEditingController();
@@ -822,9 +823,14 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
     if (_selectedSubServiceItem == null) {
       setState(() {
         _isBookmarked = false;
+        _isBookmarkLoading = false;
       });
       return;
     }
+
+    setState(() {
+      _isBookmarkLoading = true;
+    });
 
     try {
       final response = await BookmarkItemApiService()
@@ -832,17 +838,22 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
 
       setState(() {
         _isBookmarked = response ?? false;
+        _isBookmarkLoading = false;
       });
     } catch (e) {
       logger.info('Error checking bookmark status: ${e.toString()}');
       setState(() {
         _isBookmarked = false;
+        _isBookmarkLoading = false;
       });
     }
   }
 
   void _toggleBookmarkSubServiceItem() async {
-    if (_selectedSubServiceItem == null) return null;
+    if (_selectedSubServiceItem == null || _isBookmarkLoading) return;
+    setState(() {
+      _isBookmarkLoading = true;
+    });
     try {
       final response = _isBookmarked != null && _isBookmarked == true
           ? await BookmarkItemApiService().removeBookmarkSubServiceItem(
@@ -859,6 +870,12 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
       }
     } catch (e) {
       logger.info('Error bookmarking sub service item ${e.toString()}');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBookmarkLoading = false;
+        });
+      }
     }
   }
 
@@ -874,18 +891,18 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
         totalSteps: stepFlow.totalSteps,
         trailing: GestureDetector(
           onTap: _toggleBookmarkSubServiceItem,
-          child: _isBookmarked == null
+          child: _isBookmarkLoading
               ? SizedBox(
-                  width: 24,
-                  height: 24,
+                  width: 16,
+                  height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: AppColorScheme.primaryColor,
+                    color: Colors.white,
                   ),
                 )
               : _isBookmarked == true
-              ? Icon(Icons.bookmark_added)
-              : Icon(Icons.bookmark_add_outlined),
+              ? const Icon(Icons.bookmark_added)
+              : const Icon(Icons.bookmark_add_outlined),
         ),
       ),
       resizeToAvoidBottomInset: true,
