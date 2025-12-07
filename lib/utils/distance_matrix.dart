@@ -36,7 +36,7 @@ class DistanceMatrix {
 
   String estimateTime(double meters, {double speedKmh = 30}) {
     // convert km/h → m/s
-    const arrivalThreshold = 20;
+    const arrivalThreshold = 50;
 
     if (meters <= arrivalThreshold) {
       return 'Arrived';
