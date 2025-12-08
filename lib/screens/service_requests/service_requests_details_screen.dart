@@ -1126,6 +1126,86 @@ class _ServiceRequestsDetailsScreenState
     }
   }
 
+  Future<void> _markAsPaid() async {
+    if (_serviceRequest == null) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Mark as Paid'),
+        content: const Text(
+          'Did you receive cash payment from the customer?\n\n'
+          'This will update the payment status to "paid".',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _confirmMarkAsPaid();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text(
+              'Yes, Mark as Paid',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmMarkAsPaid() async {
+    if (_serviceRequest == null) return;
+
+    setState(() {
+      _isButtonLoading = true;
+    });
+
+    try {
+      final response = await ServiceRequestApiService().markServiceAsPaid(
+        _serviceRequest!.id!,
+      );
+
+      if (response?['success'] == true) {
+        SnackBarUtils.showSuccess(
+          navigatorKey.currentContext!,
+          response?['message'] ?? 'Service marked as paid!',
+        );
+
+        // Refresh the service request data
+        await _fetchServiceRequest();
+
+        // Update UI
+        if (mounted) {
+          setState(() {
+            // The status will be updated from _fetchServiceRequest
+          });
+        }
+      } else {
+        SnackBarUtils.showError(
+          navigatorKey.currentContext!,
+          response?['message'] ?? 'Failed to mark as paid',
+        );
+      }
+    } catch (e) {
+      SnackBarUtils.showError(
+        navigatorKey.currentContext!,
+        'Failed to mark as paid. Please try again.',
+      );
+      logger.severe('Error marking as paid: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isButtonLoading = false;
+        });
+      }
+    }
+  }
+
   Widget _buildDistanceRow() {
     if (_serviceRequest?.status != 'inProgress') return const SizedBox.shrink();
     return ValueListenableBuilder<latlong.LatLng?>(
@@ -1665,6 +1745,52 @@ class _ServiceRequestsDetailsScreenState
                     ],
                   ),
                 ],
+              ],
+
+              // Mark As Paid Button
+              if (_serviceRequest?.status == ServiceRequestStatus.completed &&
+                  _serviceRequest?.paymentStatus == PaymentStatus.pending &&
+                  _serviceRequest?.paymentMethod?.code == 'cash' &&
+                  _isManong == true) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: !_isButtonLoading ? _markAsPaid : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: _isButtonLoading
+                            ? SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.payments, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Mark as Paid'),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
 
               // -- More details

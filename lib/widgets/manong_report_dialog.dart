@@ -258,7 +258,118 @@ class _ManongReportDialogState extends State<ManongReportDialog> {
     );
   }
 
+  Future<int?> _showPaymentConfirmation() async {
+    final result = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.payment, size: 48, color: Colors.orange),
+            const SizedBox(height: 16),
+            const Text(
+              'Payment Status',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Did the customer pay for this service?',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.black54),
+            ),
+            const SizedBox(height: 24),
+
+            // Option 1: Mark as paid
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context, 1);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColorScheme.primaryColor,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Yes, Mark as Paid',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Option 2: Submit unpaid
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(context, 2);
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: const BorderSide(color: Colors.red),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.warning, size: 20, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text(
+                      'No, Submit as Unpaid',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Option 3: Cancel
+            TextButton(
+              onPressed: () => Navigator.pop(context, 0),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return result;
+  }
+
   void _submitManongReport(BuildContext context) async {
+    if (!_servicePaid) {
+      final action = await _showPaymentConfirmation();
+
+      if (action == 0 || action == null) {
+        // User canceled
+        return;
+      } else if (action == 1) {
+        // User wants to mark as paid
+        setState(() {
+          _servicePaid = true;
+        });
+        // Wait a moment for UI update
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+      // If action == 2, continue with unpaid status
+      logger.info('SQ $_servicePaid');
+    }
     setState(() {
       _isButtonLoading = true;
       _error = null;

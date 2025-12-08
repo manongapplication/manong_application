@@ -10,8 +10,17 @@ class OnboardingStorage with ChangeNotifier {
   bool? get isFirstTimeValue => _isFirstTime;
 
   Future<void> init() async {
-    String? value = await _storage.read(key: _keyFirstTime);
-    _isFirstTime = value == null || value == 'true';
+    try {
+      String? value = await _storage.read(key: _keyFirstTime);
+      _isFirstTime = value == null || value == 'true';
+    } catch (e, st) {
+      debugPrint('⚠️ Failed to read onboarding storage: $e\n$st');
+      // fallback to first time true
+      _isFirstTime = true;
+      try {
+        await _storage.deleteAll(); // optional: reset storage
+      } catch (_) {}
+    }
   }
 
   Future<void> setNotFirstTime() async {

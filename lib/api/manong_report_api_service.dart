@@ -16,6 +16,7 @@ class ManongReportApiService {
     bool? servicePaid,
   }) async {
     try {
+      logger.info('SQ $servicePaid');
       final token = await AuthService().getNodeToken();
 
       final uri = Uri.parse('$baseUrl/manong-report');

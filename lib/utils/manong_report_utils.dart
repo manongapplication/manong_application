@@ -12,6 +12,7 @@ class ManongReportUtils {
     bool? servicePaid,
   }) async {
     try {
+      logger.info('SQ $servicePaid');
       final response = await ManongReportApiService().createManongReport(
         details: details,
         servicePaid: servicePaid,
