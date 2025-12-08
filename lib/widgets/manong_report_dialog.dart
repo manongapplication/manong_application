@@ -37,6 +37,7 @@ class _ManongReportDialogState extends State<ManongReportDialog> {
   int? selectedSummaryIndex = 0;
   int _summaryCount = 0;
   List<File> _images = <File>[];
+  String? _imagesError;
   bool _servicePaid = false;
   bool _isButtonLoading = false;
   String? _error;
@@ -261,6 +262,7 @@ class _ManongReportDialogState extends State<ManongReportDialog> {
     setState(() {
       _isButtonLoading = true;
       _error = null;
+      _imagesError = null;
     });
     try {
       if (getSelectedSummary() == null) {
@@ -269,6 +271,12 @@ class _ManongReportDialogState extends State<ManongReportDialog> {
           'Please choose the summary in the options!',
         );
         return;
+      }
+
+      if (_images.isEmpty || _images.length > 3) {
+        setState(() {
+          _imagesError = 'You must upload between 1 and 3 images to continue.';
+        });
       }
 
       if (!_formKey.currentState!.validate()) return;
@@ -282,7 +290,6 @@ class _ManongReportDialogState extends State<ManongReportDialog> {
         details: _detailsController.text.isNotEmpty
             ? _detailsController.text
             : null,
-        // **ADD THE NEW FIELDS**
         materialsUsed: _materialsUsedController.text.isNotEmpty
             ? _materialsUsedController.text
             : null,
@@ -371,6 +378,14 @@ class _ManongReportDialogState extends State<ManongReportDialog> {
             });
           },
         ),
+
+        if (_imagesError != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            _imagesError ?? '',
+            style: TextStyle(color: Colors.red, fontWeight: FontWeight.w400),
+          ),
+        ],
       ],
     );
   }

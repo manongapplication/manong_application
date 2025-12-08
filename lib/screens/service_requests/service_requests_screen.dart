@@ -77,6 +77,7 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   final int _commentCount = 0;
   double? _averageRating;
   int _transactionCount = 0;
+  bool _arrivalFetchInProgress = false;
 
   @override
   void initState() {
@@ -276,8 +277,25 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
 
             if (estimate.toLowerCase() == 'arrived') {
               _navProvider.setManongArrived(true);
-              if (ongoingRequest.arrivedAt == null) {}
-              _setToArrived(ongoingRequest);
+              if (ongoingRequest.arrivedAt == null) {
+                await _setToArrived(ongoingRequest);
+              }
+
+              // Only fetch if not already fetching
+              if (!_arrivalFetchInProgress) {
+                _arrivalFetchInProgress = true;
+
+                // Schedule the fetch for later (not during build)
+                Future.microtask(() async {
+                  try {
+                    await _fetchServiceRequests();
+                  } finally {
+                    if (mounted) {
+                      _arrivalFetchInProgress = false;
+                    }
+                  }
+                });
+              }
             }
           });
         } else {
@@ -724,7 +742,7 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
           final sr = ServiceRequest.fromJson(response['data']);
           SnackBarUtils.showInfo(
             navigatorKey.currentContext!,
-            'Service Request ${sr.status}',
+            'Service Request ${sr.status?.name}',
           );
           if (sr.status != serviceRequest.status) {
             _statusIndex = getTabIndex(
@@ -844,12 +862,6 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       valueListenable: _highlightedId,
       builder: (context, highlightedId, child) {
         final isHighlighted = highlightedId == serviceRequestItem.id;
-
-        if (meters != null &&
-            DistanceMatrix().estimateTime(meters).toLowerCase() == 'arrived' &&
-            serviceRequestItem.status == ServiceRequestStatus.inProgress) {
-          _fetchServiceRequests();
-        }
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 600),

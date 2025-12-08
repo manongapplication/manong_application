@@ -187,7 +187,7 @@ class ServiceRequest {
           ? DateTime.parse(json['arrivedAt'].toString())
           : null,
       deletedAt: json['deletedAt'] != null
-          ? DateTime.parse(json['updatedAt'].toString())
+          ? DateTime.parse(json['deletedAt'].toString())
           : null,
     );
   }
@@ -236,5 +236,122 @@ class ServiceRequest {
         'deletedAt: $arrivedAt, '
         'deletedAt: $deletedAt, '
         ')';
+  }
+
+  ServiceRequest mergeWith(ServiceRequest other) {
+    return ServiceRequest(
+      id: other.id ?? id,
+      requestNumber: other.requestNumber ?? requestNumber,
+      serviceItemId: other.serviceItemId,
+      subServiceItemId: other.subServiceItemId ?? subServiceItemId,
+      paymentMethodId: other.paymentMethodId ?? paymentMethodId,
+      userId: other.userId ?? userId,
+      manongId: other.manongId ?? manongId,
+      otherServiceName: other.otherServiceName ?? otherServiceName,
+      serviceDetails: other.serviceDetails ?? serviceDetails,
+      urgencyLevelIndex: other.urgencyLevelIndex,
+
+      // Use images from 'other' if it has any, otherwise keep existing
+      images: other.images.isNotEmpty ? other.images : images,
+
+      customerFullAddress: other.customerFullAddress ?? customerFullAddress,
+      customerLat: other.customerLat,
+      customerLng: other.customerLng,
+
+      notes: other.notes ?? notes,
+      status: other.status ?? status,
+      total: other.total ?? total,
+      paymentStatus: other.paymentStatus ?? paymentStatus,
+
+      // Always preserve nested objects from THIS instance unless 'other' has them
+      serviceItem: other.serviceItem ?? serviceItem,
+      subServiceItem: other.subServiceItem ?? subServiceItem,
+      urgencyLevel: other.urgencyLevel ?? urgencyLevel,
+      user: other.user ?? user,
+      manong: other.manong ?? manong,
+      paymentMethod: other.paymentMethod ?? paymentMethod,
+      messages: other.messages ?? messages,
+      feedback: other.feedback ?? feedback,
+      paymentTransactions: other.paymentTransactions ?? paymentTransactions,
+      refundRequests: other.refundRequests ?? refundRequests,
+      manongReport: other.manongReport ?? manongReport,
+
+      createdAt: other.createdAt ?? createdAt,
+      updatedAt: other.updatedAt ?? updatedAt,
+      arrivedAt: other.arrivedAt ?? arrivedAt,
+      deletedAt: other.deletedAt ?? deletedAt,
+    );
+  }
+
+  ServiceRequest copyWith({
+    int? id,
+    String? requestNumber,
+    int? serviceItemId,
+    int? subServiceItemId,
+    int? paymentMethodId,
+    int? userId,
+    int? manongId,
+    String? otherServiceName,
+    String? serviceDetails,
+    int? urgencyLevelIndex,
+    List<File>? images,
+    String? customerFullAddress,
+    double? customerLat,
+    double? customerLng,
+    String? notes,
+    ServiceRequestStatus? status,
+    double? total,
+    PaymentStatus? paymentStatus,
+    ServiceItem? serviceItem,
+    SubServiceItem? subServiceItem,
+    UrgencyLevel? urgencyLevel,
+    AppUser? user,
+    Manong? manong,
+    PaymentMethod? paymentMethod,
+    List<Chat>? messages,
+    UserFeedback? feedback,
+    List<PaymentTransaction>? paymentTransactions,
+    List<RefundRequest>? refundRequests,
+    ManongReport? manongReport,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    DateTime? arrivedAt,
+    DateTime? deletedAt,
+  }) {
+    return ServiceRequest(
+      id: id ?? this.id,
+      requestNumber: requestNumber ?? this.requestNumber,
+      serviceItemId: serviceItemId ?? this.serviceItemId,
+      subServiceItemId: subServiceItemId ?? this.subServiceItemId,
+      paymentMethodId: paymentMethodId ?? this.paymentMethodId,
+      userId: userId ?? this.userId,
+      manongId: manongId ?? this.manongId,
+      otherServiceName: otherServiceName ?? this.otherServiceName,
+      serviceDetails: serviceDetails ?? this.serviceDetails,
+      urgencyLevelIndex: urgencyLevelIndex ?? this.urgencyLevelIndex,
+      images: images ?? this.images,
+      customerFullAddress: customerFullAddress ?? this.customerFullAddress,
+      customerLat: customerLat ?? this.customerLat,
+      customerLng: customerLng ?? this.customerLng,
+      notes: notes ?? this.notes,
+      status: status ?? this.status,
+      total: total ?? this.total,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      serviceItem: serviceItem ?? this.serviceItem,
+      subServiceItem: subServiceItem ?? this.subServiceItem,
+      urgencyLevel: urgencyLevel ?? this.urgencyLevel,
+      user: user ?? this.user,
+      manong: manong ?? this.manong,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      messages: messages ?? this.messages,
+      feedback: feedback ?? this.feedback,
+      paymentTransactions: paymentTransactions ?? this.paymentTransactions,
+      refundRequests: refundRequests ?? this.refundRequests,
+      manongReport: manongReport ?? this.manongReport,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      arrivedAt: arrivedAt ?? this.arrivedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+    );
   }
 }
