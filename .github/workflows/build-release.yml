@@ -1,6 +1,8 @@
-name: iOS-ipa-build
+name: iOS Build
 
 on:
+  push:
+    branches: [main, master]
   workflow_dispatch:
 
 jobs:
@@ -8,13 +10,19 @@ jobs:
     name: 🎉 iOS Build
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: subosito/flutter-action@v2
         with:
           channel: "stable"
           architecture: x64
       - run: flutter pub get
+
+      - name: Fix iOS Deployment Target
+        run: |
+          # Update Xcode project to iOS 15.0
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13\.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          echo "✅ Updated iOS deployment target to 15.0"
 
       - run: pod repo update
         working-directory: ios
@@ -27,15 +35,25 @@ jobs:
       - run: mv Runner.app/ Payload
         working-directory: build/ios/iphoneos
 
-      - name: Zip output
-        run: zip -qq -r -9 FlutterIpaExport.ipa Payload
-        working-directory: build/ios/iphoneos
+      - name: Get version for filename
+        id: version
+        run: |
+          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}' | sed 's/+/_/g')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Rename IPA with version
+        run: |
+          cd build/ios/iphoneos
+          mv FlutterIpaExport.ipa "manong-app-v${{ env.VERSION }}.ipa"
+          echo "✅ Renamed to: manong-app-v${{ env.VERSION }}.ipa"
 
       - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
+        uses: softprops/action-gh-release@v2
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: build/ios/iphoneos/FlutterIpaExport.ipa
-          tag: v1.0
-          overwrite: true
-          body: "This is first release"
+          tag_name: "v$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')"
+          name: "Manong App v$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')"
+          body: "iOS Build - Requires sideloading"
+          draft: false
+          prerelease: false
+          files: |
+            build/ios/iphoneos/manong-app-v${{ env.VERSION }}.ipa
