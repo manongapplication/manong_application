@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-android:
-    name: 🤖 Build Android
+    name: 🤖 Build Android APK
     runs-on: ubuntu-latest
 
     steps:
@@ -28,25 +28,19 @@ jobs:
         id: version
         run: |
           VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
-          BASE_VERSION=$(echo $VERSION | awk -F'+' '{print $1}')
-          BUILD_NUMBER=$(echo $VERSION | awk -F'+' '{print $2}')
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "BASE_VERSION=$BASE_VERSION" >> $GITHUB_ENV
-          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
           echo "FILENAME_VERSION=$(echo $VERSION | sed 's/+/_/g')" >> $GITHUB_ENV
-
-      - name: Clean
-        run: flutter clean
-
-      - name: Install dependencies
-        run: flutter pub get
+          echo "Version: $VERSION"
 
       - name: Build APK
-        run: flutter build apk --release
+        run: |
+          flutter clean
+          flutter pub get
+          flutter build apk --release
 
       - name: Rename APK
         run: |
           cp build/app/outputs/flutter-apk/app-release.apk "manong-app-v${{ env.FILENAME_VERSION }}.apk"
+          echo "✅ APK built: manong-app-v${{ env.FILENAME_VERSION }}.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -56,7 +50,7 @@ jobs:
           retention-days: 7
 
   build-ios-simulator:
-    name: 🍎 Build iOS (Simulator)
+    name: 🍎 Build iOS Simulator
     runs-on: macos-latest
 
     steps:
@@ -76,35 +70,26 @@ jobs:
         id: version
         run: |
           VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "FILENAME_VERSION=$(echo $VERSION | sed 's/+/_/g')" >> $GITHUB_ENV
 
-      - name: Clean
-        run: flutter clean
-
-      - name: Install dependencies
+      - name: Build for iOS Simulator
         run: |
+          flutter clean
           flutter pub get
           cd ios
           pod install
-
-      - name: Build iOS for simulator (no signing required)
-        run: |
-          flutter build ios --config-only
-          xcodebuild -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build/ios \
-            build
+          cd ..
+          # Build for simulator (no signing required)
+          flutter build ios --simulator --release --no-codesign
 
       - name: Package simulator build
         run: |
-          cd build/ios/Build/Products/Release-iphonesimulator
+          # Simulator builds are already in the right location
+          cd build/ios/iphonesimulator
           mkdir -p Payload
           cp -r Runner.app Payload/
           zip -q -r ../../../manong-app-v${{ env.FILENAME_VERSION }}-simulator.ipa Payload
+          echo "✅ iOS Simulator IPA built"
 
       - name: Upload simulator IPA
         uses: actions/upload-artifact@v4
@@ -142,32 +127,20 @@ jobs:
           tag_name: ${{ env.TAG }}
           name: "Manong App v${{ env.VERSION }}"
           body: |
-            # 🚀 Manong Application Release v${{ env.VERSION }}
+            # 🚀 Manong Application v${{ env.VERSION }}
 
             **Build Date:** $(date '+%Y-%m-%d %H:%M:%S')
 
-            ## 📦 Included Files
+            ## 📦 Files Included
 
             ### Android
-            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g').apk` - APK for direct installation
+            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g').apk`
 
             ### iOS (Simulator Only)
-            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g')-simulator.ipa` - For iOS simulator testing only
-
-            ## 🔧 Installation
-
-            ### Android
-            1. Download the APK file
-            2. Allow "Install from unknown sources"
-            3. Install and open
-
-            ### iOS Simulator IPA
-            This build is for simulator testing only. For real devices, you need to:
-            1. Build locally with your development team
-            2. Or use TestFlight distribution
+            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g')-simulator.ipa`
 
             ---
-            *Auto-generated release on $(date '+%Y-%m-%d')*
+            *Auto-generated release*
           draft: false
           prerelease: false
           files: |
