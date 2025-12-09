@@ -23,19 +23,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter (Latest Stable)
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: "stable"
-          cache: true
-          cache-key: flutter-stable
-          cache-path: ${{ runner.tool_cache }}/flutter
-
-      - name: Upgrade Flutter
-        run: |
-          flutter upgrade --force
-          flutter config --no-analytics
-          flutter config --no-cli-animations
 
       - name: Get versions
         id: versions
@@ -51,9 +42,6 @@ jobs:
           echo "✅ Flutter: $FLUTTER_VERSION"
           echo "✅ Dart: $DART_VERSION"
           echo "✅ Project Version: $PROJECT_VERSION"
-          echo ""
-          echo "📋 SDK Requirement:"
-          grep 'sdk:' pubspec.yaml
 
   build-android:
     name: 🤖 Build Android APK
@@ -67,7 +55,6 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: "stable"
-          cache: true
 
       - name: Setup Java
         uses: actions/setup-java@v3
@@ -75,19 +62,12 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
-      - name: Clean and install
-        run: |
-          flutter clean
-          rm -rf ~/.pub-cache/pub.dartlang.org
-          flutter pub cache repair
-          flutter pub get
+      - name: Install dependencies
+        run: flutter pub get
 
       - name: Build APK
         run: |
-          # Use single line command for dart-define
-          flutter build apk --release \
-            --dart-define=APP_ENV=production \
-            --dart-define=APP_VERSION=${{ needs.setup-and-verify.outputs.project_version }}
+          flutter build apk --release --dart-define=APP_ENV=production --dart-define=APP_VERSION=${{ needs.setup-and-verify.outputs.project_version }}
 
       - name: Generate APK name
         id: apk_name
@@ -116,33 +96,21 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: "stable"
-          cache: true
 
-      - name: Setup Xcode (Use available version)
+      - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          # Use one of the available versions from the list
-          xcode-version: "16.1.0" # Changed from 15.2 to 16.1.0
+          xcode-version: "16.1.0"
 
-      - name: Clean and install
+      - name: Install dependencies
         run: |
-          flutter clean
-          rm -rf ~/.pub-cache/pub.dartlang.org
-          flutter pub cache repair
           flutter pub get
-
-      - name: Install CocoaPods
-        run: |
           cd ios
-          pod repo update
-          pod install --repo-update
+          pod install
 
-      - name: Build IPA (no codesign)
+      - name: Build IPA
         run: |
-          # Use single line command for dart-define
-          flutter build ios --release --no-codesign \
-            --dart-define=APP_ENV=production \
-            --dart-define=APP_VERSION=${{ needs.setup-and-verify.outputs.project_version }}
+          flutter build ios --release --no-codesign --dart-define=APP_ENV=production --dart-define=APP_VERSION=${{ needs.setup-and-verify.outputs.project_version }}
 
       - name: Package IPA
         run: |
@@ -229,74 +197,46 @@ jobs:
       - name: Get release info
         id: release_info
         run: |
-          # Get current version (after possible bump)
+          # Get current version
           if [ -n "${{ env.NEW_VERSION }}" ]; then
             VERSION="${{ env.NEW_VERSION }}"
           else
             VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
           fi
 
-          # Get git info
-          if git describe --tags --abbrev=0 2>/dev/null; then
-            LAST_TAG=$(git describe --tags --abbrev=0)
-            COMMITS=$(git log --oneline $LAST_TAG..HEAD --pretty=format:"- %s (%h)" || echo "- Initial release")
-          else
-            COMMITS=$(git log --oneline -20 --pretty=format:"- %s (%h)")
-          fi
-
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
-          echo "commits<<EOF" >> $GITHUB_OUTPUT
-          echo "$COMMITS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Generate release notes
-        run: |
-          cat > release_notes.md << EOF
-          # 🚀 Manong Application Release v${{ steps.release_info.outputs.version }}
-
-          **Build Date:** $(date '+%Y-%m-%d %H:%M:%S %Z')
-          **Flutter Version:** ${{ needs.setup-and-verify.outputs.flutter_version }}
-          **Dart Version:** ${{ needs.setup-and-verify.outputs.dart_version }}
-
-          ## 📦 What's Included
-
-          - **Android APK**: \`manong-app-v$(echo ${{ steps.release_info.outputs.version }} | sed 's/+/_/g').apk\`
-          - **iOS IPA**: \`manong-app-v$(echo ${{ steps.release_info.outputs.version }} | sed 's/+/_/g').ipa\`
-
-          ## 📝 Recent Changes
-
-          ${{ steps.release_info.outputs.commits }}
-
-          ## 🔧 Installation Notes
-
-          ### Android
-          1. Download the APK file
-          2. Allow installation from unknown sources
-          3. Install and open
-
-          ### iOS
-          1. Requires sideloading via AltStore or TestFlight
-          2. May need to trust developer in Settings
-
-          ---
-          *Auto-generated release • [View Source](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})*
-          EOF
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_info.outputs.tag }}
           name: "Manong App v${{ steps.release_info.outputs.version }}"
-          body_path: release_notes.md
+          body: |
+            # 🚀 Manong Application Release v${{ steps.release_info.outputs.version }}
+
+            **Build Date:** $(date '+%Y-%m-%d %H:%M:%S')
+
+            ## 📦 What's Included
+
+            - **Android APK**: `manong-app-v$(echo ${{ steps.release_info.outputs.version }} | sed 's/+/_/g').apk`
+            - **iOS IPA**: `manong-app-v$(echo ${{ steps.release_info.outputs.version }} | sed 's/+/_/g').ipa`
+
+            ## 🔧 Installation Notes
+
+            ### Android
+            1. Download the APK file
+            2. Allow installation from unknown sources
+            3. Install and open
+
+            ### iOS
+            1. Requires sideloading via AltStore or TestFlight
+            2. May need to trust developer in Settings
+
+            ---
+            *Auto-generated release*
           draft: false
           prerelease: false
-          generate_release_notes: false
           files: |
             artifacts/android-release/*
             artifacts/ios-release/*
-
-      - name: Post-release cleanup
-        run: |
-          echo "✅ Release created: v${{ steps.release_info.outputs.version }}"
-          echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.release_info.outputs.tag }}"
