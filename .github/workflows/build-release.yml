@@ -80,10 +80,11 @@ jobs:
           flutter clean
           rm -rf ~/.pub-cache/pub.dartlang.org
           flutter pub cache repair
-          flutter pub get --verbose
+          flutter pub get
 
       - name: Build APK
         run: |
+          # Use single line command for dart-define
           flutter build apk --release \
             --dart-define=APP_ENV=production \
             --dart-define=APP_VERSION=${{ needs.setup-and-verify.outputs.project_version }}
@@ -117,17 +118,18 @@ jobs:
           channel: "stable"
           cache: true
 
-      - name: Setup Xcode
+      - name: Setup Xcode (Use available version)
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "15.2"
+          # Use one of the available versions from the list
+          xcode-version: "16.1.0" # Changed from 15.2 to 16.1.0
 
       - name: Clean and install
         run: |
           flutter clean
           rm -rf ~/.pub-cache/pub.dartlang.org
           flutter pub cache repair
-          flutter pub get --verbose
+          flutter pub get
 
       - name: Install CocoaPods
         run: |
@@ -137,6 +139,7 @@ jobs:
 
       - name: Build IPA (no codesign)
         run: |
+          # Use single line command for dart-define
           flutter build ios --release --no-codesign \
             --dart-define=APP_ENV=production \
             --dart-define=APP_VERSION=${{ needs.setup-and-verify.outputs.project_version }}
