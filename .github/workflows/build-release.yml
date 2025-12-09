@@ -1,4 +1,4 @@
-name: iOS Build
+name: 🚀 Flutter Build & Release
 
 on:
   push:
@@ -6,17 +6,72 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-ios:
-    name: 🎉 iOS Build
-    runs-on: macos-latest
+  build-android:
+    name: 🤖 Build Android APK
+    runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Get version (clean output)
+        id: version
+        run: |
+          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
+          # Clean any carriage returns or extra whitespace
+          CLEAN_VERSION=$(echo "$VERSION" | tr -d '\r\n' | sed 's/+/_/g')
+          echo "FILENAME_VERSION=$CLEAN_VERSION" >> $GITHUB_ENV
+          echo "CLEAN_VERSION=$CLEAN_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build APK
+        run: |
+          flutter clean
+          flutter pub get
+          flutter build apk --release
+
+      - name: Rename APK
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk "manong-app-v${{ env.FILENAME_VERSION }}.apk"
+          echo "✅ APK: manong-app-v${{ env.FILENAME_VERSION }}.apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: manong-app-v${{ env.FILENAME_VERSION }}.apk
+          retention-days: 7
+
+  build-ios:
+    name: 🍎 Build iOS
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: "stable"
           architecture: x64
-      - run: flutter pub get
+
+      - name: Get version (clean output)
+        id: version
+        run: |
+          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
+          # Clean any carriage returns or extra whitespace
+          CLEAN_VERSION=$(echo "$VERSION" | tr -d '\r\n' | sed 's/+/_/g')
+          echo "FILENAME_VERSION=$CLEAN_VERSION" >> $GITHUB_ENV
+          echo "CLEAN_VERSION=$CLEAN_VERSION" >> $GITHUB_OUTPUT
 
       - name: Fix iOS Deployment Target
         run: |
@@ -24,36 +79,100 @@ jobs:
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13\.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/Runner.xcodeproj/project.pbxproj
           echo "✅ Updated iOS deployment target to 15.0"
 
-      - run: pod repo update
-        working-directory: ios
-
-      - run: flutter build ios --release --no-codesign
-
-      - run: mkdir Payload
-        working-directory: build/ios/iphoneos
-
-      - run: mv Runner.app/ Payload
-        working-directory: build/ios/iphoneos
-
-      - name: Get version for filename
-        id: version
+      - name: Install dependencies
         run: |
-          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}' | sed 's/+/_/g')
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          flutter pub get
+          cd ios
+          pod repo update
+          pod install --repo-update
 
-      - name: Rename IPA with version
+      - name: Build iOS
+        run: |
+          flutter build ios --release --no-codesign
+
+      - name: Package IPA with clean name
         run: |
           cd build/ios/iphoneos
-          mv FlutterIpaExport.ipa "manong-app-v${{ env.VERSION }}.ipa"
-          echo "✅ Renamed to: manong-app-v${{ env.VERSION }}.ipa"
+          mkdir -p Payload
+          mv Runner.app Payload/
 
-      - name: Upload binaries to release
+          # Use the cleaned version from env
+          CLEAN_NAME="manong-app-v${{ env.FILENAME_VERSION }}.ipa"
+          echo "Creating IPA: $CLEAN_NAME"
+          zip -qq -r -9 "$CLEAN_NAME" Payload
+
+          # Verify the file was created
+          echo "✅ Files in directory:"
+          ls -la
+          echo ""
+          echo "✅ IPA created: $CLEAN_NAME"
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: build/ios/iphoneos/manong-app-v${{ env.FILENAME_VERSION }}.ipa
+          retention-days: 7
+
+  create-release:
+    name: 🚀 Create Release
+    runs-on: ubuntu-latest
+    needs: [build-android, build-ios]
+    if: success()
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Get clean version
+        id: version
+        run: |
+          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
+          # Clean any carriage returns
+          CLEAN_VERSION=$(echo "$VERSION" | tr -d '\r\n')
+          echo "VERSION=$CLEAN_VERSION" >> $GITHUB_ENV
+          echo "TAG=v$CLEAN_VERSION" >> $GITHUB_ENV
+          echo "Clean version: $CLEAN_VERSION"
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')"
-          name: "Manong App v$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')"
-          body: "iOS Build - Requires sideloading"
+          tag_name: ${{ env.TAG }}
+          name: "Manong App v${{ env.VERSION }}"
+          body: |
+            # 🚀 Manong Application v${{ env.VERSION }}
+
+            **Build Date:** $(date '+%Y-%m-%d %H:%M:%S')
+
+            ## 📦 Files Included
+
+            ### Android
+            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g').apk` - APK for Android
+
+            ### iOS
+            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g').ipa` - IPA for iOS (requires sideloading)
+
+            ### 🔧 Installation Notes
+
+            #### Android
+            1. Download APK
+            2. Allow "Install from unknown sources"
+            3. Install
+
+            #### iOS
+            1. Requires sideloading (AltStore, TestFlight)
+            2. Device must trust developer certificate
+
+            ---
+            *Auto-generated release*
           draft: false
           prerelease: false
           files: |
-            build/ios/iphoneos/manong-app-v${{ env.VERSION }}.ipa
+            artifacts/android-apk/*
+            artifacts/ios-ipa/*
