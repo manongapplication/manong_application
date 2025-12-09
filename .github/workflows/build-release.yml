@@ -4,12 +4,6 @@ on:
   push:
     branches: [main, master]
   workflow_dispatch:
-    inputs:
-      skip_version_bump:
-        description: "Skip auto version bump?"
-        required: false
-        default: "false"
-        type: boolean
 
 jobs:
   build-android:
@@ -41,13 +35,6 @@ jobs:
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
           echo "FILENAME_VERSION=$(echo $VERSION | sed 's/+/_/g')" >> $GITHUB_ENV
 
-      - name: Create gradle.properties
-        run: |
-          echo "flutter.versionName=${{ env.BASE_VERSION }}" > android/gradle.properties
-          echo "flutter.versionCode=${{ env.BUILD_NUMBER }}" >> android/gradle.properties
-          echo "org.gradle.jvmargs=-Xmx1536M" >> android/gradle.properties
-          cat android/gradle.properties
-
       - name: Clean
         run: flutter clean
 
@@ -57,25 +44,19 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Build App Bundle
-        run: flutter build appbundle --release
-
-      - name: Rename outputs
+      - name: Rename APK
         run: |
           cp build/app/outputs/flutter-apk/app-release.apk "manong-app-v${{ env.FILENAME_VERSION }}.apk"
-          cp build/app/outputs/bundle/release/app-release.aab "manong-app-v${{ env.FILENAME_VERSION }}.aab"
 
-      - name: Upload artifacts
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: android-builds
-          path: |
-            manong-app-v${{ env.FILENAME_VERSION }}.apk
-            manong-app-v${{ env.FILENAME_VERSION }}.aab
+          name: android-apk
+          path: manong-app-v${{ env.FILENAME_VERSION }}.apk
           retention-days: 7
 
-  build-ios:
-    name: 🍎 Build iOS
+  build-ios-simulator:
+    name: 🍎 Build iOS (Simulator)
     runs-on: macos-latest
 
     steps:
@@ -107,28 +88,35 @@ jobs:
           cd ios
           pod install
 
-      - name: Build IPA
+      - name: Build iOS for simulator (no signing required)
         run: |
-          flutter build ios --release --no-codesign
+          flutter build ios --config-only
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/ios \
+            build
 
-      - name: Package IPA
+      - name: Package simulator build
         run: |
-          cd build/ios/iphoneos
+          cd build/ios/Build/Products/Release-iphonesimulator
           mkdir -p Payload
-          mv Runner.app Payload/
-          zip -q -r ../../../manong-app-v${{ env.FILENAME_VERSION }}.ipa Payload
+          cp -r Runner.app Payload/
+          zip -q -r ../../../manong-app-v${{ env.FILENAME_VERSION }}-simulator.ipa Payload
 
-      - name: Upload IPA
+      - name: Upload simulator IPA
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa
-          path: manong-app-v${{ env.FILENAME_VERSION }}.ipa
+          name: ios-simulator
+          path: manong-app-v${{ env.FILENAME_VERSION }}-simulator.ipa
           retention-days: 7
 
   create-release:
     name: 🚀 Create Release
     runs-on: ubuntu-latest
-    needs: [build-android, build-ios]
+    needs: [build-android, build-ios-simulator]
     if: success()
 
     steps:
@@ -160,9 +148,11 @@ jobs:
 
             ## 📦 Included Files
 
-            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g').apk` - Android APK
-            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g').aab` - Android App Bundle
-            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g').ipa` - iOS IPA
+            ### Android
+            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g').apk` - APK for direct installation
+
+            ### iOS (Simulator Only)
+            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g')-simulator.ipa` - For iOS simulator testing only
 
             ## 🔧 Installation
 
@@ -171,14 +161,15 @@ jobs:
             2. Allow "Install from unknown sources"
             3. Install and open
 
-            ### iOS
-            1. Requires sideloading (AltStore, TestFlight)
-            2. May need to trust developer in Settings
+            ### iOS Simulator IPA
+            This build is for simulator testing only. For real devices, you need to:
+            1. Build locally with your development team
+            2. Or use TestFlight distribution
 
             ---
             *Auto-generated release on $(date '+%Y-%m-%d')*
           draft: false
           prerelease: false
           files: |
-            artifacts/android-builds/*
-            artifacts/ios-ipa/*
+            artifacts/android-apk/*
+            artifacts/ios-simulator/*
