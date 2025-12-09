@@ -1,4 +1,4 @@
-name: 🚀 Auto Build and Release
+name: 🚀 Flutter Build & Release
 
 on:
   push:
@@ -6,15 +6,59 @@ on:
   workflow_dispatch:
     inputs:
       skip_version_bump:
-        description: "Skip version bump?"
+        description: "Skip auto version bump?"
         required: false
         default: "false"
         type: boolean
 
 jobs:
+  setup-and-verify:
+    name: 🔧 Setup & Verify
+    runs-on: ubuntu-latest
+    outputs:
+      flutter_version: ${{ steps.versions.outputs.flutter_version }}
+      dart_version: ${{ steps.versions.outputs.dart_version }}
+      project_version: ${{ steps.versions.outputs.project_version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter (Latest Stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+          cache-key: flutter-stable
+          cache-path: ${{ runner.tool_cache }}/flutter
+
+      - name: Upgrade Flutter
+        run: |
+          flutter upgrade --force
+          flutter config --no-analytics
+          flutter config --no-cli-animations
+
+      - name: Get versions
+        id: versions
+        run: |
+          FLUTTER_VERSION=$(flutter --version | grep -o "Flutter [0-9.]*" | cut -d' ' -f2)
+          DART_VERSION=$(dart --version 2>/dev/null | grep -o "version: [0-9.]*" | cut -d' ' -f2 || echo "unknown")
+          PROJECT_VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
+
+          echo "flutter_version=$FLUTTER_VERSION" >> $GITHUB_OUTPUT
+          echo "dart_version=$DART_VERSION" >> $GITHUB_OUTPUT
+          echo "project_version=$PROJECT_VERSION" >> $GITHUB_OUTPUT
+
+          echo "✅ Flutter: $FLUTTER_VERSION"
+          echo "✅ Dart: $DART_VERSION"
+          echo "✅ Project Version: $PROJECT_VERSION"
+          echo ""
+          echo "📋 SDK Requirement:"
+          grep 'sdk:' pubspec.yaml
+
   build-android:
     name: 🤖 Build Android APK
     runs-on: ubuntu-latest
+    needs: setup-and-verify
 
     steps:
       - uses: actions/checkout@v4
@@ -22,44 +66,47 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.22.0" # Minimum for Dart 3.8.1
-          # Or use 'stable' for latest (currently 3.22+)
-          # channel: 'stable'
+          channel: "stable"
+          cache: true
 
-      - name: Verify versions
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Clean and install
         run: |
-          echo "=== Flutter Version ==="
-          flutter --version
-          echo ""
-          echo "=== Dart Version ==="
-          dart --version
-          echo ""
-          echo "=== Project SDK Requirement ==="
-          grep 'sdk:' pubspec.yaml
-
-      - name: Install dependencies
-        run: flutter pub get
+          flutter clean
+          rm -rf ~/.pub-cache/pub.dartlang.org
+          flutter pub cache repair
+          flutter pub get --verbose
 
       - name: Build APK
-        run: flutter build apk --release
-
-      - name: Rename APK with version
-        id: apk_version
         run: |
-          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}' | sed 's/+/_/g')
-          cp build/app/outputs/flutter-apk/app-release.apk "app-v$VERSION.apk"
-          echo "APK_PATH=app-v$VERSION.apk" >> $GITHUB_ENV
+          flutter build apk --release \
+            --dart-define=APP_ENV=production \
+            --dart-define=APP_VERSION=${{ needs.setup-and-verify.outputs.project_version }}
 
-      - name: Upload APK
+      - name: Generate APK name
+        id: apk_name
+        run: |
+          VERSION=${{ needs.setup-and-verify.outputs.project_version }}
+          FILENAME_VERSION=$(echo $VERSION | sed 's/+/_/g')
+          echo "APK_NAME=manong-app-v$FILENAME_VERSION.apk" >> $GITHUB_ENV
+          cp build/app/outputs/flutter-apk/app-release.apk "$APK_NAME"
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk
-          path: ${{ env.APK_PATH }}
+          name: android-release
+          path: ${{ env.APK_NAME }}
+          retention-days: 7
 
   build-ios:
     name: 🍎 Build iOS IPA
     runs-on: macos-latest
-    needs: build-android
+    needs: setup-and-verify
 
     steps:
       - uses: actions/checkout@v4
@@ -67,52 +114,103 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.22.0" # Same version as Android
-
-      - name: Verify versions
-        run: |
-          echo "=== Flutter Version ==="
-          flutter --version
-          echo ""
-          echo "=== Dart Version ==="
-          dart --version
+          channel: "stable"
+          cache: true
 
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "15.0"
+          xcode-version: "15.2"
 
-      - name: Install dependencies
+      - name: Clean and install
         run: |
-          flutter pub get
+          flutter clean
+          rm -rf ~/.pub-cache/pub.dartlang.org
+          flutter pub cache repair
+          flutter pub get --verbose
+
+      - name: Install CocoaPods
+        run: |
           cd ios
-          pod install
+          pod repo update
+          pod install --repo-update
 
-      - name: Build IPA
+      - name: Build IPA (no codesign)
         run: |
-          flutter build ios --release --no-codesign
+          flutter build ios --release --no-codesign \
+            --dart-define=APP_ENV=production \
+            --dart-define=APP_VERSION=${{ needs.setup-and-verify.outputs.project_version }}
+
+      - name: Package IPA
+        run: |
           cd build/ios/iphoneos
-          mkdir Payload
+          mkdir -p Payload
           mv Runner.app Payload/
-          zip -r ../../../app.ipa Payload
+          zip -q -r ../../../app.ipa Payload
+          cd ../../..
 
-      - name: Rename IPA with version
-        id: ipa_version
+      - name: Generate IPA name
+        id: ipa_name
         run: |
-          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}' | sed 's/+/_/g')
-          mv app.ipa "app-v$VERSION.ipa"
-          echo "IPA_PATH=app-v$VERSION.ipa" >> $GITHUB_ENV
+          VERSION=${{ needs.setup-and-verify.outputs.project_version }}
+          FILENAME_VERSION=$(echo $VERSION | sed 's/+/_/g')
+          echo "IPA_NAME=manong-app-v$FILENAME_VERSION.ipa" >> $GITHUB_ENV
+          mv app.ipa "$IPA_NAME"
 
-      - name: Upload IPA
+      - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa
-          path: ${{ env.IPA_PATH }}
+          name: ios-release
+          path: ${{ env.IPA_NAME }}
+          retention-days: 7
 
-  release:
-    name: 🚀 Create Release
+  auto-version:
+    name: 📈 Auto Version Bump
     runs-on: ubuntu-latest
-    needs: [build-android, build-ios]
+    needs: [setup-and-verify, build-android, build-ios]
+    if: ${{ github.event_name == 'push' && !github.event.inputs.skip_version_bump }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get current version
+        id: version
+        run: |
+          CURRENT_VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
+          BASE_VERSION=$(echo $CURRENT_VERSION | awk -F'+' '{print $1}')
+          BUILD_NUMBER=$(echo $CURRENT_VERSION | awk -F'+' '{print $2}')
+
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+
+      - name: Increment build number
+        run: |
+          if [ -z "${{ steps.version.outputs.build_number }}" ]; then
+            NEW_VERSION="${{ steps.version.outputs.base_version }}+1"
+          else
+            NEW_BUILD=$(( ${{ steps.version.outputs.build_number }} + 1 ))
+            NEW_VERSION="${{ steps.version.outputs.base_version }}+$NEW_BUILD"
+          fi
+
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          sed -i "s/version: ${{ steps.version.outputs.current_version }}/version: $NEW_VERSION/" pubspec.yaml
+
+      - name: Commit version bump
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add pubspec.yaml
+          git commit -m "chore: bump version to ${{ env.NEW_VERSION }} [skip ci]"
+          git push
+          echo "Updated to version: ${{ env.NEW_VERSION }}"
+
+  create-release:
+    name: 🚀 Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-android, build-ios, auto-version]
     if: success()
 
     steps:
@@ -125,78 +223,77 @@ jobs:
         with:
           path: ./artifacts
 
-      - name: Get version info
-        id: version
+      - name: Get release info
+        id: release_info
         run: |
-          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "TAG=v$VERSION" >> $GITHUB_ENV
+          # Get current version (after possible bump)
+          if [ -n "${{ env.NEW_VERSION }}" ]; then
+            VERSION="${{ env.NEW_VERSION }}"
+          else
+            VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
+          fi
 
+          # Get git info
           if git describe --tags --abbrev=0 2>/dev/null; then
             LAST_TAG=$(git describe --tags --abbrev=0)
-            echo "LAST_TAG=$LAST_TAG" >> $GITHUB_ENV
-          fi
-
-      - name: Auto-increment build number
-        if: ${{ github.event_name == 'push' && !github.event.inputs.skip_version_bump }}
-        run: |
-          CURRENT_VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
-          BASE_VERSION=$(echo $CURRENT_VERSION | awk -F'+' '{print $1}')
-          BUILD_NUMBER=$(echo $CURRENT_VERSION | awk -F'+' '{print $2}')
-
-          if [ -z "$BUILD_NUMBER" ]; then
-            NEW_VERSION="$BASE_VERSION+1"
+            COMMITS=$(git log --oneline $LAST_TAG..HEAD --pretty=format:"- %s (%h)" || echo "- Initial release")
           else
-            NEW_BUILD=$((BUILD_NUMBER + 1))
-            NEW_VERSION="$BASE_VERSION+$NEW_BUILD"
+            COMMITS=$(git log --oneline -20 --pretty=format:"- %s (%h)")
           fi
 
-          sed -i "s/version: $CURRENT_VERSION/version: $NEW_VERSION/" pubspec.yaml
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-          if [ "${{ github.event_name }}" = "push" ]; then
-            git config --local user.email "action@github.com"
-            git config --local user.name "GitHub Action"
-            git add pubspec.yaml
-            git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
-            git push
-            echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-            echo "TAG=v$NEW_VERSION" >> $GITHUB_ENV
-          fi
-
-      - name: Generate changelog
-        id: changelog
+      - name: Generate release notes
         run: |
-          echo "# Release Notes v${{ env.VERSION }}" > release_notes.md
-          echo "" >> release_notes.md
-          echo "**Build Date:** $(date '+%Y-%m-%d %H:%M:%S')" >> release_notes.md
-          echo "" >> release_notes.md
+          cat > release_notes.md << EOF
+          # 🚀 Manong Application Release v${{ steps.release_info.outputs.version }}
 
-          if [ -n "${{ env.LAST_TAG }}" ]; then
-            echo "## Changes since ${{ env.LAST_TAG }}" >> release_notes.md
-            echo "" >> release_notes.md
-            git log --oneline ${{ env.LAST_TAG }}..HEAD --pretty=format:"- %s" >> release_notes.md
-          else
-            echo "## Initial Release" >> release_notes.md
-            echo "" >> release_notes.md
-            git log --oneline -20 --pretty=format:"- %s" >> release_notes.md
-          fi
+          **Build Date:** $(date '+%Y-%m-%d %H:%M:%S %Z')
+          **Flutter Version:** ${{ needs.setup-and-verify.outputs.flutter_version }}
+          **Dart Version:** ${{ needs.setup-and-verify.outputs.dart_version }}
 
-          echo "" >> release_notes.md
-          echo "---" >> release_notes.md
-          echo "*Auto-generated by GitHub Actions*" >> release_notes.md
+          ## 📦 What's Included
 
-      - name: List artifacts
-        run: find artifacts -type f
+          - **Android APK**: \`manong-app-v$(echo ${{ steps.release_info.outputs.version }} | sed 's/+/_/g').apk\`
+          - **iOS IPA**: \`manong-app-v$(echo ${{ steps.release_info.outputs.version }} | sed 's/+/_/g').ipa\`
+
+          ## 📝 Recent Changes
+
+          ${{ steps.release_info.outputs.commits }}
+
+          ## 🔧 Installation Notes
+
+          ### Android
+          1. Download the APK file
+          2. Allow installation from unknown sources
+          3. Install and open
+
+          ### iOS
+          1. Requires sideloading via AltStore or TestFlight
+          2. May need to trust developer in Settings
+
+          ---
+          *Auto-generated release • [View Source](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})*
+          EOF
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.TAG }}
-          name: "Release v${{ env.VERSION }}"
+          tag_name: ${{ steps.release_info.outputs.tag }}
+          name: "Manong App v${{ steps.release_info.outputs.version }}"
           body_path: release_notes.md
           draft: false
           prerelease: false
-          files: |
-            artifacts/android-apk/*
-            artifacts/ios-ipa/*
           generate_release_notes: false
+          files: |
+            artifacts/android-release/*
+            artifacts/ios-release/*
+
+      - name: Post-release cleanup
+        run: |
+          echo "✅ Release created: v${{ steps.release_info.outputs.version }}"
+          echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.release_info.outputs.tag }}"
