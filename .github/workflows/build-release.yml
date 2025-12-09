@@ -12,41 +12,9 @@ on:
         type: boolean
 
 jobs:
-  setup-and-verify:
-    name: 🔧 Setup & Verify
-    runs-on: ubuntu-latest
-    outputs:
-      flutter_version: ${{ steps.versions.outputs.flutter_version }}
-      dart_version: ${{ steps.versions.outputs.dart_version }}
-      project_version: ${{ steps.versions.outputs.project_version }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-
-      - name: Get versions
-        id: versions
-        run: |
-          FLUTTER_VERSION=$(flutter --version | grep -o "Flutter [0-9.]*" | cut -d' ' -f2)
-          DART_VERSION=$(dart --version 2>/dev/null | grep -o "version: [0-9.]*" | cut -d' ' -f2 || echo "unknown")
-          PROJECT_VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
-
-          echo "flutter_version=$FLUTTER_VERSION" >> $GITHUB_OUTPUT
-          echo "dart_version=$DART_VERSION" >> $GITHUB_OUTPUT
-          echo "project_version=$PROJECT_VERSION" >> $GITHUB_OUTPUT
-
-          echo "✅ Flutter: $FLUTTER_VERSION"
-          echo "✅ Dart: $DART_VERSION"
-          echo "✅ Project Version: $PROJECT_VERSION"
-
   build-android:
-    name: 🤖 Build Android APK
+    name: 🤖 Build Android
     runs-on: ubuntu-latest
-    needs: setup-and-verify
 
     steps:
       - uses: actions/checkout@v4
@@ -62,32 +30,42 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "FILENAME_VERSION=$(echo $VERSION | sed 's/+/_/g')" >> $GITHUB_ENV
+
+      - name: Clean (as you always do)
+        run: flutter clean
+
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build APK
-        run: |
-          flutter build apk --release --dart-define=APP_ENV=production --dart-define=APP_VERSION=${{ needs.setup-and-verify.outputs.project_version }}
+      - name: Build App Bundle (as you always do)
+        run: flutter build appbundle
 
-      - name: Generate APK name
-        id: apk_name
-        run: |
-          VERSION=${{ needs.setup-and-verify.outputs.project_version }}
-          FILENAME_VERSION=$(echo $VERSION | sed 's/+/_/g')
-          echo "APK_NAME=manong-app-v$FILENAME_VERSION.apk" >> $GITHUB_ENV
-          cp build/app/outputs/flutter-apk/app-release.apk "$APK_NAME"
+      - name: Build APK (as you always do)
+        run: flutter build apk --release --dart-define="APP_VERSION=${{ env.VERSION }}"
 
-      - name: Upload APK artifact
+      - name: Rename APK
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk "manong-app-v${{ env.FILENAME_VERSION }}.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "manong-app-v${{ env.FILENAME_VERSION }}.aab"
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android-release
-          path: ${{ env.APK_NAME }}
+          name: android-builds
+          path: |
+            manong-app-v${{ env.FILENAME_VERSION }}.apk
+            manong-app-v${{ env.FILENAME_VERSION }}.aab
           retention-days: 7
 
   build-ios:
-    name: 🍎 Build iOS IPA
+    name: 🍎 Build iOS
     runs-on: macos-latest
-    needs: setup-and-verify
 
     steps:
       - uses: actions/checkout@v4
@@ -102,6 +80,16 @@ jobs:
         with:
           xcode-version: "16.1.0"
 
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "FILENAME_VERSION=$(echo $VERSION | sed 's/+/_/g')" >> $GITHUB_ENV
+
+      - name: Clean
+        run: flutter clean
+
       - name: Install dependencies
         run: |
           flutter pub get
@@ -110,35 +98,26 @@ jobs:
 
       - name: Build IPA
         run: |
-          flutter build ios --release --no-codesign --dart-define=APP_ENV=production --dart-define=APP_VERSION=${{ needs.setup-and-verify.outputs.project_version }}
+          flutter build ios --release --no-codesign --dart-define="APP_VERSION=${{ env.VERSION }}"
 
       - name: Package IPA
         run: |
           cd build/ios/iphoneos
           mkdir -p Payload
           mv Runner.app Payload/
-          zip -q -r ../../../app.ipa Payload
-          cd ../../..
+          zip -q -r ../../../manong-app-v${{ env.FILENAME_VERSION }}.ipa Payload
 
-      - name: Generate IPA name
-        id: ipa_name
-        run: |
-          VERSION=${{ needs.setup-and-verify.outputs.project_version }}
-          FILENAME_VERSION=$(echo $VERSION | sed 's/+/_/g')
-          echo "IPA_NAME=manong-app-v$FILENAME_VERSION.ipa" >> $GITHUB_ENV
-          mv app.ipa "$IPA_NAME"
-
-      - name: Upload IPA artifact
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: ios-release
-          path: ${{ env.IPA_NAME }}
+          name: ios-build
+          path: manong-app-v${{ env.FILENAME_VERSION }}.ipa
           retention-days: 7
 
   auto-version:
     name: 📈 Auto Version Bump
     runs-on: ubuntu-latest
-    needs: [setup-and-verify, build-android, build-ios]
+    needs: [build-android, build-ios]
     if: ${{ github.event_name == 'push' && !github.event.inputs.skip_version_bump }}
 
     steps:
@@ -147,39 +126,38 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get current version
-        id: version
         run: |
           CURRENT_VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
           BASE_VERSION=$(echo $CURRENT_VERSION | awk -F'+' '{print $1}')
           BUILD_NUMBER=$(echo $CURRENT_VERSION | awk -F'+' '{print $2}')
 
-          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-          echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
-          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
+          echo "BASE_VERSION=$BASE_VERSION" >> $GITHUB_ENV  
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
 
       - name: Increment build number
         run: |
-          if [ -z "${{ steps.version.outputs.build_number }}" ]; then
-            NEW_VERSION="${{ steps.version.outputs.base_version }}+1"
+          if [ -z "$BUILD_NUMBER" ]; then
+            NEW_VERSION="$BASE_VERSION+1"
           else
-            NEW_BUILD=$(( ${{ steps.version.outputs.build_number }} + 1 ))
-            NEW_VERSION="${{ steps.version.outputs.base_version }}+$NEW_BUILD"
+            NEW_BUILD=$((BUILD_NUMBER + 1))
+            NEW_VERSION="$BASE_VERSION+$NEW_BUILD"
           fi
 
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-          sed -i "s/version: ${{ steps.version.outputs.current_version }}/version: $NEW_VERSION/" pubspec.yaml
+          sed -i "s/version: $CURRENT_VERSION/version: $NEW_VERSION/" pubspec.yaml
 
       - name: Commit version bump
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add pubspec.yaml
-          git commit -m "chore: bump version to ${{ env.NEW_VERSION }} [skip ci]"
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
           git push
-          echo "Updated to version: ${{ env.NEW_VERSION }}"
+          echo "✅ Updated to version: $NEW_VERSION"
 
   create-release:
-    name: 🚀 Create GitHub Release
+    name: 🚀 Create Release
     runs-on: ubuntu-latest
     needs: [build-android, build-ios, auto-version]
     if: success()
@@ -194,49 +172,51 @@ jobs:
         with:
           path: ./artifacts
 
-      - name: Get release info
-        id: release_info
+      - name: Get release version
+        id: version
         run: |
-          # Get current version
           if [ -n "${{ env.NEW_VERSION }}" ]; then
             VERSION="${{ env.NEW_VERSION }}"
           else
             VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
           fi
-
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "TAG=v$VERSION" >> $GITHUB_ENV
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.release_info.outputs.tag }}
-          name: "Manong App v${{ steps.release_info.outputs.version }}"
+          tag_name: ${{ env.TAG }}
+          name: "Manong App v${{ env.VERSION }}"
           body: |
-            # 🚀 Manong Application Release v${{ steps.release_info.outputs.version }}
+            # 🚀 Manong Application Release v${{ env.VERSION }}
 
             **Build Date:** $(date '+%Y-%m-%d %H:%M:%S')
 
-            ## 📦 What's Included
-
-            - **Android APK**: `manong-app-v$(echo ${{ steps.release_info.outputs.version }} | sed 's/+/_/g').apk`
-            - **iOS IPA**: `manong-app-v$(echo ${{ steps.release_info.outputs.version }} | sed 's/+/_/g').ipa`
-
-            ## 🔧 Installation Notes
+            ## 📦 Included Files
 
             ### Android
-            1. Download the APK file
-            2. Allow installation from unknown sources
-            3. Install and open
+            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g').apk` - APK for direct installation
+            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g').aab` - App Bundle for Play Store
 
             ### iOS
-            1. Requires sideloading via AltStore or TestFlight
+            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g').ipa` - IPA for sideloading
+
+            ## 🔧 Installation
+
+            ### Android APK
+            1. Download the APK file
+            2. Allow "Install from unknown sources"
+            3. Install and open
+
+            ### iOS IPA
+            1. Requires sideloading (AltStore, TestFlight)
             2. May need to trust developer in Settings
 
             ---
-            *Auto-generated release*
+            *Auto-generated release on $(date '+%Y-%m-%d')*
           draft: false
           prerelease: false
           files: |
-            artifacts/android-release/*
-            artifacts/ios-release/*
+            artifacts/android-builds/*
+            artifacts/ios-build/*
