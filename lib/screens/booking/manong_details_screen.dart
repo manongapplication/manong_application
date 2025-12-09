@@ -435,10 +435,10 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   color: getStatusColor(
-                    _manong!.profile!.status,
+                    _manong!.profile!.status.name,
                   ).withOpacity(0.1),
                   border: Border.all(
-                    color: getStatusBorderColor(_manong!.profile!.status),
+                    color: getStatusBorderColor(_manong!.profile!.status.name),
                     width: 1,
                   ),
                 ),
@@ -447,10 +447,10 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
                   vertical: 4,
                 ),
                 child: Text(
-                  _manong!.profile!.status,
+                  _manong!.profile!.status.name,
                   style: TextStyle(
                     fontSize: 11,
-                    color: getStatusBorderColor(_manong!.profile!.status),
+                    color: getStatusBorderColor(_manong!.profile!.status.name),
                     fontWeight: FontWeight.w500,
                   ),
                 ),

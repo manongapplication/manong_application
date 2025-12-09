@@ -2,7 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/api/payment_transaction_api_service.dart';
+import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/models/payment_transaction.dart';
 import 'package:manong_application/models/transaction_type.dart';
 import 'package:manong_application/theme/colors.dart';
@@ -35,6 +37,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
   final int _limit = 10; // Items per page
   bool _isLoadingMore = false;
   bool _hasMore = true;
+  AppUser? _user;
 
   @override
   void initState() {
@@ -42,8 +45,35 @@ class _TransactionScreenState extends State<TransactionScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _setupScrollListener();
     });
+    _getProfile();
     _fetchTransactions();
     _seenAll();
+  }
+
+  Future<void> _getProfile() async {
+    try {
+      setState(() {
+        _isLoading = false;
+        _error = null;
+      });
+
+      final response = await AuthService().getMyProfile();
+
+      if (mounted) {
+        setState(() {
+          _user = response;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _error = 'Failed to load profile. Please try again.';
+        });
+      }
+      logger.severe('Error loading profile: $e');
+    }
   }
 
   @override
@@ -221,6 +251,8 @@ class _TransactionScreenState extends State<TransactionScreen> {
       return _buildEmptyState();
     }
 
+    if (_user == null) return const SizedBox.shrink();
+
     return Scrollbar(
       controller: _scrollController,
       child: ListView.builder(
@@ -240,7 +272,10 @@ class _TransactionScreenState extends State<TransactionScreen> {
           }
 
           final selectedTransaction = filtered[index];
-          return TransactionCard(paymentTransaction: selectedTransaction);
+          return TransactionCard(
+            paymentTransaction: selectedTransaction,
+            user: _user,
+          );
         },
       ),
     );

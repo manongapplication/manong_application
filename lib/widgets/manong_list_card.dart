@@ -227,18 +227,20 @@ class ManongListCard extends StatelessWidget {
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              color: getStatusColor(manong.profile?.status).withOpacity(0.1),
+              color: getStatusColor(
+                manong.profile?.status.name,
+              ).withOpacity(0.1),
               border: Border.all(
-                color: getStatusBorderColor(manong.profile?.status),
+                color: getStatusBorderColor(manong.profile?.status.name),
                 width: 1,
               ),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             child: Text(
-              manong.profile?.status ?? '',
+              manong.profile?.status.name ?? '',
               style: TextStyle(
                 fontSize: 11,
-                color: getStatusBorderColor(manong.profile?.status),
+                color: getStatusBorderColor(manong.profile?.status.name),
                 fontWeight: FontWeight.w500,
               ),
             ),

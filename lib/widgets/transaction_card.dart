@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:manong_application/main.dart';
+import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/models/payment_status.dart';
 import 'package:manong_application/models/payment_transaction.dart';
 import 'package:manong_application/models/transaction_type.dart';
+import 'package:manong_application/models/user_role.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/date_utils.dart';
 import 'package:manong_application/utils/payment_provider_utils.dart';
@@ -13,7 +15,12 @@ import 'package:manong_application/widgets/price_tag.dart';
 
 class TransactionCard extends StatelessWidget {
   final PaymentTransaction paymentTransaction;
-  const TransactionCard({super.key, required this.paymentTransaction});
+  final AppUser? user;
+  const TransactionCard({
+    super.key,
+    required this.paymentTransaction,
+    this.user,
+  });
 
   Widget _buildAmountArea() {
     bool isRefundType = paymentTransaction.type == TransactionType.refund;
@@ -142,6 +149,13 @@ class TransactionCard extends StatelessWidget {
               : 'Partial Refund'
         : '${paymentTransaction.type.name}${paymentTransaction.status == PaymentStatus.pending ? ' - Pending' : ''}';
 
+    String firstSentence =
+        user != null &&
+            user?.role == UserRole.manong &&
+            paymentTransaction.userId != user?.id
+        ? 'User'
+        : 'You have';
+
     return Container(
       margin: const EdgeInsets.only(top: 24),
       padding: const EdgeInsets.all(14),
@@ -204,7 +218,7 @@ class TransactionCard extends StatelessWidget {
                 children: [
                   TextSpan(
                     text:
-                        'You have ${paymentTransaction.type == TransactionType.refund ? 'refunded' : paymentTransaction.status.name} ',
+                        '$firstSentence ${paymentTransaction.type == TransactionType.refund ? 'refunded' : paymentTransaction.status.name} ',
                     style: const TextStyle(
                       fontSize: 12,
                       color: Colors.black,

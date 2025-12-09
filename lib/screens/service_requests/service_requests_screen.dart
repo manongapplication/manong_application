@@ -2,11 +2,14 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/api/fcm_api_service.dart';
 import 'package:manong_application/api/payment_transaction_api_service.dart';
 import 'package:manong_application/api/service_request_api_service.dart';
 import 'package:manong_application/api/tracking_api_service.dart';
 import 'package:manong_application/main.dart';
+import 'package:manong_application/models/manong.dart';
+import 'package:manong_application/models/manong_status.dart';
 import 'package:manong_application/models/payment_status.dart';
 import 'package:manong_application/models/service_request_status.dart';
 import 'package:manong_application/models/service_request.dart';
@@ -26,6 +29,8 @@ import 'package:manong_application/widgets/service_request_card.dart';
 import 'package:provider/provider.dart';
 import 'package:latlong2/latlong.dart' as latlong;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:manong_application/api/manong_api_service.dart';
+import 'package:manong_application/widgets/manong_status_toggle.dart';
 
 class ServiceRequestsScreen extends StatefulWidget {
   const ServiceRequestsScreen({super.key});
@@ -78,6 +83,8 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   double? _averageRating;
   int _transactionCount = 0;
   bool _arrivalFetchInProgress = false;
+  Manong? _currentManong;
+  bool _isToggleLoading = false;
 
   @override
   void initState() {
@@ -91,6 +98,10 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchCurrentManong();
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       _trackingApiService.manongLatLngNotifier.addListener(() {
         if (!mounted) return;
         setState(() {});
@@ -98,6 +109,29 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     });
 
     _countUnseenPaymentTransactions();
+  }
+
+  Future<void> _fetchCurrentManong() async {
+    if (_isManong != true) return;
+
+    try {
+      // Use getMyProfile() to get current user
+      final user = await AuthService().getMyProfile();
+
+      // ignore: unnecessary_null_comparison
+      if (user.id != null) {
+        final response = await ManongApiService().fetchAManong(user.id);
+        if (mounted) {
+          setState(() {
+            _currentManong = response;
+          });
+
+          logger.info('_currentManong: $_currentManong');
+        }
+      }
+    } catch (e) {
+      logger.severe('Error fetching current manong: $e');
+    }
   }
 
   Future<void> _showPermissionDialog() async {
@@ -262,6 +296,8 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
               setState(() {
                 _statusIndex = getTabIndex(status)!;
               });
+
+              _updateManongStatusOnJobCompletion(status);
             }
 
             final meters = DistanceMatrix().calculateDistance(
@@ -515,6 +551,10 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       setState(() {
         _isManong = response['isManong'];
       });
+
+      if (_isManong == true) {
+        _fetchCurrentManong();
+      }
 
       final parsedRequests = requests
           .map((json) => ServiceRequest.fromJson(json as Map<String, dynamic>))
@@ -813,6 +853,10 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
           _fetchServiceRequests();
           if (result['status'] != null) {
             _statusIndex = getTabIndex(result['status'])!;
+
+            if (_isManong == true) {
+              _updateManongStatusOnJobCompletion(result['status']);
+            }
           }
         }
 
@@ -833,9 +877,45 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     }
   }
 
+  // Add this method to handle job completion status updates
+  void _updateManongStatusOnJobCompletion(ServiceRequestStatus newStatus) {
+    if (_isManong == true &&
+        _currentManong != null &&
+        _currentManong!.profile != null) {
+      ManongStatus newManongStatus = _currentManong!.profile!.status;
+
+      // Update manong status based on service request status
+      if (newStatus == ServiceRequestStatus.completed) {
+        newManongStatus =
+            ManongStatus.available; // Back to available after completion
+      } else if (newStatus == ServiceRequestStatus.cancelled) {
+        newManongStatus =
+            ManongStatus.available; // Back to available if cancelled
+      }
+      // For inProgress, keep as busy
+
+      if (newManongStatus != _currentManong!.profile!.status) {
+        setState(() {
+          _currentManong = Manong(
+            appUser: _currentManong!.appUser,
+            profile: _currentManong!.profile!.copyWith(status: newManongStatus),
+          );
+        });
+      }
+    }
+  }
+
   void _onStartJob(ServiceRequest serviceRequestItem) async {
     if (_isManong == true && serviceRequestItem.userId != null) {
       logger.info('_onStartJob ${_ongoingServiceRequest != null}');
+
+      setState(() {
+        _currentManong = Manong(
+          appUser: _currentManong!.appUser,
+          profile: _currentManong!.profile!.copyWith(status: ManongStatus.busy),
+        );
+      });
+
       _startServiceRequest(serviceRequestItem);
       await NotificationUtils.sendStatusUpdateNotification(
         status: parseRequestStatus(serviceRequestItem.status!.value)!,
@@ -1106,7 +1186,39 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       backgroundColor: AppColorScheme.backgroundGrey,
       appBar: AppBarSearch(
         title: 'My Requests',
-        trailing: _transactionTrailing(),
+        trailing: Row(
+          children: [
+            if (_isManong == true &&
+                _currentManong != null &&
+                _currentManong!.profile != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: ManongStatusToggle(
+                  status: _currentManong!
+                      .profile!
+                      .status, // Use 'status' not 'initialStatus'
+                  isLoading: _isToggleLoading, // Pass loading state
+                  onStatusChanged: (newStatus) async {
+                    setState(() {
+                      _isToggleLoading = true;
+                    });
+
+                    setState(() {
+                      _currentManong = Manong(
+                        appUser: _currentManong!.appUser,
+                        profile: _currentManong!.profile!.copyWith(
+                          status: newStatus,
+                        ),
+                      );
+                      _isToggleLoading = false;
+                    });
+                  },
+                  style: ToggleStyle.compact,
+                ),
+              ),
+            _transactionTrailing(),
+          ],
+        ),
         controller: _searchController,
         onChanged: _onSearchChanged,
       ),

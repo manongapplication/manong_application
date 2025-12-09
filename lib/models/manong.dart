@@ -1,4 +1,5 @@
 import 'package:manong_application/models/app_user.dart';
+import 'package:manong_application/models/manong_status.dart';
 import 'package:manong_application/models/sub_service_item.dart';
 
 class Manong {
@@ -20,7 +21,7 @@ class Manong {
 class ManongProfile {
   final int id;
   final int userId;
-  final String status;
+  final ManongStatus status;
   final String? licenseNumber;
   final int? yearsExperience;
   final double? hourlyRate;
@@ -50,7 +51,10 @@ class ManongProfile {
     return ManongProfile(
       id: json['id'],
       userId: json['userId'],
-      status: json['status'] ?? 'unknown',
+      status: ManongStatus.values.firstWhere(
+        (e) => e.name == json['status'].toString(),
+        orElse: () => ManongStatus.inactive,
+      ),
       licenseNumber: json['licenseNumber'],
       yearsExperience: json['yearsExperience'] != null
           ? int.tryParse(json['yearsExperience'].toString())
@@ -74,6 +78,38 @@ class ManongProfile {
               ?.map((a) => ManongAssistant.fromJson(a))
               .toList() ??
           [],
+    );
+  }
+
+  ManongProfile copyWith({
+    int? id,
+    int? userId,
+    ManongStatus? status,
+    String? licenseNumber,
+    int? yearsExperience,
+    double? hourlyRate,
+    double? startingPrice,
+    bool? isProfessionallyVerified,
+    int? dailyServiceLimit,
+    String? experienceDescription,
+    List<ManongSpeciality>? specialities,
+    List<ManongAssistant>? manongAssistants,
+  }) {
+    return ManongProfile(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      status: status ?? this.status,
+      licenseNumber: licenseNumber ?? this.licenseNumber,
+      yearsExperience: yearsExperience ?? this.yearsExperience,
+      hourlyRate: hourlyRate ?? this.hourlyRate,
+      startingPrice: startingPrice ?? this.startingPrice,
+      isProfessionallyVerified:
+          isProfessionallyVerified ?? this.isProfessionallyVerified,
+      dailyServiceLimit: dailyServiceLimit ?? this.dailyServiceLimit,
+      experienceDescription:
+          experienceDescription ?? this.experienceDescription,
+      specialities: specialities ?? this.specialities,
+      manongAssistants: manongAssistants ?? this.manongAssistants,
     );
   }
 }
