@@ -1,148 +1,41 @@
-name: 🚀 Flutter Build & Release
+name: iOS-ipa-build
 
 on:
-  push:
-    branches: [main, master]
   workflow_dispatch:
 
 jobs:
-  build-android:
-    name: 🤖 Build Android APK
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-
-      - name: Setup Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: "temurin"
-          java-version: "17"
-
-      - name: Get version
-        id: version
-        run: |
-          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
-          echo "FILENAME_VERSION=$(echo $VERSION | sed 's/+/_/g')" >> $GITHUB_ENV
-          echo "Version: $VERSION"
-
-      - name: Build APK
-        run: |
-          flutter clean
-          flutter pub get
-          flutter build apk --release
-
-      - name: Rename APK
-        run: |
-          cp build/app/outputs/flutter-apk/app-release.apk "manong-app-v${{ env.FILENAME_VERSION }}.apk"
-          echo "✅ APK built: manong-app-v${{ env.FILENAME_VERSION }}.apk"
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-apk
-          path: manong-app-v${{ env.FILENAME_VERSION }}.apk
-          retention-days: 7
-
-  build-ios-simulator:
-    name: 🍎 Build iOS Simulator
+  build-ios:
+    name: 🎉 iOS Build
     runs-on: macos-latest
-
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
           channel: "stable"
+          architecture: x64
+      - run: flutter pub get
 
-      - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
+      - run: pod repo update
+        working-directory: ios
+
+      - run: flutter build ios --release --no-codesign
+
+      - run: mkdir Payload
+        working-directory: build/ios/iphoneos
+
+      - run: mv Runner.app/ Payload
+        working-directory: build/ios/iphoneos
+
+      - name: Zip output
+        run: zip -qq -r -9 FlutterIpaExport.ipa Payload
+        working-directory: build/ios/iphoneos
+
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
         with:
-          xcode-version: "16.1.0"
-
-      - name: Get version
-        id: version
-        run: |
-          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
-          echo "FILENAME_VERSION=$(echo $VERSION | sed 's/+/_/g')" >> $GITHUB_ENV
-
-      - name: Build for iOS Simulator
-        run: |
-          flutter clean
-          flutter pub get
-          cd ios
-          pod install
-          cd ..
-          # Build for simulator (no signing required)
-          flutter build ios --simulator --release --no-codesign
-
-      - name: Package simulator build
-        run: |
-          # Simulator builds are already in the right location
-          cd build/ios/iphonesimulator
-          mkdir -p Payload
-          cp -r Runner.app Payload/
-          zip -q -r ../../../manong-app-v${{ env.FILENAME_VERSION }}-simulator.ipa Payload
-          echo "✅ iOS Simulator IPA built"
-
-      - name: Upload simulator IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-simulator
-          path: manong-app-v${{ env.FILENAME_VERSION }}-simulator.ipa
-          retention-days: 7
-
-  create-release:
-    name: 🚀 Create Release
-    runs-on: ubuntu-latest
-    needs: [build-android, build-ios-simulator]
-    if: success()
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-
-      - name: Get version
-        id: version
-        run: |
-          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "TAG=v$VERSION" >> $GITHUB_ENV
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.TAG }}
-          name: "Manong App v${{ env.VERSION }}"
-          body: |
-            # 🚀 Manong Application v${{ env.VERSION }}
-
-            **Build Date:** $(date '+%Y-%m-%d %H:%M:%S')
-
-            ## 📦 Files Included
-
-            ### Android
-            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g').apk`
-
-            ### iOS (Simulator Only)
-            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g')-simulator.ipa`
-
-            ---
-            *Auto-generated release*
-          draft: false
-          prerelease: false
-          files: |
-            artifacts/android-apk/*
-            artifacts/ios-simulator/*
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: build/ios/iphoneos/FlutterIpaExport.ipa
+          tag: v1.0
+          overwrite: true
+          body: "This is first release"
