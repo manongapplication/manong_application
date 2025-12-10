@@ -69,7 +69,13 @@
     </array>
 
     <key>GMSApiKey</key>
-    <string>AIzaSyA_YAEjghqFM4JEzp63zsbzdd0Mpo7ULqA</string>
+    <string>AIzaSyDPXVJ5u_4ul02sQAiAP-g-vaWkYTnlGxQ</string>
+
+    <key>GMSServicesAPIKey</key>
+    <string>AIzaSyDPXVJ5u_4ul02sQAiAP-g-vaWkYTnlGxQ</string>
+
+    <key>GMSGeocoderAPIKey</key>
+    <string>AIzaSyDPXVJ5u_4ul02sQAiAP-g-vaWkYTnlGxQ</string>
     
   </dict>
 </plist>

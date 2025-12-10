@@ -12,6 +12,7 @@ import 'package:manong_application/utils/permission_utils.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
 import 'package:manong_application/widgets/modal_icon_overlay.dart';
 import 'package:latlong2/latlong.dart' as latlong;
+import 'package:manong_application/api/directions_api_service.dart';
 
 class RouteTrackingScreen extends StatefulWidget {
   final LatLng? currentLatLng;
@@ -55,8 +56,13 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
   late PermissionUtils? _permissionUtils;
   ValueNotifier<latlong.LatLng?>? _manongLatLngNotifier;
   late ServiceRequest? _serviceRequest;
+  late DirectionsApiService _directionsService;
 
   String googleAPIKey = dotenv.env['GOOGLE_API_KEY']!;
+
+  bool _retryInProgress = false;
+  int _errorRetryCount = 0;
+  int _maxRetries = 3;
 
   @override
   void initState() {
@@ -71,6 +77,7 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
     _manongLatLng = widget.manongLatLng;
     _manongName = widget.manongName;
     _manongLatLngNotifier = widget.manongLatLngNotifier;
+    _directionsService = DirectionsApiService();
 
     // OLD CODE: Circle setup
     if (_manongLatLng != null) {
@@ -95,7 +102,8 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
         });
         if (_currentLatLng != null && _manongLatLng != null) {
           if (_serviceRequest?.status != ServiceRequestStatus.inProgress) {
-            await _getPolyline();
+            // await _getPolyline();
+            await _getPolylineFromBackend();
           }
           _listenToManongMovement();
         } else {
@@ -140,39 +148,198 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
   }
 
   // OLD CODE: Polyline update for manong movement
-  Future<void> _updatePolylineForManong(LatLng manongPosition) async {
-    _manongLatLng = manongPosition;
+  Future<void> _getPolylineFromBackend() async {
     try {
-      PolylinePoints polylinePoints = PolylinePoints(apiKey: googleAPIKey);
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
 
-      PolylineRequest request = PolylineRequest(
-        origin: PointLatLng(manongPosition.latitude, manongPosition.longitude),
-        destination: PointLatLng(
-          _currentLatLng!.latitude,
-          _currentLatLng!.longitude,
-        ),
-        mode: TravelMode.driving,
+      if (!mounted) return;
+
+      logger.info('Fetching route from backend for Manong $_manongName');
+      final result = await _directionsService.fetchDirections(
+        currentLatLng: _currentLatLng!,
+        manongLatLng: _manongLatLng!,
       );
 
-      PolylineResult result = await polylinePoints.getRouteBetweenCoordinates(
-        request: request,
-      );
+      if (result['error'] == true) {
+        throw Exception(result['message'] ?? 'Failed to get directions');
+      }
 
-      if (result.points.isNotEmpty) {
-        List<LatLng> newPolyline = result.points
-            .map((p) => LatLng(p.latitude, p.longitude))
-            .toList();
+      if (result['routes'] != null && result['routes'].isNotEmpty) {
+        final route = result['routes'][0];
+        final overviewPolyline = route['overview_polyline'];
 
+        if (overviewPolyline != null && overviewPolyline['points'] != null) {
+          await _decodePolyline(overviewPolyline['points']);
+          logger.info(
+            'Polyline created with ${polylineCoordinates.length} points from backend',
+          );
+          _fitCameraToBounds();
+          setState(() {
+            _errorRetryCount = 0;
+          });
+        } else {
+          await _parseDirectionsResponse(result);
+        }
+      } else {
+        // No routes found from backend - set error
         setState(() {
+          _error = 'No route found from backend service';
+        });
+        logger.warning('No route found from backend');
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Error getting route: ${e.toString()}';
+      });
+      logger.severe('Error getting polyline from backend: $e');
+      // No fallback - error is displayed to user
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // Parse directions response from backend
+  Future<void> _parseDirectionsResponse(Map<String, dynamic> result) async {
+    try {
+      // Check different possible response structures
+      if (result['data'] != null && result['data']['routes'] != null) {
+        final route = result['data']['routes'][0];
+        if (route['overview_polyline'] != null &&
+            route['overview_polyline']['points'] != null) {
+          await _decodePolyline(route['overview_polyline']['points']);
+          return;
+        }
+      }
+
+      // If no polyline found, try to extract from legs
+      if (result['routes'] != null && result['routes'].isNotEmpty) {
+        final route = result['routes'][0];
+        if (route['legs'] != null && route['legs'].isNotEmpty) {
+          // Collect all steps points
+          final List<LatLng> allPoints = [];
+          for (var leg in route['legs']) {
+            if (leg['steps'] != null) {
+              for (var step in leg['steps']) {
+                if (step['polyline'] != null &&
+                    step['polyline']['points'] != null) {
+                  await _decodePolyline(step['polyline']['points']);
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      logger.warning('Failed to parse directions response: $e');
+      throw Exception('Could not parse route data');
+    }
+  }
+
+  // Decode polyline string from Google Maps
+  Future<void> _decodePolyline(String encoded) async {
+    polylineCoordinates.clear();
+
+    int index = 0;
+    int len = encoded.length;
+    int lat = 0, lng = 0;
+
+    while (index < len) {
+      int b, shift = 0, result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      LatLng p = LatLng((lat / 1E5).toDouble(), (lng / 1E5).toDouble());
+      polylineCoordinates.add(p);
+    }
+
+    setState(() {
+      polylines = {
+        Polyline(
+          polylineId: const PolylineId('route'),
+          points: polylineCoordinates,
+          color: AppColorScheme.primaryColor,
+          width: 5,
+        ),
+      };
+    });
+  }
+
+  // Fallback: Frontend polyline generation (keep as backup)
+  Future<void> _getPolylineFromFrontend() async {
+    try {
+      logger.info('Using frontend polyline generation as fallback');
+
+      // You might want to keep the old implementation here
+      // or use a simple straight line as fallback
+
+      // Simple straight line fallback
+      if (_currentLatLng != null && _manongLatLng != null) {
+        setState(() {
+          polylineCoordinates = [_currentLatLng!, _manongLatLng!];
           polylines = {
             Polyline(
               polylineId: const PolylineId('route'),
-              points: newPolyline,
-              color: AppColorScheme.primaryColor,
-              width: 5,
+              points: polylineCoordinates,
+              color: AppColorScheme.primaryColor.withOpacity(0.5),
+              width: 3,
+              patterns: [PatternItem.dash(10), PatternItem.gap(10)],
             ),
           };
+        });
+        logger.info('Using straight line as fallback route');
+      }
+    } catch (e) {
+      logger.severe('Fallback polyline generation also failed: $e');
+    }
+  }
 
+  // Updated: Polyline update for manong movement
+  Future<void> _updatePolylineForManong(LatLng manongPosition) async {
+    _manongLatLng = manongPosition;
+    try {
+      // Call backend for updated route
+      final result = await _directionsService.fetchDirections(
+        currentLatLng: _currentLatLng!,
+        manongLatLng: manongPosition,
+      );
+
+      if (result['error'] == true) {
+        throw Exception(result['message'] ?? 'Failed to get directions');
+      }
+
+      if (result['routes'] != null && result['routes'].isNotEmpty) {
+        final route = result['routes'][0];
+        final overviewPolyline = route['overview_polyline'];
+
+        if (overviewPolyline != null && overviewPolyline['points'] != null) {
+          await _decodePolyline(overviewPolyline['points']);
+        } else {
+          await _parseDirectionsResponse(result);
+        }
+
+        setState(() {
           circles = {
             Circle(
               circleId: CircleId('manongCircle'),
@@ -187,10 +354,39 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
       }
     } catch (e) {
       logger.severe('Error updating polyline for current Manong: $e');
+      // Don't update polyline if backend call fails
     }
   }
 
-  // OLD CODE: Listen to manong movement
+  // Fit camera to bounds
+  void _fitCameraToBounds() {
+    if (mapController == null ||
+        _currentLatLng == null ||
+        _manongLatLng == null)
+      return;
+
+    double minLat = _currentLatLng!.latitude < _manongLatLng!.latitude
+        ? _currentLatLng!.latitude
+        : _manongLatLng!.latitude;
+    double maxLat = _currentLatLng!.latitude > _manongLatLng!.latitude
+        ? _currentLatLng!.latitude
+        : _manongLatLng!.latitude;
+    double minLng = _currentLatLng!.longitude < _manongLatLng!.longitude
+        ? _currentLatLng!.longitude
+        : _manongLatLng!.longitude;
+    double maxLng = _currentLatLng!.longitude > _manongLatLng!.longitude
+        ? _currentLatLng!.longitude
+        : _manongLatLng!.longitude;
+
+    LatLngBounds bounds = LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+
+    mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 100.0));
+  }
+
+  // Listen to manong movement
   void _listenToManongMovement() {
     if (_manongLatLngNotifier != null &&
         _serviceRequest?.status == ServiceRequestStatus.inProgress) {
@@ -287,31 +483,6 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
         });
       }
     }
-  }
-
-  // OLD CODE: Fit camera to bounds
-  void _fitCameraToBounds() {
-    if (mapController == null) return;
-
-    double minLat = _currentLatLng!.latitude < _manongLatLng!.latitude
-        ? _currentLatLng!.latitude
-        : _manongLatLng!.latitude;
-    double maxLat = _currentLatLng!.latitude > _manongLatLng!.latitude
-        ? _currentLatLng!.latitude
-        : _manongLatLng!.latitude;
-    double minLng = _currentLatLng!.longitude < _manongLatLng!.longitude
-        ? _currentLatLng!.longitude
-        : _manongLatLng!.longitude;
-    double maxLng = _currentLatLng!.longitude > _manongLatLng!.longitude
-        ? _currentLatLng!.longitude
-        : _manongLatLng!.longitude;
-
-    LatLngBounds bounds = LatLngBounds(
-      southwest: LatLng(minLat, minLng),
-      northeast: LatLng(maxLat, maxLng),
-    );
-
-    mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 100.0));
   }
 
   // OLD CODE: Build Google Map
@@ -473,10 +644,66 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 16),
                 ),
+
+                // Show retry count warning
+                if (_errorRetryCount >= _maxRetries)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      'Maximum retries reached ($_maxRetries)',
+                      style: TextStyle(
+                        color: Colors.orange.shade800,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
                 const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _getPolyline,
-                  child: const Text('Retry'),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Cancel Button
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _error = null; // Clear error
+                          _errorRetryCount = 0; // Reset retry count
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey.shade300,
+                        foregroundColor: Colors.grey.shade800,
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+
+                    const SizedBox(width: 16),
+
+                    // Retry Button - Disabled if max retries reached
+                    ElevatedButton(
+                      onPressed:
+                          (_errorRetryCount >= _maxRetries || _retryInProgress)
+                          ? null
+                          : () => _retryGetPolyline(),
+                      child: _retryInProgress
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              _errorRetryCount >= _maxRetries
+                                  ? 'Max Retries'
+                                  : 'Retry',
+                            ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -484,6 +711,32 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _retryGetPolyline() async {
+    if (_retryInProgress || _errorRetryCount >= _maxRetries) return;
+
+    setState(() {
+      _retryInProgress = true;
+    });
+
+    try {
+      _errorRetryCount++;
+      await _getPolylineFromBackend(); // Now only calls backend
+    } catch (e) {
+      setState(() {
+        _error =
+            'Retry failed (${_errorRetryCount}/$_maxRetries): ${e.toString()}';
+        if (_errorRetryCount >= _maxRetries) {
+          _error =
+              'Failed after $_maxRetries attempts. Please check your connection.';
+        }
+      });
+    } finally {
+      setState(() {
+        _retryInProgress = false;
+      });
+    }
   }
 
   void _centerOnManong() {
@@ -616,6 +869,7 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
 
   @override
   void dispose() {
+    _manongLatLngNotifier?.removeListener(() {});
     mapController?.dispose();
     super.dispose();
   }

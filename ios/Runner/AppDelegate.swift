@@ -15,7 +15,7 @@ import GoogleMaps
     FirebaseApp.configure()
     
     // Configure Google Maps
-    GMSServices.provideAPIKey("AIzaSyCDtLQ72B5P83ub6NVTvNHM_sYcMSH3ygY")
+    GMSServices.provideAPIKey("AIzaSyDPXVJ5u_4ul02sQAiAP-g-vaWkYTnlGxQ")
     
     // Set up Firebase Messaging
     if #available(iOS 10.0, *) {
