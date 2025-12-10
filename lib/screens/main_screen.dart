@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:manong_application/api/app_version_api_service.dart';
 import 'package:manong_application/api/tracking_api_service.dart';
-import 'package:manong_application/main.dart';
 import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/models/service_request_status.dart';
 import 'package:manong_application/providers/bottom_nav_provider.dart';
 import 'package:manong_application/screens/home/home_screen.dart';
 import 'package:manong_application/screens/profile/profile_screen.dart';
 import 'package:manong_application/screens/service_requests/service_requests_screen.dart';
+import 'package:manong_application/services/notification_service/update_checker.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/widgets/auth_footer.dart';
 import 'package:manong_application/widgets/bottom_nav_swipe.dart';
+import 'package:manong_application/widgets/version_update_dialog.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 class MainScreen extends StatefulWidget {
@@ -42,6 +45,7 @@ class _MainScreenState extends State<MainScreen> {
   late int? _serviceRequestId;
   late BottomNavProvider? _navProvider;
   AppUser? _user;
+  late UpdateChecker _updateChecker;
 
   final List<Widget> _pages = const [
     HomeScreen(),
@@ -64,20 +68,33 @@ class _MainScreenState extends State<MainScreen> {
     _navProvider = Provider.of<BottomNavProvider>(context, listen: false);
     _navProvider?.setController(_pageController);
     _trackingApiService = TrackingApiService();
-    
-    // Use addPostFrameCallback to avoid setState during build
+    _updateChecker = UpdateChecker();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchOngoingServiceRequest();
     });
+  }
+
+  Future<void> _checkForUpdates() async {
+    // Add delay to ensure context is ready
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (_user != null && mounted) {
+      logger.info('Checking for updates for user ID: ${_user!.id}');
+      await _updateChecker.checkAndShowUpdate(
+        context: context, // Use current widget's context
+        userId: _user!.id,
+        forceCheck: false,
+      );
+    }
   }
 
   Future<void> _fetchOngoingServiceRequest() async {
     try {
       await _navProvider?.fetchOngoingServiceRequest();
       final ongoingRequest = _navProvider?.ongoingServiceRequest;
-      
+
       if (ongoingRequest != null && mounted) {
-        // Navigate to service requests page if there's an ongoing request
         _pageController.animateToPage(
           1,
           duration: const Duration(milliseconds: 300),
@@ -128,11 +145,11 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _getProfile() async {
     if (!mounted) return;
-    
+
     setState(() {
       _isLoading = true;
     });
-    
+
     try {
       final response = await AuthService().getMyProfile();
 
@@ -143,6 +160,12 @@ class _MainScreenState extends State<MainScreen> {
       });
 
       logger.info('User main_screen $_user');
+
+      // Check for updates after getting profile
+      if (mounted) {
+        _checkForUpdates();
+        logger.info('_checkForUpdates');
+      }
 
       if (_user?.givenFeedbacks != null && _user!.givenFeedbacks!.isNotEmpty) {
         if (_user!.givenFeedbacks![0].serviceRequest?.status ==
@@ -227,7 +250,7 @@ class _MainScreenState extends State<MainScreen> {
                   hasNoFeedback: navProvider.hasNoFeedback,
                   onTapCompleteProfile: () async {
                     final result = await Navigator.pushNamed(
-                      navigatorKey.currentContext!,
+                      context, // Use current context
                       '/complete-profile',
                     );
 
@@ -243,10 +266,7 @@ class _MainScreenState extends State<MainScreen> {
             )
           : Stack(
               children: [
-                // Main content
                 const Positioned.fill(child: HomeScreen()),
-
-                // Footer pinned at bottom
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: _isLoading

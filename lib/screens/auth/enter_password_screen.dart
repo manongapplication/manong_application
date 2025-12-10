@@ -149,6 +149,8 @@ class _EnterPasswordScreenState extends State<EnterPasswordScreen> {
                   controller: _passwordController,
                   obscureText: _obscureText,
                   enabled: !_isLoading,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => loginWithPassword(),
                   decoration: inputDecoration(
                     'Enter your password',
                     suffixIcon: IconButton(

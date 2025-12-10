@@ -44,17 +44,11 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
   final TextEditingController _messageController = TextEditingController();
   late ScrollController _scrollController;
   late ImageUploadApiService _imageUploadService;
-  final List<Chat> _chat = [
-    Chat(
-      id: -1,
-      roomId: '',
-      content: "Loading chats...",
-      senderId: -1,
-      receiverId: -1,
-      createdAt: DateTime.now(),
-    ),
-  ];
-  bool _isChatEnded = true;
+  final List<Chat> _chat = []; // Start with empty list
+  bool _canSendMessages = true;
+  bool _isChatExpired = false;
+  bool _isChatCancelled = false;
+  bool _hasLoadedHistory = false; // Track if history has been loaded
 
   @override
   void initState() {
@@ -73,28 +67,46 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
     _imageUploadService = ImageUploadApiService();
   }
 
-  void checkIfPassedOneDay() {
+  void checkChatStatus() {
     final now = DateTime.now();
     Duration diff = now.difference(_serviceRequest.createdAt!);
 
-    _isChatEnded =
-        (diff.inHours >= 24 ||
-        _serviceRequest.status == ServiceRequestStatus.cancelled);
+    _isChatExpired = diff.inDays >= 7;
+    _isChatCancelled = _serviceRequest.status == ServiceRequestStatus.cancelled;
 
-    final String message = _isChatEnded
-        ? "This chat session has ended. 🕒 You can no longer send messages here."
-        : "Hello! 👋 You can chat here with Manong. Describe your problem or any concerns you have.";
+    // User can only send messages if chat is NOT expired AND NOT cancelled
+    _canSendMessages = !_isChatExpired && !_isChatCancelled;
 
-    _chat.add(
-      Chat(
-        id: -1,
-        roomId: '',
-        content: message,
-        senderId: -1,
-        receiverId: -1,
-        createdAt: DateTime.now(),
-      ),
-    );
+    // Remove any existing system messages with id -1
+    _chat.removeWhere((c) => c.id == -1);
+
+    // Only add system message AFTER history is loaded
+    if (_hasLoadedHistory) {
+      String systemMessage;
+      if (_isChatCancelled) {
+        systemMessage =
+            "❌ This service request has been cancelled. You can view the chat history but cannot send new messages.";
+      } else if (_isChatExpired) {
+        systemMessage =
+            "🕒 This chat session has ended (7 days have passed). You can view the chat history but cannot send new messages.";
+      } else {
+        systemMessage =
+            "Hello! 👋 You can chat here with Manong. Describe your problem or any concerns you have.";
+      }
+
+      // Insert system message at the beginning
+      _chat.insert(
+        0,
+        Chat(
+          id: -1,
+          roomId: '',
+          content: systemMessage,
+          senderId: -1,
+          receiverId: -1,
+          createdAt: DateTime.now(),
+        ),
+      );
+    }
   }
 
   Future<void> initializeMethods() async {
@@ -154,27 +166,50 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
     setState(() {
       _isLoading = true;
       _error = null;
+      _hasLoadedHistory = false;
     });
 
     try {
       if (_user == null) {
         logger.info('Empty user');
+        setState(() {
+          _isLoading = false;
+        });
         return;
       }
+
+      // Clear chat and show loading
+      setState(() {
+        _chat.clear();
+        // Add a temporary loading message
+        _chat.add(
+          Chat(
+            id: -2,
+            roomId: '',
+            content: "Loading chat history...",
+            senderId: -2,
+            receiverId: -2,
+            createdAt: DateTime.now(),
+          ),
+        );
+      });
 
       // Set up listeners FIRST
       _chatApiService.onHistory((data) {
         logger.info('Processing chat history with ${data.length} messages');
         if (mounted) {
           setState(() {
-            // Clear existing messages except system message
+            // Clear all messages including loading
             _chat.clear();
-
-            // Add system message back
-            checkIfPassedOneDay();
 
             // Add history messages
             _chat.addAll(data.map((json) => Chat.fromJson(json)));
+
+            // Mark history as loaded
+            _hasLoadedHistory = true;
+
+            // Add system message based on chat status
+            checkChatStatus();
           });
 
           _scrollToBottom();
@@ -210,11 +245,30 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
       );
 
       logger.info('Successfully joined chat room');
+
+      // Add timeout in case history doesn't arrive
+      Future.delayed(Duration(seconds: 3), () {
+        if (mounted && !_hasLoadedHistory) {
+          logger.warning('Chat history timeout - no messages received');
+          setState(() {
+            _hasLoadedHistory = true;
+            // Remove loading message if still present
+            _chat.removeWhere((c) => c.id == -2);
+            // Add system message
+            checkChatStatus();
+          });
+        }
+      });
     } catch (e) {
       logger.severe('Error loading chats: $e');
       if (mounted) {
         setState(() {
           _error = e.toString();
+          _hasLoadedHistory = true;
+          // Remove loading message
+          _chat.removeWhere((c) => c.id == -2);
+          // Add system message
+          checkChatStatus();
         });
       }
     } finally {
@@ -228,6 +282,18 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
 
   Future<void> _sendMessage() async {
     if (_images.isEmpty && _messageController.text.isEmpty) return;
+
+    // Prevent sending if chat is expired or cancelled
+    if (!_canSendMessages) {
+      SnackBarUtils.showWarning(
+        navigatorKey.currentContext!,
+        _isChatCancelled
+            ? 'Cannot send messages: Service request has been cancelled'
+            : 'Cannot send messages: Chat session has ended (7 days have passed)',
+      );
+      return;
+    }
+
     setState(() {
       _isButtonLoading = true;
       _error = null;
@@ -255,12 +321,6 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
       }
 
       final messageId = response.id;
-
-      // if (_images.isEmpty) {
-      //   setState(() {
-      //     _chat.add(response);
-      //   });
-      // }
 
       // 3️ Upload images if there are any
       if (_images.isNotEmpty) {
@@ -302,10 +362,106 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
               itemBuilder: (context, index) {
                 final item = _chat[index];
                 final isMe = item.senderId == _user?.id;
+                final isSystemMessage = item.id == -1;
+                final isLoadingMessage = item.id == -2;
+
                 if (item.content.isEmpty &&
                     (item.attachments == null || item.attachments!.isEmpty)) {
                   return const SizedBox.shrink();
                 }
+
+                // Loading message styling
+                if (isLoadingMessage) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    margin: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.grey[100],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColorScheme.primaryColor,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          item.content,
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                // System message styling
+                if (isSystemMessage) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    margin: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.grey[100],
+                      border: Border.all(
+                        color: _isChatCancelled
+                            ? Colors.red.shade100
+                            : (_isChatExpired
+                                  ? Colors.orange.shade100
+                                  : Colors.blue.shade100),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _isChatCancelled
+                              ? Icons.cancel
+                              : (_isChatExpired
+                                    ? Icons.access_time
+                                    : Icons.info),
+                          color: _isChatCancelled
+                              ? Colors.red
+                              : (_isChatExpired ? Colors.orange : Colors.blue),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            item.content,
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontSize: 14,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                // Regular message styling
                 return Align(
                   alignment: isMe
                       ? Alignment.centerRight
@@ -390,6 +546,17 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
   }
 
   Future<void> _pickImage() async {
+    // Prevent picking images if chat is ended
+    if (!_canSendMessages) {
+      SnackBarUtils.showWarning(
+        navigatorKey.currentContext!,
+        _isChatCancelled
+            ? 'Cannot send messages: Service request has been cancelled'
+            : 'Cannot send messages: Chat session has ended (7 days have passed)',
+      );
+      return;
+    }
+
     final picker = ImagePicker();
     final List<XFile>? images = await picker.pickMultiImage(
       requestFullMetadata: false,
@@ -464,102 +631,129 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
         children: [
           Expanded(child: _buildChatArea()),
 
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Column(
-              children: [
-                if (_images.isNotEmpty)
-                  SizedBox(
-                    height: 100,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _images.length,
-                      itemBuilder: (context, index) {
-                        final img = _images[index];
-                        return Stack(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.all(4),
-                              child: InkWell(
-                                onTap: () => _showImageDialog(
-                                  img,
-                                  navigatorKey.currentContext!,
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
+          // Only show input area if chat is still active
+          if (_canSendMessages)
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Column(
+                children: [
+                  if (_images.isNotEmpty)
+                    SizedBox(
+                      height: 100,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _images.length,
+                        itemBuilder: (context, index) {
+                          final img = _images[index];
+                          return Stack(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: InkWell(
+                                  onTap: () => _showImageDialog(
                                     img,
-                                    width: 100,
-                                    height: 100,
-                                    fit: BoxFit.cover,
+                                    navigatorKey.currentContext!,
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.file(
+                                      img,
+                                      width: 100,
+                                      height: 100,
+                                      fit: BoxFit.cover,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            Positioned(
-                              top: 4,
-                              right: 8,
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _images.remove(img);
-                                  });
-                                },
-                                child: Icon(
-                                  Icons.close,
-                                  size: 24,
-                                  color: Colors.red,
+                              Positioned(
+                                top: 4,
+                                right: 8,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _images.remove(img);
+                                    });
+                                  },
+                                  child: Icon(
+                                    Icons.close,
+                                    size: 24,
+                                    color: Colors.red,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        );
-                      },
+                            ],
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(maxHeight: 150),
-                        child: TextFormField(
-                          controller: _messageController,
-                          minLines: 1,
-                          maxLines: null,
-                          enabled: !_isChatEnded,
-                          keyboardType: TextInputType.multiline,
-                          decoration: inputDecoration(
-                            'Send a message...',
-                            suffixIcon: InkWell(
-                              onTap: _pickImage,
-                              child: Icon(Icons.image),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxHeight: 150),
+                          child: TextFormField(
+                            controller: _messageController,
+                            minLines: 1,
+                            maxLines: null,
+                            enabled: _canSendMessages,
+                            keyboardType: TextInputType.multiline,
+                            decoration: inputDecoration(
+                              'Send a message...',
+                              suffixIcon: InkWell(
+                                onTap: _pickImage,
+                                child: Icon(Icons.image),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Material(
-                      color: AppColorScheme.primaryColor,
-                      borderRadius: BorderRadius.circular(12),
-
-                      child: InkWell(
+                      const SizedBox(width: 8),
+                      Material(
+                        color: AppColorScheme.primaryColor,
                         borderRadius: BorderRadius.circular(12),
-                        onTap: _isButtonLoading || _isChatEnded
-                            ? null
-                            : _sendMessage,
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Icon(Icons.send, color: Colors.white),
+
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: _isButtonLoading || !_canSendMessages
+                              ? null
+                              : _sendMessage,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Icon(Icons.send, color: Colors.white),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
+          // Show a message when chat is ended
+          if (!_canSendMessages)
+            Container(
+              color: Colors.grey[100],
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    _isChatCancelled ? Icons.cancel : Icons.access_time,
+                    color: _isChatCancelled ? Colors.red : Colors.orange,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _isChatCancelled
+                        ? 'Chat ended: Service request cancelled'
+                        : 'Chat ended: 7 days have passed',
+                    style: TextStyle(
+                      color: Colors.grey[700],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -585,6 +779,7 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
       backgroundColor: AppColorScheme.backgroundGrey,
       appBar: myAppBar(
         title: _title ?? 'Manong',
+        subtitle: !_canSendMessages ? 'View only' : null,
         leading: CircleAvatar(
           backgroundColor: AppColorScheme.backgroundGrey,
           foregroundColor: AppColorScheme.primaryDark,

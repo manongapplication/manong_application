@@ -1188,6 +1188,17 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         title: 'My Requests',
         trailing: Row(
           children: [
+            if (_isManong == true && _currentManong == null) ...[
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
             if (_isManong == true &&
                 _currentManong != null &&
                 _currentManong!.profile != null)
