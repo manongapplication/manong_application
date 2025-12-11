@@ -40,13 +40,19 @@ jobs:
           security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
           security set-keychain-settings -t 3600 -u build.keychain
 
-      - name: Authenticate with Apple using fastlane
+      - name: Setup App Store Connect API Authentication
         run: |
-          gem install fastlane
-          fastlane spaceauth -u "$FASTLANE_USER" --verbose
-        env:
-          FASTLANE_USER: ${{ secrets.APPLE_ID }}
-          FASTLANE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          # Create directory for API key
+          mkdir -p ~/.appstoreconnect/private_keys/
+
+          # Save the .p8 key file (same as in deploy job)
+          echo "${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
+
+          # Set correct permissions
+          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
+
+          echo "✅ App Store Connect API key configured for build authentication"
+          echo "Key saved to: ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8"
 
       - name: Import Code Signing Certificate
         env:
