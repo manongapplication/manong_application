@@ -89,20 +89,15 @@ jobs:
           TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
         run: |
           cd ios
-          # Get the UUID of the installed provisioning profile
-          PROFILE_UUID=$(grep -a -A1 -B1 "UUID" ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision | grep -o "[-A-Z0-9]\{36\}" | head -1)
-          echo "Using provisioning profile UUID: $PROFILE_UUID"
-
-          # Build with explicit profile specification
+          # Build with automatic profile selection
           xcodebuild -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -destination generic/platform=iOS \
             -archivePath build/Runner.xcarchive \
             clean archive \
-            DEVELOPMENT_TAM=$TEAM_ID \
-            PROVISIONING_PROFILE="$PROFILE_UUID" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID"
+            DEVELOPMENT_TEAM=$TEAM_ID \
+            -allowProvisioningUpdates
 
       - name: Export IPA
         env:
