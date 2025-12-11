@@ -5,6 +5,9 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
+env:
+  IOS_BUNDLE_ID: "com.manong.app" # ← CHANGE THIS TO YOUR REAL BUNDLE ID
+
 jobs:
   build-ios:
     name: 🍎 Build iOS (Signed)
@@ -16,13 +19,12 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: "stable"
-          architecture: x64
+          channel: stable
 
-      - name: Get version (clean output)
+      - name: Get version
         id: version
         run: |
-          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
+          VERSION=$(grep 'version:' pubspec.yaml | awk '{print $2}')
           CLEAN_VERSION=$(echo "$VERSION" | tr -d '\r\n' | sed 's/+/_/g')
           echo "FILENAME_VERSION=$CLEAN_VERSION" >> $GITHUB_ENV
           echo "CLEAN_VERSION=$CLEAN_VERSION" >> $GITHUB_OUTPUT
@@ -30,248 +32,140 @@ jobs:
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "latest"
+          xcode-version: latest
 
-      - name: Install macOS keychain utilities
+      - name: Prepare Keychain
         run: |
-          # Create temporary keychain for code signing
           security create-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
-          security set-keychain-settings -t 3600 -u build.keychain
+          security set-keychain-settings -lut 21600 build.keychain
 
-      - name: Setup App Store Connect API Authentication
-        run: |
-          # Create directory for API key
-          mkdir -p ~/.appstoreconnect/private_keys/
-
-          # Save the .p8 key file (same as in deploy job)
-          echo "${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
-
-          # Set correct permissions
-          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
-
-          echo "✅ App Store Connect API key configured for build authentication"
-          echo "Key saved to: ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8"
-
-      - name: Import Code Signing Certificate
+      - name: Import Signing Certificate
         env:
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          CERT: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
         run: |
-          # Decode and import certificate
-          echo $BUILD_CERTIFICATE_BASE64 | base64 --decode > certificate.p12
+          echo "$CERT" | base64 --decode > certificate.p12
           security import certificate.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
-
-          # List available identities for debugging
           security find-identity -v build.keychain
 
       - name: Install Provisioning Profile
         env:
-          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          PROFILE: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
         run: |
-          # Decode and install provisioning profile
-          echo $BUILD_PROVISION_PROFILE_BASE64 | base64 --decode > profile.mobileprovision
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles/
-          UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' /dev/stdin <<< $(security cms -D -i profile.mobileprovision))
+          echo "$PROFILE" | base64 --decode > profile.mobileprovision
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print:UUID' /dev/stdin <<< $(security cms -D -i profile.mobileprovision))
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
-          echo "Installed profile with UUID: $UUID"
-
-      - name: Fix iOS Deployment Target
-        run: |
-          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13\.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/Runner.xcodeproj/project.pbxproj
-          echo "✅ Updated iOS deployment target to 15.0"
-
-      # - name: Configure code signing in Xcode project
-      #   run: |
-      #     cd ios
-      #     # Set code signing style to Manual
-      #     /usr/libexec/PlistBuddy -c "Set :objects:13C6F3B5276D9C8E001D4FEE:buildSettings:CODE_SIGN_STYLE Manual" Runner.xcodeproj/project.pbxproj 2>/dev/null || true
-      #     /usr/libexec/PlistBuddy -c "Set :objects:13C6F3B5276D9C8E001D4FEE:buildSettings:PROVISIONING_PROFILE_SPECIFIER ''" Runner.xcodeproj/project.pbxproj 2>/dev/null || true
-      #     echo "✅ Configured manual code signing"
+          echo "PROFILE_UUID=$UUID" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: |
           flutter pub get
           cd ios
-          pod repo update
           pod install --repo-update
 
-      - name: Build iOS (Signed)
+      - name: Build iOS Archive
         env:
           TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          CODE_SIGN_IDENTITY: ${{ secrets.CODE_SIGN_IDENTITY }}
         run: |
           cd ios
-          # Build with automatic profile selection
-          xcodebuild -workspace Runner.xcworkspace \
+          xcodebuild \
+            -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
-            -destination generic/platform=iOS \
             -archivePath build/Runner.xcarchive \
-            clean archive \
-            DEVELOPMENT_TEAM=$TEAM_ID \
-            -allowProvisioningUpdates
+            -destination generic/platform=iOS \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" \
+            PROVISIONING_PROFILE_SPECIFIER="${{ env.PROFILE_UUID }}" \
+            clean archive
+
+      - name: Create exportOptions.plist
+        run: |
+          cat > ios/exportOptions.plist <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key>
+  <string>app-store</string>
+  <key>teamID</key>
+  <string>${{ secrets.IOS_TEAM_ID }}</string>
+  <key>provisioningProfiles</key>
+  <dict>
+    <key>${{ env.IOS_BUNDLE_ID }}</key>
+    <string>${{ env.PROFILE_UUID }}</string>
+  </dict>
+  <key>compileBitcode</key>
+  <false/>
+</dict>
+</plist>
+EOF
 
       - name: Export IPA
-        env:
-          TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
         run: |
           cd ios
-          # Export IPA from archive
           xcodebuild -exportArchive \
             -archivePath build/Runner.xcarchive \
             -exportOptionsPlist exportOptions.plist \
-            -exportPath build/ios \
-            -allowProvisioningUpdates
+            -exportPath build/ios
 
-      - name: Create exportOptions.plist if missing
-        run: |
-          cd ios
-          if [ ! -f exportOptions.plist ]; then
-            cat > exportOptions.plist << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>destination</key>
-              <string>export</string>
-              <key>method</key>
-              <string>app-store</string>
-              <key>teamID</key>
-              <string>${{ secrets.IOS_TEAM_ID }}</string>
-              <key>uploadBitcode</key>
-              <false/>
-              <key>uploadSymbols</key>
-              <false/>
-              <key>compileBitcode</key>
-              <false/>
-          </dict>
-          </plist>
-          EOF
-            echo "✅ Created exportOptions.plist"
-          fi
-
-      - name: Rename and prepare IPA
+      - name: Rename IPA
         run: |
           cd ios/build/ios
-          # Find and rename the IPA
-          IPA_FILE=$(find . -name "*.ipa" -type f)
-          NEW_NAME="manong-app-v${{ env.FILENAME_VERSION }}.ipa"
-          mv "$IPA_FILE" "$NEW_NAME"
-          echo "✅ IPA renamed to: $NEW_NAME"
-
-          # Create directory for artifact upload
+          IPA=$(find . -name "*.ipa" -type f)
+          NEW="manong-app-v${{ env.FILENAME_VERSION }}.ipa"
+          mv "$IPA" "$NEW"
           mkdir -p ../../../build-artifacts
-          cp "$NEW_NAME" ../../../build-artifacts/
-
-      - name: Clean up keychain
-        if: always()
-        run: |
-          security delete-keychain build.keychain || true
+          cp "$NEW" ../../../build-artifacts/
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa
-          path: build-artifacts/manong-app-v${{ env.FILENAME_VERSION }}.ipa
-          retention-days: 7
+          path: build-artifacts
 
-  create-release:
-    name: 🚀 Create Release
-    runs-on: ubuntu-latest
-    needs: [build-ios]
-    if: success()
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain build.keychain || true
+
+
+  deploy-ios:
+    name: 🚀 Upload to App Store Connect
+    runs-on: macos-latest
+    needs: build-ios
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-
-      - name: Get clean version
-        id: version
-        run: |
-          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
-          CLEAN_VERSION=$(echo "$VERSION" | tr -d '\r\n')
-          echo "VERSION=$CLEAN_VERSION" >> $GITHUB_ENV
-          echo "TAG=v$CLEAN_VERSION" >> $GITHUB_ENV
-          echo "Clean version: $CLEAN_VERSION"
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.TAG }}
-          name: "Manong App v${{ env.VERSION }}"
-          body: |
-            # 🚀 Manong Application v${{ env.VERSION }}
-
-            **Build Date:** $(date '+%Y-%m-%d %H:%M:%S')
-
-            ## 📦 Files Included
-
-            ### iOS
-            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g').ipa` - Signed IPA ready for App Store Connect
-
-            ### 🔧 Notes
-
-            This build is code-signed and ready for submission to the App Store or TestFlight.
-
-            ---
-            *Auto-generated release*
-          draft: false
-          prerelease: false
-          files: |
-            artifacts/ios-ipa/*
-
-  deploy-ios:
-    name: 🚀 Deploy to App Store Connect
-    runs-on: macos-latest
-    needs: [build-ios]
-    if: success()
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download IPA artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: ios-ipa
-          path: ./artifacts/ipa/
-
-      - name: Setup Ruby and fastlane
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.3"
-          bundler-cache: true
 
       - name: Install fastlane
-        run: gem install fastlane
+        run: sudo gem install fastlane -N
 
-      - name: Setup App Store Connect API Key File
+      - name: Configure API key
         run: |
-          mkdir -p ~/.appstoreconnect/private_keys/
-          echo "${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
-          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}" \
+          > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
+          chmod 600 ~/.appstoreconnect/private_keys/*
 
-      - name: Upload to App Store Connect
+      - name: Upload IPA to App Store Connect
         env:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
-          IPA_PATH=$(find ./artifacts/ipa -name "*.ipa" | head -1)
-          echo "Uploading IPA: $IPA_PATH"
-
+          IPA=$(find . -name "*.ipa" | head -1)
           fastlane deliver \
-            --ipa "$IPA_PATH" \
-            --api_key_path ~/.appstoreconnect/private_keys/ \
+            --ipa "$IPA" \
+            --api_key_path ~/.appstoreconnect/private_keys \
+            --api_key_id "$APP_STORE_CONNECT_API_KEY_ID" \
+            --issuer_id "$APP_STORE_CONNECT_ISSUER_ID" \
             --skip_screenshots \
             --skip_metadata \
-            --skip_app_version_update \
-            --force \
-            --verbose
+            --force
