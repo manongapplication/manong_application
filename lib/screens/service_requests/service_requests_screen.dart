@@ -98,10 +98,6 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchCurrentManong();
-    });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
       _trackingApiService.manongLatLngNotifier.addListener(() {
         if (!mounted) return;
         setState(() {});
@@ -506,11 +502,6 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         });
       }
 
-      setState(() {
-        isLoading = true;
-        _error = null;
-      });
-
       if (loadMore) _isLoadingMore = true;
 
       final response = await _serviceRequestApiService.fetchServiceRequests(
@@ -522,13 +513,21 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
 
       if (!mounted) return;
 
+      if (response == null) {
+        throw Exception('No response from server');
+      }
+
+      final bool? isManongFromResponse = response['isManong'];
+
       setState(() {
         isLoading = false;
         _error = null;
+        _isManong = isManongFromResponse ?? _isManong;
       });
 
-      if (response == null) {
-        throw Exception('No response from server');
+      if (_isManong == true) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        _fetchCurrentManong();
       }
 
       final requests = response['data'] as List<dynamic>?;
@@ -546,14 +545,6 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         });
 
         return;
-      }
-
-      setState(() {
-        _isManong = response['isManong'];
-      });
-
-      if (_isManong == true) {
-        _fetchCurrentManong();
       }
 
       final parsedRequests = requests
