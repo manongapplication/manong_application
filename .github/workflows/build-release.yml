@@ -40,43 +40,13 @@ jobs:
           security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
           security set-keychain-settings -t 3600 -u build.keychain
 
-      - name: Authenticate with Apple ID for Xcode
+      - name: Authenticate with Apple using fastlane
         run: |
-          # Create an Apple ID session for Xcode
-          echo "🔐 Setting up Apple ID authentication..."
-
-          # Create a .xcodescplist file with your Apple ID credentials
-          cat > ~/.xcodescplist << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>AuthMethod</key>
-              <string>APIAuth</string>
-              <key>APIAuth</key>
-              <dict>
-                  <key>authType</key>
-                  <string>APIToken</string>
-                  <key>APIToken</key>
-                  <dict>
-                      <key>keyID</key>
-                      <string>${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}</string>
-                      <key>issuerID</key>
-                      <string>${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}</string>
-                      <key>privateKey</key>
-                      <data>
-                      $(echo "${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}" | base64 -d | xxd -p | tr -d '\n')
-                      </data>
-                  </dict>
-              </dict>
-          </dict>
-          </plist>
-          EOF
-              
-              # Tell Xcode to use API key authentication
-              defaults write com.apple.dt.Xcode IDESourceControlUseAPIAuth -bool YES
-              
-              echo "✅ Apple ID authentication configured"
+          gem install fastlane
+          fastlane spaceauth -u "$FASTLANE_USER" --verbose
+        env:
+          FASTLANE_USER: ${{ secrets.APPLE_ID }}
+          FASTLANE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
 
       - name: Import Code Signing Certificate
         env:
@@ -107,13 +77,13 @@ jobs:
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13\.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/Runner.xcodeproj/project.pbxproj
           echo "✅ Updated iOS deployment target to 15.0"
 
-      - name: Configure code signing in Xcode project
-        run: |
-          cd ios
-          # Set code signing style to Manual
-          /usr/libexec/PlistBuddy -c "Set :objects:13C6F3B5276D9C8E001D4FEE:buildSettings:CODE_SIGN_STYLE Manual" Runner.xcodeproj/project.pbxproj 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Set :objects:13C6F3B5276D9C8E001D4FEE:buildSettings:PROVISIONING_PROFILE_SPECIFIER ''" Runner.xcodeproj/project.pbxproj 2>/dev/null || true
-          echo "✅ Configured manual code signing"
+      # - name: Configure code signing in Xcode project
+      #   run: |
+      #     cd ios
+      #     # Set code signing style to Manual
+      #     /usr/libexec/PlistBuddy -c "Set :objects:13C6F3B5276D9C8E001D4FEE:buildSettings:CODE_SIGN_STYLE Manual" Runner.xcodeproj/project.pbxproj 2>/dev/null || true
+      #     /usr/libexec/PlistBuddy -c "Set :objects:13C6F3B5276D9C8E001D4FEE:buildSettings:PROVISIONING_PROFILE_SPECIFIER ''" Runner.xcodeproj/project.pbxproj 2>/dev/null || true
+      #     echo "✅ Configured manual code signing"
 
       - name: Install dependencies
         run: |
