@@ -5,145 +5,120 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
-env:
-  IOS_BUNDLE_ID: com.manong.app
-
 jobs:
-  build-and-deploy-ios:
-    name: 🍎 Build & Upload iOS IPA
+  build-ios:
+    name: 🍎 Build iOS
     runs-on: macos-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          channel: "stable"
+          architecture: x64
 
-      - name: Get version
+      - name: Get version (clean output)
         id: version
         run: |
-          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}')
+          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
+          # Clean any carriage returns or extra whitespace
           CLEAN_VERSION=$(echo "$VERSION" | tr -d '\r\n' | sed 's/+/_/g')
           echo "FILENAME_VERSION=$CLEAN_VERSION" >> $GITHUB_ENV
+          echo "CLEAN_VERSION=$CLEAN_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Fix iOS Deployment Target
+        run: |
+          # Update Xcode project to iOS 15.0
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13\.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          echo "✅ Updated iOS deployment target to 15.0"
 
       - name: Install dependencies
         run: |
           flutter pub get
           cd ios
+          pod repo update
           pod install --repo-update
 
-      - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: latest
-
-      - name: Create Keychain
+      - name: Build iOS
         run: |
-          security create-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
-          security set-keychain-settings -lut 21600 build.keychain
+          flutter build ios --release --no-codesign
 
-      - name: Import Certificate
-        env:
-          CERT: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
-          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+      - name: Package IPA with clean name
         run: |
-          echo "$CERT" | base64 --decode > cert.p12
-          security import cert.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
-          security find-identity -v build.keychain
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          mv Runner.app Payload/
 
-      - name: Install Provisioning Profile
-        env:
-          PROFILE: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
-        run: |
-          echo "$PROFILE" | base64 --decode > profile.mobileprovision
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          UUID=$(/usr/libexec/PlistBuddy -c 'Print:UUID' /dev/stdin <<< $(security cms -D -i profile.mobileprovision))
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
-          echo "PROFILE_UUID=$UUID" >> $GITHUB_ENV
+          # Use the cleaned version from env
+          CLEAN_NAME="manong-app-v${{ env.FILENAME_VERSION }}.ipa"
+          echo "Creating IPA: $CLEAN_NAME"
+          zip -qq -r -9 "$CLEAN_NAME" Payload
 
-      - name: Build iOS Archive
-        env:
-          TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
-          CODE_SIGN_IDENTITY: ${{ secrets.CODE_SIGN_IDENTITY }}
-        run: |
-          cd ios
-          xcodebuild -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -archivePath build/Runner.xcarchive \
-            -destination "generic/platform=iOS" \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
-            clean archive
+          # Verify the file was created
+          echo "✅ Files in directory:"
+          ls -la
+          echo ""
+          echo "✅ IPA created: $CLEAN_NAME"
 
-      - name: Create exportOptions.plist
-        run: |
-          cat > ios/exportOptions.plist <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>method</key>
-  <string>app-store</string>
-  <key>teamID</key>
-  <string>${{ secrets.IOS_TEAM_ID }}</string>
-  <key>provisioningProfiles</key>
-  <dict>
-    <key>${{ env.IOS_BUNDLE_ID }}</key>
-    <string>${{ env.PROFILE_UUID }}</string>
-  </dict>
-  <key>signingStyle</key>
-  <string>manual</string>
-  <key>uploadBitcode</key>
-  <false/>
-  <key>compileBitcode</key>
-  <false/>
-</dict>
-</plist>
-EOF
-
-      - name: Export IPA
-        run: |
-          cd ios
-          xcodebuild -exportArchive \
-            -archivePath build/Runner.xcarchive \
-            -exportOptionsPlist exportOptions.plist \
-            -exportPath build/ios
-
-      - name: Upload IPA Artifact
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa
-          path: ios/build/ios/*.ipa
+          path: build/ios/iphoneos/manong-app-v${{ env.FILENAME_VERSION }}.ipa
+          retention-days: 7
 
-      - name: Clean Keychain
-        if: always()
-        run: security delete-keychain build.keychain || true
+  create-release:
+    name: 🚀 Create Release
+    runs-on: ubuntu-latest
+    needs: [build-ios]
+    if: success()
 
-      - name: Install Fastlane
-        run: sudo gem install fastlane -N
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Configure App Store Connect API Key
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Get clean version
+        id: version
         run: |
-          mkdir -p ~/.appstoreconnect/private_keys
-          echo "${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
-          chmod 600 ~/.appstoreconnect/private_keys/*
+          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk -F' ' '{print $2}')
+          # Clean any carriage returns
+          CLEAN_VERSION=$(echo "$VERSION" | tr -d '\r\n')
+          echo "VERSION=$CLEAN_VERSION" >> $GITHUB_ENV
+          echo "TAG=v$CLEAN_VERSION" >> $GITHUB_ENV
+          echo "Clean version: $CLEAN_VERSION"
 
-      - name: Upload IPA to App Store Connect
-        run: |
-          IPA_FILE=$(find ios/build/ios -name "*.ipa" | head -1)
-          fastlane deliver \
-            --ipa "$IPA_FILE" \
-            --api_key_path ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8 \
-            --api_key_id ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }} \
-            --issuer_id ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }} \
-            --skip_screenshots \
-            --skip_metadata \
-            --force
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: "Manong App v${{ env.VERSION }}"
+          body: |
+            # 🚀 Manong Application v${{ env.VERSION }}
+
+            **Build Date:** $(date '+%Y-%m-%d %H:%M:%S')
+
+            ## 📦 Files Included
+
+            ### iOS
+            - `manong-app-v$(echo ${{ env.VERSION }} | sed 's/+/_/g').ipa` - IPA for iOS (requires sideloading)
+
+            ### 🔧 Installation Notes
+
+            #### iOS
+            1. Requires sideloading (AltStore, TestFlight)
+            2. Device must trust developer certificate
+
+            ---
+            *Auto-generated release*
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/ios-ipa/*
