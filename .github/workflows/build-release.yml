@@ -40,6 +40,44 @@ jobs:
           security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
           security set-keychain-settings -t 3600 -u build.keychain
 
+      - name: Authenticate with Apple ID for Xcode
+        run: |
+          # Create an Apple ID session for Xcode
+          echo "🔐 Setting up Apple ID authentication..."
+
+          # Create a .xcodescplist file with your Apple ID credentials
+          cat > ~/.xcodescplist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>AuthMethod</key>
+              <string>APIAuth</string>
+              <key>APIAuth</key>
+              <dict>
+                  <key>authType</key>
+                  <string>APIToken</string>
+                  <key>APIToken</key>
+                  <dict>
+                      <key>keyID</key>
+                      <string>${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}</string>
+                      <key>issuerID</key>
+                      <string>${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}</string>
+                      <key>privateKey</key>
+                      <data>
+                      $(echo "${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}" | base64 -d | xxd -p | tr -d '\n')
+                      </data>
+                  </dict>
+              </dict>
+          </dict>
+          </plist>
+          EOF
+              
+              # Tell Xcode to use API key authentication
+              defaults write com.apple.dt.Xcode IDESourceControlUseAPIAuth -bool YES
+              
+              echo "✅ Apple ID authentication configured"
+
       - name: Import Code Signing Certificate
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
