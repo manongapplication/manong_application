@@ -134,9 +134,9 @@ class FeedbackUtils {
                                 },
                                 validator: (value) {
                                   if (value != null && value.isNotEmpty) {
-                                    if (value.length < 20 ||
+                                    if (value.length < 5 ||
                                         value.length > 300) {
-                                      return 'Review must be between 20 and 300 characters.';
+                                      return 'Review must be between 5 and 300 characters.';
                                     }
                                   }
                                   return null;

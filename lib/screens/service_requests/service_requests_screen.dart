@@ -378,46 +378,13 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   //   );
   // }
 
-  Widget _buildTopStatusChip({
-    required String title,
-    required int index,
-    required bool active,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: GestureDetector(
-        onTap: () => _onStatusChanged(index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          padding: const EdgeInsets.only(left: 6, right: 6, top: 8, bottom: 8),
-          decoration: BoxDecoration(
-            shape: BoxShape.rectangle,
-
-            border: Border(
-              bottom: BorderSide(
-                color: active ? Colors.white : Colors.transparent,
-                width: 2,
-              ),
-            ),
-          ),
-          child: AnimatedDefaultTextStyle(
-            style: TextStyle(
-              color: active ? Colors.white : Colors.white70,
-              fontWeight: active ? FontWeight.bold : FontWeight.normal,
-            ),
-            duration: const Duration(milliseconds: 300),
-            child: Text(title),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildStatusRow() {
     return Container(
       color: AppColorScheme.primaryColor,
+      height: 48, // Set fixed height (was probably ~56-64 before)
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
+        physics: const AlwaysScrollableScrollPhysics(),
         child: Row(
           children: List.generate(
             tabs.length,
@@ -425,6 +392,41 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
               title: tabs[index],
               index: index,
               active: _statusIndex == index,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopStatusChip({
+    required String title,
+    required int index,
+    required bool active,
+  }) {
+    return GestureDetector(
+      onTap: () => _onStatusChanged(index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ), // Reduced vertical padding
+        height: 48, // Match parent height
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: active ? Colors.white : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        ),
+        child: Center(
+          child: Text(
+            title,
+            style: TextStyle(
+              color: active ? Colors.white : Colors.white.withOpacity(0.7),
+              fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 14,
             ),
           ),
         ),
