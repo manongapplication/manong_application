@@ -906,9 +906,15 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
         ),
       ),
       resizeToAvoidBottomInset: true,
-      body: Form(key: _formKey, child: _buildState()),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Form(key: _formKey, child: _buildState()),
+      ),
 
-      bottomNavigationBar: _buildSearchManongButton(),
+      bottomNavigationBar: Transform.translate(
+        offset: Offset(0, -MediaQuery.of(context).viewInsets.bottom),
+        child: _buildSearchManongButton(),
+      ),
     );
   }
 

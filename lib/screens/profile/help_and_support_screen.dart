@@ -54,6 +54,7 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
   }
 
   void _sendQuickResponse(QuickResponse quickResponse) {
+    FocusScope.of(context).unfocus();
     _addUserMessage(quickResponse.text);
     _addSupportMessage(quickResponse.response);
   }
@@ -388,11 +389,14 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
           child: const Icon(Icons.support_agent),
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(child: _buildChatArea()),
-          SafeArea(child: _buildInputArea()),
-        ],
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Column(
+          children: [
+            Expanded(child: _buildChatArea()),
+            SafeArea(child: _buildInputArea()),
+          ],
+        ),
       ),
     );
   }

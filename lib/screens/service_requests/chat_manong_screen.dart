@@ -786,7 +786,10 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
           child: Icon(Icons.person),
         ),
       ),
-      body: _buildState(),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: _buildState(),
+      ),
     );
   }
 
