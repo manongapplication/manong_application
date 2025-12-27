@@ -237,6 +237,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _authenticateUser() async {
+    FocusScope.of(context).unfocus();
+
+    if (_isLoading) return;
+
     setState(() {
       _isLoading = true;
       _error = null;
@@ -350,193 +354,208 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    String exampleNumber = getExampleNumber(selectedCountry);
-
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: Colors.white,
       appBar: myAppBar(title: 'Get Started'),
-      body: Padding(
-        padding: EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(height: 20),
-              Text("Mobile"),
-              SizedBox(height: 20),
-              IntlPhoneField(
-                decoration: inputDecoration(
-                  getExampleNumber(selectedCountry),
-                  labelText: 'Phone Number',
-                ),
-                enabled: !_isLoading,
-                initialCountryCode: 'PH',
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  TextInputFormatter.withFunction((oldValue, newValue) {
-                    String newText = newValue.text;
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom > 100
+                  ? MediaQuery.of(context).viewInsets.bottom + 100
+                  : 16,
+              left: 16,
+              right: 16,
+              top: 16,
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+                  const Text("Mobile"),
+                  const SizedBox(height: 20),
 
-                    // For Philippines only, remove leading zero
-                    if (selectedCountry == 'PH' && newText.startsWith('0')) {
-                      newText = newText.substring(1);
-                    }
+                  // Phone Field
+                  IntlPhoneField(
+                    decoration: inputDecoration(
+                      getExampleNumber(selectedCountry),
+                      labelText: 'Phone Number',
+                    ),
+                    enabled: !_isLoading,
+                    initialCountryCode: 'PH',
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      TextInputFormatter.withFunction((oldValue, newValue) {
+                        String newText = newValue.text;
+                        if (selectedCountry == 'PH' &&
+                            newText.startsWith('0')) {
+                          newText = newText.substring(1);
+                        }
+                        return TextEditingValue(
+                          text: newText,
+                          selection: TextSelection.collapsed(
+                            offset: newText.length,
+                          ),
+                        );
+                      }),
+                    ],
+                    // Keyboard fixes for iOS
+                    textInputAction: TextInputAction.done,
+                    keyboardType: TextInputType.phone,
+                    onSubmitted: (value) {
+                      FocusScope.of(context).unfocus();
+                      _authenticateUser();
+                    },
+                    onChanged: (phone) {
+                      String processedNumber = phone.number;
+                      if (selectedCountry == 'PH' &&
+                          processedNumber.startsWith('0')) {
+                        processedNumber = processedNumber.substring(1);
+                      }
 
-                    return TextEditingValue(
-                      text: newText,
-                      selection: TextSelection.collapsed(
-                        offset: newText.length,
-                      ),
-                    );
-                  }),
+                      this.phone = PhoneNumber(
+                        countryCode: phone.countryCode,
+                        countryISOCode: phone.countryISOCode,
+                        number: processedNumber,
+                      );
+                    },
+                    validator: (phone) {
+                      if (phone == null || phone.number.isEmpty) {
+                        return 'Please enter your phone number';
+                      }
+
+                      String processedNumber = phone.number;
+                      if (selectedCountry == 'PH' &&
+                          processedNumber.startsWith('0')) {
+                        processedNumber = processedNumber.substring(1);
+                      }
+
+                      if (selectedCountry == 'PH') {
+                        if (processedNumber.length != 10) {
+                          return 'Please enter a valid 10-digit Philippine number';
+                        }
+
+                        if (!processedNumber.startsWith('9')) {
+                          return 'Philippine mobile numbers must start with 9';
+                        }
+                      }
+
+                      return null;
+                    },
+                    onCountryChanged: (country) {
+                      setState(() {
+                        selectedCountry = country.code;
+                      });
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Referral Code Field
+                  TextFormField(
+                    controller: _referralCodeController,
+                    decoration: inputDecoration(
+                      'MANGO25',
+                      labelText: 'Referral Code (Optional)',
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (value) {
+                      FocusScope.of(context).unfocus();
+                      _authenticateUser();
+                    },
+                    inputFormatters: [
+                      TextInputFormatter.withFunction((oldValue, newValue) {
+                        return TextEditingValue(
+                          text: newValue.text.toUpperCase(),
+                          selection: newValue.selection,
+                        );
+                      }),
+                    ],
+                    enabled: !_isLoading,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return null;
+                      }
+
+                      final cleanedValue = value.trim();
+
+                      if (cleanedValue.length < 6) {
+                        return 'Referral code must be at least 6 characters';
+                      }
+
+                      if (cleanedValue.length > 12) {
+                        return 'Referral code cannot exceed 12 characters';
+                      }
+
+                      if (!RegExp(r'^[A-Z0-9]+$').hasMatch(cleanedValue)) {
+                        return 'Referral code can only contain letters and numbers';
+                      }
+
+                      return null;
+                    },
+                  ),
+
+                  // Extra space at bottom for better scrolling
+                  const SizedBox(height: 100),
                 ],
-                onChanged: (phone) {
-                  // Process the number to remove leading zero
-                  String processedNumber = phone.number;
-                  if (selectedCountry == 'PH' &&
-                      processedNumber.startsWith('0')) {
-                    processedNumber = processedNumber.substring(1);
-                  }
-
-                  // Create a new phone object with processed number
-                  this.phone = PhoneNumber(
-                    countryCode: phone.countryCode,
-                    countryISOCode: phone.countryISOCode,
-                    number: processedNumber,
-                  );
-                },
-                validator: (phone) {
-                  if (phone == null || phone.number.isEmpty) {
-                    return 'Please enter your phone number';
-                  }
-
-                  String processedNumber = phone.number;
-                  if (selectedCountry == 'PH' &&
-                      processedNumber.startsWith('0')) {
-                    processedNumber = processedNumber.substring(1);
-                  }
-
-                  if (selectedCountry == 'PH') {
-                    if (processedNumber.length != 10) {
-                      return 'Please enter a valid 10-digit Philippine number';
-                    }
-
-                    if (!processedNumber.startsWith('9')) {
-                      return 'Philippine mobile numbers must start with 9';
-                    }
-                  }
-
-                  return null;
-                },
-                onCountryChanged: (country) {
-                  setState(() {
-                    selectedCountry = country.code;
-                  });
-                },
               ),
-
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: _referralCodeController,
-                decoration: inputDecoration(
-                  'MANGO25',
-                  labelText: 'Referral Code (Optional)',
-                ),
-                textCapitalization: TextCapitalization.words,
-                inputFormatters: [
-                  TextInputFormatter.withFunction((oldValue, newValue) {
-                    return TextEditingValue(
-                      text: newValue.text.toUpperCase(),
-                      selection: newValue.selection,
-                    );
-                  }),
-                ],
-                enabled: !_isLoading,
-                validator: (value) {
-                  // Since it's optional, only validate if user entered something
-                  if (value == null || value.isEmpty) {
-                    return null; // No error for empty optional field
-                  }
-
-                  // Remove any spaces and check length
-                  final cleanedValue = value.trim();
-
-                  // Check minimum length
-                  if (cleanedValue.length < 6) {
-                    return 'Referral code must be at least 6 characters';
-                  }
-
-                  // Check maximum length
-                  if (cleanedValue.length > 12) {
-                    return 'Referral code cannot exceed 12 characters';
-                  }
-
-                  // Check format - only letters and numbers allowed
-                  if (!RegExp(r'^[A-Z0-9]+$').hasMatch(cleanedValue)) {
-                    return 'Referral code can only contain letters and numbers';
-                  }
-
-                  // No errors
-                  return null;
-                },
-              ),
-            ],
+            ),
           ),
         ),
       ),
 
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              RichText(
-                textAlign: TextAlign.center,
-                text: TextSpan(
-                  style: TextStyle(color: Colors.black),
-                  children: [
-                    TextSpan(text: "Send me a verification code through "),
-                    TextSpan(
-                      text: "SMS",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColorScheme.primaryColor,
-                        padding: EdgeInsets.symmetric(vertical: 16),
+      bottomNavigationBar: Transform.translate(
+        offset: Offset(0.0, -MediaQuery.of(context).viewInsets.bottom),
+        child: SafeArea(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                RichText(
+                  textAlign: TextAlign.center,
+                  text: const TextSpan(
+                    style: TextStyle(color: Colors.black),
+                    children: [
+                      TextSpan(text: "Send me a verification code through "),
+                      TextSpan(
+                        text: "SMS",
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      onPressed: _isLoading ? null : _authenticateUser,
-                      child: _isLoading
-                          ? SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : Text(
-                              "Next",
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.white,
-                              ),
-                            ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 18),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColorScheme.primaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    minimumSize: const Size(double.infinity, 0), // Full width
+                  ),
+                  onPressed: _isLoading ? null : _authenticateUser,
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          "Next",
+                          style: TextStyle(fontSize: 16, color: Colors.white),
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -28,6 +28,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   // Track which dialogs have been shown
   bool _locationDialogShown = false;
   bool _notificationDialogShown = false;
+  bool _isCheckingPermissions = false;
 
   final List<Map<String, String>> _instructions = [
     {
@@ -65,6 +66,9 @@ class _OnboardingScreenState extends State<StatefulWidget> {
         curve: Curves.easeInOut,
       );
     } else {
+      // On the last page, ensure permissions are checked
+      await _ensurePermissions();
+
       await navigatorKey.currentContext!
           .read<OnboardingStorage>()
           .setNotFirstTime();
@@ -72,6 +76,26 @@ class _OnboardingScreenState extends State<StatefulWidget> {
         navigatorKey.currentContext!,
         MaterialPageRoute(builder: (_) => MainScreen()),
       );
+    }
+  }
+
+  Future<void> _ensurePermissions() async {
+    if (_isCheckingPermissions || _permissionUtils == null) return;
+
+    _isCheckingPermissions = true;
+
+    try {
+      // Ensure location permission if on location page
+      if (_currentPage >= 1) {
+        await _permissionUtils!.checkLocationPermission();
+      }
+
+      // Ensure notification permission if on notification page
+      if (_currentPage >= 2) {
+        await _permissionUtils!.checkNotificationPermission();
+      }
+    } finally {
+      _isCheckingPermissions = false;
     }
   }
 
@@ -94,17 +118,14 @@ class _OnboardingScreenState extends State<StatefulWidget> {
             ),
             child: ModalIconOverlay(
               onPressed: () async {
-                await _permissionUtils!.checkNotificationPermission();
-
-                // Check if permission was granted after the action
-                bool newStatus = await _permissionUtils!
-                    .isNotificationPermissionGranted();
+                bool result = await _permissionUtils!
+                    .checkNotificationPermission();
 
                 if (mounted) {
                   Navigator.of(navigatorKey.currentContext!).pop();
 
                   // Show a follow-up message if on iOS and permission was denied
-                  if (Platform.isIOS && !newStatus) {
+                  if (Platform.isIOS && !result) {
                     _showIOSNotificationInstructions();
                   }
                 }
@@ -125,21 +146,21 @@ class _OnboardingScreenState extends State<StatefulWidget> {
       context: navigatorKey.currentContext!,
       builder: (context) {
         return AlertDialog(
-          title: Text('Enable Notifications'),
-          content: Text(
+          title: const Text('Enable Notifications'),
+          content: const Text(
             'To enable notifications, please go to Settings > Manong > Notifications and turn on Allow Notifications.',
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text('Cancel'),
+              child: const Text('Cancel'),
             ),
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
                 openAppSettings();
               },
-              child: Text('Open Settings'),
+              child: const Text('Open Settings'),
             ),
           ],
         );
@@ -165,9 +186,9 @@ class _OnboardingScreenState extends State<StatefulWidget> {
               borderRadius: BorderRadius.circular(16),
             ),
             child: ModalIconOverlay(
-              icons: Icons.location_off,
+              icons: Icons.location_on,
               description:
-                  'Location permission is required to show your position',
+                  'Location permission helps us show nearby service providers and improve your experience.',
               onPressed: () async {
                 await _permissionUtils!.checkLocationPermission();
                 if (mounted) Navigator.of(navigatorKey.currentContext!).pop();
@@ -195,10 +216,54 @@ class _OnboardingScreenState extends State<StatefulWidget> {
 
     // Show dialogs only when moving forward to specific pages
     if (index == 1 && !_locationDialogShown) {
-      _showLocationPermissionDialog();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showLocationPermissionDialog();
+      });
     } else if (index == 2 && !_notificationDialogShown) {
-      _showNotificationPermissionDialog();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showNotificationPermissionDialog();
+      });
     }
+  }
+
+  Widget _buildPageIndicator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(_instructions.length, (index) {
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: _currentPage == index ? 12 : 8,
+          height: _currentPage == index ? 12 : 8,
+          decoration: BoxDecoration(
+            color: _currentPage == index
+                ? AppColorScheme.primaryColor
+                : Colors.grey.shade400,
+            shape: BoxShape.circle,
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildNextButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColorScheme.primaryColor,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+          onPressed: _nextPage,
+          child: Text(
+            _currentPage == _instructions.length - 1 ? "Get Started" : "Next",
+            style: const TextStyle(fontSize: 16),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -211,7 +276,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
               child: PageView.builder(
                 controller: _pageController,
                 itemCount: _instructions.length,
-                onPageChanged: _onPageChanged, // Use the updated method
+                onPageChanged: _onPageChanged,
                 itemBuilder: (context, index) {
                   final item = _instructions[index];
 
@@ -222,17 +287,19 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Image.asset(
-                            item['image'] ?? '',
+                            item['image']!,
                             width: 250,
                             height: 250,
+                            filterQuality: FilterQuality.high,
                           ),
                           const SizedBox(height: 40),
                           Text(
-                            item['text'] ?? '',
+                            item['text']!,
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
+                              height: 1.4,
                             ),
                           ),
                         ],
@@ -242,46 +309,19 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                 },
               ),
             ),
-
             const SizedBox(height: 40),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(_instructions.length, (index) {
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: _currentPage == index ? 12 : 8,
-                  height: _currentPage == index ? 12 : 8,
-                  decoration: BoxDecoration(
-                    color: _currentPage == index
-                        ? AppColorScheme.primaryColor
-                        : Colors.grey.shade400,
-                    shape: BoxShape.circle,
-                  ),
-                );
-              }),
-            ),
+            _buildPageIndicator(),
             const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColorScheme.primaryColor,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: _nextPage,
-                  child: Text(
-                    _currentPage == _instructions.length - 1
-                        ? "Get Started"
-                        : "Next",
-                  ),
-                ),
-              ),
-            ),
+            _buildNextButton(),
           ],
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 }

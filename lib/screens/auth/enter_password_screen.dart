@@ -213,31 +213,51 @@ class _EnterPasswordScreenState extends State<EnterPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: Colors.white,
       appBar: myAppBar(title: 'Enter Password'),
-      body: _buildState(),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColorScheme.primaryColor,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom > 100
+                  ? MediaQuery.of(context).viewInsets.bottom + 100
+                  : 16,
+              left: 4,
+              right: 4,
+              top: 4,
             ),
-            onPressed: _isLoading ? null : loginWithPassword,
-            child: _isLoading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
+            child: _buildState(),
+          ),
+        ),
+      ),
+      bottomNavigationBar: Transform.translate(
+        offset: Offset(0, -MediaQuery.of(context).viewInsets.bottom),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColorScheme.primaryColor,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              onPressed: _isLoading ? null : loginWithPassword,
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      "Continue",
+                      style: TextStyle(fontSize: 16, color: Colors.white),
                     ),
-                  )
-                : const Text(
-                    "Continue",
-                    style: TextStyle(fontSize: 16, color: Colors.white),
-                  ),
+            ),
           ),
         ),
       ),
