@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:iconify_design/iconify_design.dart';
+import 'package:manong_application/api/manong_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/bookmark_item_type.dart';
 import 'package:manong_application/models/manong.dart';
+import 'package:manong_application/models/manong_status.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/screens/service_requests/route_tracking_screen.dart';
 import 'package:manong_application/theme/colors.dart';
@@ -12,6 +14,7 @@ import 'package:latlong2/latlong.dart' as latlong;
 import 'package:manong_application/utils/calculation_totals.dart';
 import 'package:manong_application/utils/color_utils.dart';
 import 'package:manong_application/utils/distance_matrix.dart';
+import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/widgets/instruction_steps.dart';
 import 'package:manong_application/widgets/price_tag.dart';
 import 'package:manong_application/api/bookmark_item_api_service.dart'; // Add this import
@@ -43,6 +46,8 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
   // Bookmark state
   bool _isBookmarked = false;
   bool _isLoadingBookmark = false;
+  bool _isButtonLoading = false;
+  String? _error;
 
   @override
   void initState() {
@@ -280,234 +285,391 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
           ),
         ],
       ),
-      child: ListView(
-        controller: scrollController,
-        children: [
-          // -- Drag handle
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade400,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-
-          // --- Time + Distance
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      DistanceMatrix().formatDistance(meters ?? 0),
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.red.shade700,
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      '(${DistanceMatrix().formatDistance(meters ?? 0)})',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                  ],
-                ),
-
-                // -- Distance Fee
-                // _buildDistanceFee(meters),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // --- Accept Button
-          Row(
+      child: Builder(
+        builder: (BuildContext sheetContext) {
+          return ListView(
+            controller: scrollController,
             children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/booking-summary',
-                      arguments: {
-                        'serviceRequest': _serviceRequest!,
-                        'manong': _manong,
-                        'meters': meters,
-                      },
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColorScheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 14,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+              // -- Drag handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade400,
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  child: Text('Accept'),
                 ),
               ),
-            ],
-          ),
 
-          // -- More details
-          Visibility(
-            visible: true,
-            maintainSize: true,
-            maintainAnimation: true,
-            maintainState: true,
-            child: Column(
-              children: [
-                const SizedBox(height: 3),
-                Text(
-                  "More details about the Manong...",
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 12),
-
-          // -- Manong Name with bookmark
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
+              // --- Time + Distance
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      "Name",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                    SizedBox(height: 4),
                     Row(
                       children: [
-                        Expanded(
-                          child: Text(
-                            _manong?.appUser.firstName ?? "No name",
-                            style: TextStyle(fontSize: 18, color: Colors.black),
+                        Text(
+                          DistanceMatrix().formatDistance(meters ?? 0),
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.red.shade700,
                           ),
                         ),
-                        if (_manong?.profile!.isProfessionallyVerified ==
-                            true) ...[
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.verified_rounded,
-                            size: 20,
-                            color: Colors.lightBlue,
+                        SizedBox(width: 8),
+                        Text(
+                          '(${DistanceMatrix().formatDistance(meters ?? 0)})',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey.shade700,
                           ),
-                        ],
+                        ),
                       ],
                     ),
                   ],
                 ),
               ),
-              _buildBookmarkButton(),
-            ],
-          ),
-          SizedBox(height: 8),
+              const SizedBox(height: 12),
 
-          // -- Status
-          Text(
-            "Status",
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-          ),
-          SizedBox(height: 4),
-          Wrap(
-            children: [
-              Container(
-                decoration: BoxDecoration(
+              // --- Accept Button
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _isButtonLoading
+                          ? null
+                          : _acceptManong(meters, sheetContext),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColorScheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: _isButtonLoading
+                          ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text('Accept'),
+                    ),
+                  ),
+                ],
+              ),
+
+              // -- More details
+              Visibility(
+                visible: true,
+                maintainSize: true,
+                maintainAnimation: true,
+                maintainState: true,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 3),
+                    Text(
+                      "More details about the Manong...",
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 12),
+
+              // -- Manong Name with bookmark
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Name",
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _manong?.appUser.firstName ?? "No name",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
+                            if (_manong?.profile!.isProfessionallyVerified ==
+                                true) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.verified_rounded,
+                                size: 20,
+                                color: Colors.lightBlue,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  _buildBookmarkButton(),
+                ],
+              ),
+              SizedBox(height: 8),
+
+              // -- Status
+              Text(
+                "Status",
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+              ),
+              SizedBox(height: 4),
+              Wrap(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      color: getStatusColor(
+                        _manong!.profile!.status.name,
+                      ).withOpacity(0.1),
+                      border: Border.all(
+                        color: getStatusBorderColor(
+                          _manong!.profile!.status.name,
+                        ),
+                        width: 1,
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    child: Text(
+                      _manong!.profile!.status.name,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: getStatusBorderColor(
+                          _manong!.profile!.status.name,
+                        ),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              if (_manong!.profile!.specialities != null &&
+                  _manong!.profile!.specialities!.isNotEmpty) ...[
+                // -- Specialities
+                Text(
+                  "Specialities",
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+                ),
+                SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: widget.manong!.profile!.specialities!.map((item) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _serviceRequest?.subServiceItem != null
+                            ? item.subServiceItem.title.contains(
+                                    _serviceRequest!.subServiceItem!.title,
+                                  )
+                                  ? Colors.amber.withOpacity(0.7)
+                                  : AppColorScheme.primaryColor.withOpacity(0.1)
+                            : AppColorScheme.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconifyIcon(
+                            icon: item.subServiceItem.iconName,
+                            size: 24,
+                            color: Colors.grey.shade800,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            item.subServiceItem.title,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // Updated _acceptManong method using AlertDialog
+  Future<void> _acceptManong(double? meters, BuildContext sheetContext) async {
+    setState(() {
+      _isButtonLoading = true;
+      _error = null;
+    });
+    try {
+      if (_manong?.appUser == null) return;
+      final response = await ManongApiService().fetchAManong(
+        _manong!.appUser.id,
+      );
+
+      if (mounted) {
+        if (response?.profile?.status != ManongStatus.available) {
+          // Show AlertDialog
+          await showDialog(
+            context: sheetContext,
+            barrierDismissible: true,
+            builder: (BuildContext dialogContext) {
+              return AlertDialog(
+                shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  color: getStatusColor(
-                    _manong!.profile!.status.name,
-                  ).withOpacity(0.1),
-                  border: Border.all(
-                    color: getStatusBorderColor(_manong!.profile!.status.name),
-                    width: 1,
+                ),
+                title: Row(
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.orange,
+                      size: 28,
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      'Not Available',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+                content: Text(
+                  'This manong is currently not available. Please select another available manong.',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.black54,
+                    height: 1.4,
                   ),
                 ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                child: Text(
-                  _manong!.profile!.status.name,
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                    },
+                    child: Text(
+                      'OK',
+                      style: TextStyle(
+                        color: AppColorScheme.primaryColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+          return;
+        }
+
+        // If manong is available, proceed to booking
+        Navigator.pushNamed(
+          sheetContext,
+          '/booking-summary',
+          arguments: {
+            'serviceRequest': _serviceRequest!,
+            'manong': _manong,
+            'meters': meters,
+          },
+        );
+      }
+    } catch (e) {
+      logger.severe('Error fetching current manong: $e');
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+
+      // Show error AlertDialog
+      await showDialog(
+        context: sheetContext,
+        barrierDismissible: true,
+        builder: (BuildContext dialogContext) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.error_outline_rounded, color: Colors.red, size: 28),
+                SizedBox(width: 12),
+                Text(
+                  'Error',
                   style: TextStyle(
-                    fontSize: 11,
-                    color: getStatusBorderColor(_manong!.profile!.status.name),
-                    fontWeight: FontWeight.w500,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              'Failed to check manong availability. Please try again.',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.black54,
+                height: 1.4,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                },
+                child: Text(
+                  'OK',
+                  style: TextStyle(
+                    color: AppColorScheme.primaryColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 8),
-
-          if (_manong!.profile!.specialities != null &&
-              _manong!.profile!.specialities!.isNotEmpty) ...[
-            // -- Specialities
-            Text(
-              "Specialities",
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-            ),
-            SizedBox(height: 4),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: widget.manong!.profile!.specialities!.map((item) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _serviceRequest?.subServiceItem != null
-                        ? item.subServiceItem.title.contains(
-                                _serviceRequest!.subServiceItem!.title,
-                              )
-                              ? Colors.amber.withOpacity(0.7)
-                              : AppColorScheme.primaryColor.withOpacity(0.1)
-                        : AppColorScheme.primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconifyIcon(
-                        icon: item.subServiceItem.iconName,
-                        size: 24,
-                        color: Colors.grey.shade800,
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        item.subServiceItem.title,
-                        style: TextStyle(fontSize: 12, color: Colors.black87),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-        ],
-      ),
-    );
+          );
+        },
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isButtonLoading = false;
+        });
+      }
+    }
   }
 
   @override

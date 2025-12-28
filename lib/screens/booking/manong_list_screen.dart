@@ -5,6 +5,7 @@ import 'package:manong_application/api/manong_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/bookmark_item_type.dart';
 import 'package:manong_application/models/manong.dart';
+import 'package:manong_application/models/manong_status.dart'; // Import the status enum
 import 'package:manong_application/models/service_item.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/models/sub_service_item.dart';
@@ -16,7 +17,7 @@ import 'package:manong_application/widgets/manong_list_card.dart';
 import 'package:manong_application/widgets/search_input.dart';
 import 'package:manong_application/widgets/step_appbar.dart';
 import 'package:latlong2/latlong.dart' as latlong;
-import 'package:manong_application/api/bookmark_item_api_service.dart'; // Add this import
+import 'package:manong_application/api/bookmark_item_api_service.dart';
 
 class ManongListScreen extends StatefulWidget {
   final ServiceRequest serviceRequest;
@@ -52,6 +53,9 @@ class _ManongListScreenState extends State<ManongListScreen> {
   Map<int, bool> _bookmarkStatus = {};
   bool _isLoadingBookmarks = false;
 
+  // Sorting options
+  bool _sortByAvailableFirst = true; // Sort available manongs first
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -68,7 +72,7 @@ class _ManongListScreenState extends State<ManongListScreen> {
     _serviceRequest = widget.serviceRequest;
     _fetchManongs();
     setupScrollListener();
-    _fetchAllBookmarks(); // Fetch bookmarks on init
+    _fetchAllBookmarks();
   }
 
   void _initializeComponents() {
@@ -190,7 +194,6 @@ class _ManongListScreenState extends State<ManongListScreen> {
   }
 
   Future<void> _onBookmarkToggled(int manongId) async {
-    // Store the current state before update
     final wasBookmarked = _bookmarkStatus[manongId] ?? false;
     final isAddingBookmark = !wasBookmarked;
 
@@ -227,8 +230,52 @@ class _ManongListScreenState extends State<ManongListScreen> {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // Sorting toggle button
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _sortByAvailableFirst = !_sortByAvailableFirst;
+              });
+            },
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: _sortByAvailableFirst
+                    ? AppColorScheme.primaryColor.withOpacity(0.1)
+                    : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _sortByAvailableFirst
+                      ? AppColorScheme.primaryColor
+                      : Colors.grey.shade300,
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.sort,
+                    size: 16,
+                    color: _sortByAvailableFirst
+                        ? AppColorScheme.primaryColor
+                        : Colors.grey.shade600,
+                  ),
+                  SizedBox(width: 4),
+                  Text(
+                    _sortByAvailableFirst ? 'Available first' : 'Show all',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _sortByAvailableFirst
+                          ? AppColorScheme.primaryColor
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           Text(
             '($count result${count != 1 ? 's' : ''})',
             style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
@@ -259,12 +306,22 @@ class _ManongListScreenState extends State<ManongListScreen> {
       }).toList();
     }
 
-    // Sort by bookmarked first, then by distance
+    // Sort by availability first, then bookmarks, then distance
     filtered.sort((a, b) {
+      // First, sort by availability if enabled
+      if (_sortByAvailableFirst) {
+        final aIsBusy = a.profile?.status == ManongStatus.busy;
+        final bIsBusy = b.profile?.status == ManongStatus.busy;
+
+        // Available (not busy) manongs come first
+        if (!aIsBusy && bIsBusy) return -1;
+        if (aIsBusy && !bIsBusy) return 1;
+      }
+
+      // Then sort by bookmarked
       final aBookmarked = _bookmarkStatus[a.appUser.id] ?? false;
       final bBookmarked = _bookmarkStatus[b.appUser.id] ?? false;
 
-      // Bookmarked items come first
       if (aBookmarked && !bBookmarked) return -1;
       if (!aBookmarked && bBookmarked) return 1;
 
@@ -382,6 +439,9 @@ class _ManongListScreenState extends State<ManongListScreen> {
 
             Manong manong = filteredManongs[index];
 
+            // Check if manong is busy based on profile status
+            final bool isBusy = manong.profile?.status == ManongStatus.busy;
+
             meters = DistanceMatrix().calculateDistance(
               startLat: _serviceRequest?.customerLat ?? 0,
               startLng: _serviceRequest?.customerLng ?? 0,
@@ -393,7 +453,7 @@ class _ManongListScreenState extends State<ManongListScreen> {
               padding: EdgeInsets.only(bottom: 8),
               child: ManongListCard(
                 manong: manong,
-                iconColor: AppColorScheme.primaryColor,
+                iconColor: isBusy ? Colors.orange : AppColorScheme.primaryColor,
                 onTap: () {
                   Navigator.pushNamed(
                     navigatorKey.currentContext!,
@@ -408,6 +468,8 @@ class _ManongListScreenState extends State<ManongListScreen> {
                 subServiceItem: _serviceRequest!.subServiceItem,
                 isBookmarked: _bookmarkStatus[manong.appUser.id] ?? false,
                 onBookmarkToggled: () => _onBookmarkToggled(manong.appUser.id),
+                // Optional: Pass busy status to the card if it supports it
+                // isBusy: isBusy,
               ),
             );
           },
