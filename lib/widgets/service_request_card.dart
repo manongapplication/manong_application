@@ -190,27 +190,27 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
 
   @override
   Widget build(BuildContext context) {
+    final serviceItem = widget.serviceRequestItem.serviceItem;
+    final subServiceItem = widget.serviceRequestItem.subServiceItem;
+    final manong = widget.serviceRequestItem.manong;
+
     final hasRefundRequest =
         widget.serviceRequestItem.refundRequests != null &&
         widget.serviceRequestItem.refundRequests!.isNotEmpty &&
         widget.serviceRequestItem.paymentStatus != PaymentStatus.refunded &&
         widget.serviceRequestItem.refundRequests!.last.status !=
             RefundStatus.approved;
-    final serviceItemTitle =
-        widget.serviceRequestItem.serviceItem?.title ?? 'Unknown Service';
+
     // final serviceItemDate = widget.serviceRequestItem.createdAt;
     final dateText = widget.serviceRequestItem.createdAt
         ?.toLocal()
         .toString()
         .split(' ')[0];
+    final serviceItemTitle = serviceItem?.title ?? 'Unknown Service';
     final subServiceItemTitle =
-        widget.serviceRequestItem.otherServiceName
-                .toString()
-                .trim()
-                .isNotEmpty &&
-            widget.serviceRequestItem.otherServiceName != null
+        (widget.serviceRequestItem.otherServiceName?.trim().isNotEmpty ?? false)
         ? widget.serviceRequestItem.otherServiceName
-        : widget.serviceRequestItem.subServiceItem?.title;
+        : subServiceItem?.title ?? 'N/A';
     final urgencyLevelText =
         widget.serviceRequestItem.urgencyLevel?.level ?? 'No urgency set';
     final iconName = widget.serviceRequestItem.serviceItem?.iconName ?? 'help';
@@ -225,11 +225,14 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
         manongName.isEmpty && widget.serviceRequestItem.paymentStatus != null
         ? widget.serviceRequestItem.paymentStatus!.value
         : status;
-    final int messagesCount =
-        widget.serviceRequestItem.messages
-            ?.where((e) => e.seenAt == null)
-            .length ??
-        0;
+
+    final int messagesCount = widget.serviceRequestItem.messages != null
+        ? widget.serviceRequestItem.messages!
+              .where((message) => message.seenAt == null)
+              .take(10) // Limit to prevent UI issues
+              .length
+        : 0;
+    0;
     final bool hasReviewFeedback =
         widget.serviceRequestItem.feedback?.comment != null;
 
@@ -518,69 +521,86 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const SizedBox(height: 12),
-                      Stack(
-                        clipBehavior: Clip.none,
+
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (_selectedRating == 0)
-                            Icon(
-                              widget.meters != null
-                                  ? Icons.location_on
-                                  : Icons.location_off,
-                              size: 24,
-                              color: Colors.grey.shade600,
-                            ),
-
-                          if (messagesCount > 0) ...[
-                            Positioned(
-                              top: -12,
-                              right: -4,
-                              child: Container(
-                                width: 18,
-                                height: 18,
-                                decoration: const BoxDecoration(
-                                  color: Colors.redAccent,
-                                  shape: BoxShape.circle,
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  messagesCount == 5
-                                      ? '${messagesCount.toString()}+'
-                                      : messagesCount.toString(),
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
+                          // Location icon and message badge
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Icon(
+                                widget.meters != null
+                                    ? Icons.location_on
+                                    : Icons.location_off,
+                                size: 24,
+                                color: Colors.grey.shade600,
                               ),
-                            ),
-                          ],
 
-                          if (_selectedRating > 0 && widget.isManong == false)
-                            const SizedBox(height: 4),
+                              // Message count badge
+                              if (messagesCount > 0)
+                                Positioned(
+                                  top: -8,
+                                  right: -8,
+                                  child: Container(
+                                    width: 20,
+                                    height: 20,
+                                    constraints: const BoxConstraints(
+                                      minWidth: 20,
+                                      minHeight: 20,
+                                    ),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.redAccent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      messagesCount > 9
+                                          ? '9+'
+                                          : messagesCount.toString(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+
+                          // Review button (only for completed jobs, non-manong users)
                           if (_selectedRating > 0 &&
                               widget.isManong == false &&
                               widget.serviceRequestItem.status ==
                                   ServiceRequestStatus.completed)
-                            ElevatedButton(
-                              onPressed: widget.onTapReview,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColorScheme.primaryColor,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                            Container(
+                              margin: const EdgeInsets.only(top: 8),
+                              child: ElevatedButton(
+                                onPressed: widget.onTapReview,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColorScheme.primaryColor,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  minimumSize: const Size(
+                                    0,
+                                    30,
+                                  ), // Fixed height
                                 ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                              ),
-                              child: Text(
-                                hasReviewFeedback
-                                    ? 'Update Review'
-                                    : 'Leave A Review',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
+                                child: Text(
+                                  hasReviewFeedback
+                                      ? 'Update Review'
+                                      : 'Leave a Review',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                  ),
                                 ),
                               ),
                             ),
