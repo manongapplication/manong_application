@@ -6,6 +6,7 @@ import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/providers/bottom_nav_provider.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 final Logger logger = Logger('profile_screen');
@@ -253,6 +254,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _showLogoutDialog();
             },
             isDestructive: true,
+          ),
+
+          const SizedBox(height: 24),
+          FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  child: const Text(
+                    'Loading version...',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                );
+              }
+
+              if (snapshot.hasData) {
+                final info = snapshot.data!;
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Manong v${info.version} (${info.buildNumber})',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '© ${DateTime.now().year} Manong Information Services',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return const SizedBox.shrink();
+            },
           ),
         ],
       ),

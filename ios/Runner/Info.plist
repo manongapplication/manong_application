@@ -29,7 +29,7 @@
 			<string>com.manong.manong</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>manong_application</string>
+				<string>manong</string>
 			</array>
 		</dict>
 	</array>
