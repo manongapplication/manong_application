@@ -160,4 +160,35 @@ class ManongApiService {
     }
     return null;
   }
+
+  Future<Map<String, dynamic>?> checkDailyLimit() async {
+    try {
+      final token = await AuthService().getNodeToken();
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/manongs/daily-limit/check'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final responseBody = response.body;
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonData;
+      } else {
+        logger.warning(
+          'Failed to fetch daily limit: ${response.statusCode} $responseBody',
+        );
+        return jsonData;
+      }
+    } catch (e, stacktrace) {
+      logger.severe('Error fetching daily limit', e, stacktrace);
+    }
+
+    return null;
+  }
 }

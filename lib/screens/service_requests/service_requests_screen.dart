@@ -107,6 +107,30 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     _countUnseenPaymentTransactions();
   }
 
+  Future<void> _fetchDailyLimit() async {
+    if (_isManong != true) return;
+
+    try {
+      final response = await ManongApiService().checkDailyLimit();
+
+      if (response != null) {
+        logger.info('_fetchDailyLimit $response');
+        final data = response['data'];
+        if (data != true) {
+          final ManongDailyLimit manongDailyLimit = ManongDailyLimit(
+            isReached: true,
+            message: data['message'],
+            count: data['count'],
+            limit: data['limit'],
+          );
+          _navProvider.setManongDailyLimit(manongDailyLimit);
+        }
+      }
+    } catch (e) {
+      logger.info('Error fetching daily limit ${e.toString()}');
+    }
+  }
+
   Future<void> _fetchCurrentManong() async {
     if (_isManong != true) return;
 
@@ -125,6 +149,7 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
           logger.info('_currentManong: $_currentManong');
         }
       }
+      await _fetchDailyLimit();
     } catch (e) {
       logger.severe('Error fetching current manong: $e');
     }

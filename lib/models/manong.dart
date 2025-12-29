@@ -156,3 +156,17 @@ class ManongSpeciality {
     );
   }
 }
+
+class ManongDailyLimit {
+  final bool isReached;
+  final String? message;
+  final int? count;
+  final int? limit;
+
+  ManongDailyLimit({
+    required this.isReached,
+    this.message,
+    this.count,
+    this.limit,
+  });
+}

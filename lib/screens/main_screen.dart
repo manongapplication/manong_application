@@ -213,8 +213,6 @@ class _MainScreenState extends State<MainScreen> {
       body: _token != null
           ? Consumer<BottomNavProvider>(
               builder: (context, navProvider, _) {
-                logger.info('navProvider.isManong ${navProvider.isManong}');
-
                 return BottomNavSwipe(
                   pages: _pages,
                   pageController: _pageController,
@@ -248,6 +246,7 @@ class _MainScreenState extends State<MainScreen> {
                   serviceRequestIsExpired: navProvider.serviceRequestIsExpired,
                   user: _user,
                   hasNoFeedback: navProvider.hasNoFeedback,
+                  manongDailyLimit: navProvider.manongDailyLimit,
                   onTapCompleteProfile: () async {
                     final result = await Navigator.pushNamed(
                       context, // Use current context

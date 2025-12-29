@@ -6,16 +6,18 @@ import 'package:logging/logging.dart';
 import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/api/service_request_api_service.dart';
 import 'package:manong_application/models/app_user.dart';
+import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/service_request.dart';
 
 class BottomNavProvider with ChangeNotifier {
   final Logger logger = Logger('BottomNavProvider');
-  
+
   // State variables
   int _selectedIndex = 0;
   PageController? _controller;
   ServiceRequest? _ongoingServiceRequest;
   bool? _manongArrived;
+  ManongDailyLimit? _manongDailyLimit;
   dynamic _serviceRequestStatus;
   bool? _serviceRequestIsExpired;
   bool? _hasNoFeedback;
@@ -31,6 +33,7 @@ class BottomNavProvider with ChangeNotifier {
   int get selectedindex => _selectedIndex;
   PageController? get controller => _controller;
   bool? get manongArrived => _manongArrived;
+  ManongDailyLimit? get manongDailyLimit => _manongDailyLimit;
   dynamic get serviceRequestStatus => _serviceRequestStatus;
   bool? get serviceRequestIsExpired => _serviceRequestIsExpired;
   bool? get hasNoFeedback => _hasNoFeedback;
@@ -89,6 +92,13 @@ class BottomNavProvider with ChangeNotifier {
     }
   }
 
+  void setManongDailyLimit(ManongDailyLimit value) {
+    if (_manongDailyLimit != value) {
+      _manongDailyLimit = value;
+      _safeNotifyListeners();
+    }
+  }
+
   void changeIndex(int newIndex) {
     if (_selectedIndex != newIndex) {
       _selectedIndex = newIndex;
@@ -133,21 +143,21 @@ class BottomNavProvider with ChangeNotifier {
   Future<void> fetchOngoingServiceRequest() async {
     // Don't start if already loading
     if (_loadingOngoing) return;
-    
+
     _loadingOngoing = true;
     _safeNotifyListeners();
 
     try {
       final response = await ServiceRequestApiService()
           .getOngoingServiceRequest();
-      
+
       logger.info(
         'fetchOngoingServiceRequest() triggered ${jsonEncode(response)}',
       );
-      
+
       if (response != null) {
         bool shouldNotify = false;
-        
+
         if (response['data'] != null) {
           final sr = ServiceRequest.fromJson(response['data']);
           final isManong = response['isManong'];
@@ -158,12 +168,12 @@ class BottomNavProvider with ChangeNotifier {
             _ongoingServiceRequest = sr;
             shouldNotify = true;
           }
-          
+
           if (_serviceRequestMessage != message) {
             _serviceRequestMessage = message;
             shouldNotify = true;
           }
-          
+
           if (_isManong != isManong) {
             _isManong = isManong;
             shouldNotify = true;
@@ -178,9 +188,7 @@ class BottomNavProvider with ChangeNotifier {
                   .expiredServiceRequest(sr.id!);
 
               if (updated != null) {
-                final expiredRequest = ServiceRequest.fromJson(
-                  updated['data'],
-                );
+                final expiredRequest = ServiceRequest.fromJson(updated['data']);
                 if (_ongoingServiceRequest?.id != expiredRequest.id) {
                   _ongoingServiceRequest = expiredRequest;
                   shouldNotify = true;
@@ -203,7 +211,7 @@ class BottomNavProvider with ChangeNotifier {
             shouldNotify = true;
           }
         }
-        
+
         // Only notify if something actually changed
         if (shouldNotify) {
           _safeNotifyListeners();
@@ -224,13 +232,13 @@ class BottomNavProvider with ChangeNotifier {
   // Profile fetching
   Future<void> getProfile() async {
     if (_loadingGetProfile) return;
-    
+
     _loadingGetProfile = true;
     _safeNotifyListeners();
-    
+
     try {
       final response = await AuthService().getMyProfile();
-      
+
       if (_user?.id != response?.id) {
         _user = response;
         _safeNotifyListeners();
@@ -284,9 +292,10 @@ class BottomNavProvider with ChangeNotifier {
 
   // Helper method to check if we have an ongoing request
   bool get hasOngoingRequest => _ongoingServiceRequest != null;
-  
+
   // Helper method to check if ongoing request needs attention
-  bool get needsAttention => _serviceRequestIsExpired == true || 
-                           _manongArrived == true || 
-                           _hasNoFeedback == true;
+  bool get needsAttention =>
+      _serviceRequestIsExpired == true ||
+      _manongArrived == true ||
+      _hasNoFeedback == true;
 }
