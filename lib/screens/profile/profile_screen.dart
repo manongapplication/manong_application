@@ -176,10 +176,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 20),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/edit-profile').then((_) {
-                _getProfile();
-              });
+            onPressed: () async {
+              final result = await Navigator.pushNamed(
+                context,
+                '/complete-profile',
+              );
+
+              if (result != null && result is Map) {
+                if (result['update'] == true) {
+                  _getProfile();
+                }
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColorScheme.primaryColor,
@@ -204,16 +211,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       margin: const EdgeInsets.only(top: 24),
       child: Column(
         children: [
-          _buildActionTile(
-            icon: Icons.edit,
-            title: 'Edit Profile',
-            subtitle: 'Update your personal information',
-            onTap: () {
-              Navigator.pushNamed(context, '/edit-profile').then((_) {
-                _getProfile();
-              });
-            },
-          ),
+          if (!(profile!.firstName == null || profile!.email == null)) ...[
+            _buildActionTile(
+              icon: Icons.edit,
+              title: 'Edit Profile',
+              subtitle: 'Update your personal information',
+              onTap: () {
+                Navigator.pushNamed(context, '/edit-profile').then((_) {
+                  _getProfile();
+                });
+              },
+            ),
+          ],
+
           // const SizedBox(height: 12),
           // _buildActionTile(
           //   icon: Icons.security,

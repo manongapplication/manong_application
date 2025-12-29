@@ -192,6 +192,7 @@ class _EditProfileState extends State<EditProfile> {
               ),
               hintText: controller.text == "" ? "Not Set" : controller.text,
             ),
+            textCapitalization: TextCapitalization.words,
           ),
         ],
       ),
@@ -300,44 +301,53 @@ class _EditProfileState extends State<EditProfile> {
               )
             : null,
       ),
-      body: RefreshIndicator(
-        onRefresh: _getProfile,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: _isLoading
-              ? SizedBox(
-                  height:
-                      MediaQuery.of(navigatorKey.currentContext!).size.height *
-                      0.8,
-                  child: const Center(
-                    child: CircularProgressIndicator(
-                      color: AppColorScheme.primaryColor,
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: RefreshIndicator(
+          onRefresh: _getProfile,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: _isLoading
+                ? SizedBox(
+                    height:
+                        MediaQuery.of(
+                          navigatorKey.currentContext!,
+                        ).size.height *
+                        0.8,
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColorScheme.primaryColor,
+                      ),
                     ),
-                  ),
-                )
-              : _error != null
-              ? SizedBox(
-                  height:
-                      MediaQuery.of(navigatorKey.currentContext!).size.height *
-                      0.6,
-                  child: _buildErrorState(),
-                )
-              : profile == null
-              ? SizedBox(
-                  height:
-                      MediaQuery.of(navigatorKey.currentContext!).size.height *
-                      0.6,
-                  child: const Center(
-                    child: CircularProgressIndicator(
-                      color: AppColorScheme.primaryColor,
+                  )
+                : _error != null
+                ? SizedBox(
+                    height:
+                        MediaQuery.of(
+                          navigatorKey.currentContext!,
+                        ).size.height *
+                        0.6,
+                    child: _buildErrorState(),
+                  )
+                : profile == null
+                ? SizedBox(
+                    height:
+                        MediaQuery.of(
+                          navigatorKey.currentContext!,
+                        ).size.height *
+                        0.6,
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColorScheme.primaryColor,
+                      ),
                     ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [_buildProfileHeader(), _buildProfileEdit()],
                   ),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [_buildProfileHeader(), _buildProfileEdit()],
-                ),
+          ),
         ),
       ),
     );

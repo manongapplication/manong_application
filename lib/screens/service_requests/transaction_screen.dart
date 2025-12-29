@@ -25,10 +25,27 @@ class _TransactionScreenState extends State<TransactionScreen> {
   bool _isLoading = false;
   String? _error;
   List<PaymentTransaction> _paymentTransactions = [];
+  List<PaymentTransaction> _filteredTransactions = [];
   final Set<TransactionType> _selectedTypes = {
     TransactionType.payment,
     TransactionType.refund,
     TransactionType.adjustment,
+  };
+
+  // Search properties
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  bool _isSearching = false;
+  final FocusNode _searchFocusNode = FocusNode();
+
+  // Sort properties
+  SortBy _currentSort = SortBy.dateDesc;
+  Map<SortBy, String> sortOptions = {
+    SortBy.dateDesc: 'Date (Newest)',
+    SortBy.dateAsc: 'Date (Oldest)',
+    SortBy.amountDesc: 'Amount (High to Low)',
+    SortBy.amountAsc: 'Amount (Low to High)',
+    SortBy.requestNumber: 'Request Number',
   };
 
   // Scroll-to-load properties
@@ -79,6 +96,8 @@ class _TransactionScreenState extends State<TransactionScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -127,6 +146,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
             _hasMore = false;
           } else {
             _paymentTransactions = [];
+            _filteredTransactions = [];
           }
         });
         return;
@@ -138,6 +158,10 @@ class _TransactionScreenState extends State<TransactionScreen> {
         } else {
           _paymentTransactions = response;
         }
+
+        // Apply filters and search after fetching
+        _applyFiltersAndSearch();
+
         if (response.length < _limit) _hasMore = false;
       });
 
@@ -177,6 +201,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
 
       setState(() {
         _paymentTransactions.addAll(response);
+        _applyFiltersAndSearch();
         _currentPage++;
         if (response.length < _limit) _hasMore = false;
       });
@@ -195,59 +220,281 @@ class _TransactionScreenState extends State<TransactionScreen> {
     }
   }
 
-  List<PaymentTransaction> get _filteredTransactions {
-    if (_selectedTypes.isEmpty) {
-      return _paymentTransactions;
+  void _applyFiltersAndSearch() {
+    List<PaymentTransaction> filtered = _paymentTransactions;
+
+    // Apply type filters
+    if (_selectedTypes.isNotEmpty) {
+      filtered = filtered
+          .where((transaction) => _selectedTypes.contains(transaction.type))
+          .toList();
     }
-    return _paymentTransactions
-        .where((transaction) => _selectedTypes.contains(transaction.type))
-        .toList();
+
+    // Apply search filter
+    if (_searchQuery.isNotEmpty) {
+      filtered = filtered.where((transaction) {
+        return _matchesSearchQuery(transaction);
+      }).toList();
+    }
+
+    // Apply sorting
+    filtered = _sortTransactions(filtered);
+
+    setState(() {
+      _filteredTransactions = filtered;
+    });
   }
 
-  Widget _buildFilterChips() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      child: Row(
-        children: TransactionType.values.map((type) {
-          final isSelected = _selectedTypes.contains(type);
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              label: Text(
-                type.value.substring(0, 1).toUpperCase() +
-                    type.value.substring(1),
-              ),
-              selected: isSelected,
-              onSelected: (selected) {
-                setState(() {
-                  if (selected) {
-                    _selectedTypes.add(type);
-                  } else {
-                    _selectedTypes.remove(type);
-                  }
-                });
-              },
-              selectedColor: AppColorScheme.primaryColor.withOpacity(0.2),
-              checkmarkColor: AppColorScheme.primaryColor,
-              backgroundColor: Colors.grey.shade200,
-              labelStyle: TextStyle(
-                color: isSelected
-                    ? AppColorScheme.primaryColor
-                    : Colors.grey.shade700,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
+  bool _matchesSearchQuery(PaymentTransaction transaction) {
+    final query = _searchQuery.toLowerCase();
+
+    // Search in request number
+    final requestNumber =
+        transaction.metadata?['requestNumber']?.toString().toLowerCase() ?? '';
+    if (requestNumber.contains(query)) return true;
+
+    // Search in amount
+    final amountString = transaction.amount.toString();
+    if (amountString.contains(query)) return true;
+
+    // Search in sub service type
+    final subServiceType =
+        transaction.metadata?['subServiceType']?.toString().toLowerCase() ?? '';
+    if (subServiceType.contains(query)) return true;
+
+    // Search in service type
+    final serviceType =
+        transaction.metadata?['serviceType']?.toString().toLowerCase() ?? '';
+    if (serviceType.contains(query)) return true;
+
+    // Search in description
+    final description = transaction.description?.toLowerCase() ?? '';
+    if (description.contains(query)) return true;
+
+    // Search in payment ID
+    final paymentId = transaction.paymentIdOnGateway?.toLowerCase() ?? '';
+    if (paymentId.contains(query)) return true;
+
+    // Search in refund ID
+    final refundId = transaction.refundIdOnGateway?.toLowerCase() ?? '';
+    if (refundId.contains(query)) return true;
+
+    // Search in transaction type
+    final typeString = transaction.type.toString().toLowerCase();
+    if (typeString.contains(query)) return true;
+
+    return false;
+  }
+
+  List<PaymentTransaction> _sortTransactions(
+    List<PaymentTransaction> transactions,
+  ) {
+    List<PaymentTransaction> sorted = List.from(transactions);
+
+    switch (_currentSort) {
+      case SortBy.dateDesc:
+        sorted.sort((a, b) => b.createdAt!.compareTo(a.createdAt!));
+        break;
+      case SortBy.dateAsc:
+        sorted.sort((a, b) => a.createdAt!.compareTo(b.createdAt!));
+        break;
+      case SortBy.amountDesc:
+        sorted.sort((a, b) => b.amount.compareTo(a.amount));
+        break;
+      case SortBy.amountAsc:
+        sorted.sort((a, b) => a.amount.compareTo(b.amount));
+        break;
+      case SortBy.requestNumber:
+        sorted.sort((a, b) {
+          final aNum = a.metadata?['requestNumber']?.toString() ?? '';
+          final bNum = b.metadata?['requestNumber']?.toString() ?? '';
+          return aNum.compareTo(bNum);
+        });
+        break;
+    }
+
+    return sorted;
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {
+      _searchQuery = value;
+      _isSearching = value.isNotEmpty;
+    });
+    _applyFiltersAndSearch();
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+      _isSearching = false;
+    });
+    _applyFiltersAndSearch();
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: TextField(
+        controller: _searchController,
+        focusNode: _searchFocusNode,
+        decoration: InputDecoration(
+          hintText: 'Search transactions...',
+          prefixIcon: const Icon(Icons.search, color: Colors.grey),
+          suffixIcon: _isSearching
+              ? IconButton(
+                  icon: const Icon(Icons.clear, color: Colors.grey),
+                  onPressed: _clearSearch,
+                )
+              : null,
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: AppColorScheme.primaryColor,
+              width: 1,
             ),
-          );
-        }).toList(),
+          ),
+        ),
+        onChanged: _onSearchChanged,
       ),
     );
   }
 
-  Widget _buildTransactions() {
-    final filtered = _filteredTransactions;
+  Widget _buildSortButton() {
+    return PopupMenuButton<SortBy>(
+      color: Colors.white,
+      onSelected: (SortBy sortBy) {
+        setState(() {
+          _currentSort = sortBy;
+        });
+        _applyFiltersAndSearch();
+      },
+      itemBuilder: (BuildContext context) {
+        return sortOptions.entries.map((entry) {
+          return PopupMenuItem<SortBy>(
+            value: entry.key,
+            child: Row(
+              children: [
+                Text(entry.value),
+                if (_currentSort == entry.key)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8),
+                    child: Icon(Icons.check, size: 16),
+                  ),
+              ],
+            ),
+          );
+        }).toList();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.sort, size: 18, color: Colors.grey),
+            const SizedBox(width: 4),
+            Text(
+              'Sort: ${sortOptions[_currentSort]}',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-    if (filtered.isEmpty) {
+  Widget _buildResultsCount() {
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: Text(
+        '(${_filteredTransactions.length} ${_filteredTransactions.length == 1 ? 'result' : 'results'})',
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.grey.shade600,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    return Column(
+      children: [
+        // Search Bar (full width)
+        _buildSearchBar(),
+
+        // Type Filter Chips
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            children: TransactionType.values.map((type) {
+              final isSelected = _selectedTypes.contains(type);
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  label: Text(
+                    type.value.substring(0, 1).toUpperCase() +
+                        type.value.substring(1),
+                  ),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    setState(() {
+                      if (selected) {
+                        _selectedTypes.add(type);
+                      } else {
+                        _selectedTypes.remove(type);
+                      }
+                    });
+                    _applyFiltersAndSearch();
+                  },
+                  selectedColor: AppColorScheme.primaryColor.withOpacity(0.2),
+                  checkmarkColor: AppColorScheme.primaryColor,
+                  backgroundColor: Colors.grey.shade200,
+                  labelStyle: TextStyle(
+                    color: isSelected
+                        ? AppColorScheme.primaryColor
+                        : Colors.grey.shade700,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+
+        // Results count and Sort button row
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [_buildSortButton(), _buildResultsCount()],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTransactions() {
+    if (_filteredTransactions.isEmpty) {
       return _buildEmptyState();
     }
 
@@ -258,9 +505,9 @@ class _TransactionScreenState extends State<TransactionScreen> {
       child: ListView.builder(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: filtered.length + (_isLoadingMore ? 1 : 0),
+        itemCount: _filteredTransactions.length + (_isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
-          if (index >= filtered.length) {
+          if (index >= _filteredTransactions.length) {
             return const Center(
               child: Padding(
                 padding: EdgeInsets.all(16),
@@ -271,7 +518,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
             );
           }
 
-          final selectedTransaction = filtered[index];
+          final selectedTransaction = _filteredTransactions[index];
           return TransactionCard(
             paymentTransaction: selectedTransaction,
             user: _user,
@@ -283,10 +530,12 @@ class _TransactionScreenState extends State<TransactionScreen> {
 
   Widget _buildEmptyState() {
     return EmptyStateWidget(
-      searchQuery: '',
+      searchQuery: _searchQuery,
       onRefresh: _fetchTransactions,
-      emptyMessage: _selectedTypes.isEmpty
+      emptyMessage: _selectedTypes.isEmpty && !_isSearching
           ? 'Looks like it\'s empty here!'
+          : _isSearching
+          ? 'No transactions found for "$_searchQuery"'
           : 'No transactions found for selected filters',
     );
   }
@@ -307,7 +556,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
       );
     }
 
-    if (_paymentTransactions.isEmpty) {
+    if (_filteredTransactions.isEmpty) {
       return _buildEmptyState();
     }
 
@@ -321,16 +570,15 @@ class _TransactionScreenState extends State<TransactionScreen> {
       appBar: myAppBar(title: 'Transactions'),
       body: RefreshIndicator(
         onRefresh: _fetchTransactions,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Column(
-            children: [
-              _buildFilterChips(),
-              Expanded(child: _buildState()),
-            ],
-          ),
+        child: Column(
+          children: [
+            _buildFilterChips(),
+            Expanded(child: _buildState()),
+          ],
         ),
       ),
     );
   }
 }
+
+enum SortBy { dateDesc, dateAsc, amountDesc, amountAsc, requestNumber }

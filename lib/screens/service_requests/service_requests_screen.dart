@@ -705,19 +705,13 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
                 value: option,
                 child: Row(
                   children: [
-                    Icon(Icons.list, color: Colors.grey.shade800),
-                    const SizedBox(width: 4),
                     Row(
                       children: [
+                        const Icon(Icons.sort, size: 18, color: Colors.grey),
+                        const SizedBox(width: 4),
                         Text(
-                          option.toLowerCase() == 'ascending' ? 'ASC' : 'DESC',
-                          style: TextStyle(fontWeight: FontWeight.w300),
-                        ),
-                        Icon(
-                          option.toLowerCase() == 'ascending'
-                              ? Icons.arrow_upward
-                              : Icons.arrow_downward,
-                          color: Colors.grey.shade800,
+                          'Sort: ${option.toLowerCase() == 'ascending' ? 'Date (Oldest)' : 'Date (Newest)'}',
+                          style: const TextStyle(fontSize: 12),
                         ),
                       ],
                     ),

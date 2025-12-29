@@ -46,26 +46,73 @@ class ManongListCard extends StatelessWidget {
     );
   }
 
+  List<ManongSpeciality> _getSortedSpecialities(
+    List<ManongSpeciality> specialities,
+  ) {
+    if (subServiceItem == null) return specialities;
+
+    // Create a mutable copy
+    List<ManongSpeciality> sorted = List.from(specialities);
+
+    // Sort: highlighted items first, then alphabetical by title
+    sorted.sort((a, b) {
+      bool aHighlighted = a.subServiceItem.title.contains(
+        subServiceItem!.title,
+      );
+      bool bHighlighted = b.subServiceItem.title.contains(
+        subServiceItem!.title,
+      );
+
+      if (aHighlighted && !bHighlighted) return -1; // a comes first
+      if (!aHighlighted && bHighlighted) return 1; // b comes first
+
+      // Both have same highlight status, sort alphabetically
+      return a.subServiceItem.title.compareTo(b.subServiceItem.title);
+    });
+
+    return sorted;
+  }
+
   Widget _buildSpecialities() {
-    final remaining = manong.profile!.specialities!.skip(5).toList();
-    final hasContains =
-        subServiceItem != null &&
-        remaining.any(
-          (item) => item.subServiceItem.title.contains(subServiceItem!.title),
-        );
+    if (manong.profile?.specialities == null ||
+        manong.profile!.specialities!.isEmpty) {
+      return Container(); // Return empty if no specialities
+    }
+
+    // Get sorted specialities with highlighted ones first
+    final sortedSpecialities = _getSortedSpecialities(
+      manong.profile!.specialities!,
+    );
+
+    // Take first 5 for display
+    final displaySpecialities = sortedSpecialities.take(5).toList();
+    final remainingCount = sortedSpecialities.length - 5;
+
+    // Check if any of the remaining specialities are highlighted
+    final hasRemainingHighlighted =
+        remainingCount > 0 &&
+        sortedSpecialities
+            .skip(5)
+            .any(
+              (item) => item.subServiceItem.title.contains(
+                subServiceItem?.title ?? '',
+              ),
+            );
 
     return Wrap(
       spacing: 6,
       runSpacing: 6,
       children: [
-        ...manong.profile!.specialities!.take(5).map((item) {
+        ...displaySpecialities.map((item) {
+          final isHighlighted =
+              subServiceItem != null &&
+              item.subServiceItem.title.contains(subServiceItem!.title);
+
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             decoration: BoxDecoration(
-              color: subServiceItem != null
-                  ? item.subServiceItem.title.contains(subServiceItem!.title)
-                        ? Colors.amber.withOpacity(0.7)
-                        : iconColor.withOpacity(0.1)
+              color: isHighlighted
+                  ? Colors.amber.withOpacity(0.7)
                   : iconColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
@@ -91,11 +138,11 @@ class ManongListCard extends StatelessWidget {
           );
         }),
 
-        if (manong.profile!.specialities!.length >= 6)
+        if (remainingCount > 0)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             decoration: BoxDecoration(
-              color: hasContains
+              color: hasRemainingHighlighted
                   ? Colors.amber.withOpacity(0.7)
                   : Colors.grey.withOpacity(0.2),
               borderRadius: BorderRadius.circular(8),
@@ -110,7 +157,7 @@ class ManongListCard extends StatelessWidget {
                     ),
                   ),
                   builder: (context) {
-                    final remaining = manong.profile!.specialities!
+                    final remainingSpecialities = sortedSpecialities
                         .skip(5)
                         .toList();
 
@@ -136,17 +183,19 @@ class ManongListCard extends StatelessWidget {
                                 Wrap(
                                   spacing: 6,
                                   runSpacing: 6,
-                                  children: remaining.map((item) {
+                                  children: remainingSpecialities.map((item) {
+                                    final isHighlighted = item
+                                        .subServiceItem
+                                        .title
+                                        .contains(subServiceItem?.title ?? '');
+
                                     return Container(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 6,
                                         vertical: 4,
                                       ),
                                       decoration: BoxDecoration(
-                                        color:
-                                            item.subServiceItem.title.contains(
-                                              subServiceItem?.title ?? "",
-                                            )
+                                        color: isHighlighted
                                             ? Colors.amber.withOpacity(0.7)
                                             : iconColor.withOpacity(0.1),
                                         borderRadius: BorderRadius.circular(8),
@@ -183,10 +232,12 @@ class ManongListCard extends StatelessWidget {
                 );
               },
               child: Text(
-                "+${manong.profile!.specialities!.length - 5} show more",
+                "+$remainingCount show more",
                 style: TextStyle(
                   fontSize: 12,
-                  color: hasContains ? Colors.black : Colors.black54,
+                  color: hasRemainingHighlighted
+                      ? Colors.black
+                      : Colors.black54,
                 ),
               ),
             ),

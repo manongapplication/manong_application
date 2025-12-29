@@ -823,7 +823,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     return Scaffold(
       backgroundColor: AppColorScheme.backgroundGrey,
       appBar: myAppBar(title: 'Complete your profile'),
-      body: SafeArea(child: _buildState()),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(child: _buildState()),
+      ),
     );
   }
 
