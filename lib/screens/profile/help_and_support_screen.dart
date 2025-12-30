@@ -21,6 +21,7 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
   final Logger logger = Logger('HelpAndSupportScreen');
   bool _isLoading = false;
   bool _isButtonLoading = false;
+  bool _showQuickResponses = true; // NEW: Control variable for showing/hiding
   final TextEditingController _messageController = TextEditingController();
   late ScrollController _scrollController;
 
@@ -107,35 +108,213 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
     _addSupportMessage(response);
   }
 
+  // UPDATED: Modified to include toggle button
   Widget _buildQuickResponseChips() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: HelpUtils().quickResponses.map((response) {
-          return GestureDetector(
-            onTap: () => _sendQuickResponse(response),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColorScheme.primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: AppColorScheme.primaryColor.withOpacity(0.3),
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        color: Colors.white,
+        child: Column(
+          children: [
+            // Toggle Header Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Quick Responses',
+                  style: TextStyle(
+                    color: AppColorScheme.primaryColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
                 ),
+                IconButton(
+                  icon: Icon(
+                    _showQuickResponses
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    color: AppColorScheme.primaryColor,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _showQuickResponses = !_showQuickResponses;
+                    });
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: _showQuickResponses ? 'Hide' : 'Show',
+                ),
+              ],
+            ),
+            // Quick Response Chips (conditionally shown)
+            if (_showQuickResponses) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: HelpUtils().quickResponses.map((response) {
+                  return GestureDetector(
+                    onTap: () => _sendQuickResponse(response),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColorScheme.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppColorScheme.primaryColor.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Text(
+                        response.text,
+                        style: TextStyle(
+                          color: AppColorScheme.primaryColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
-              child: Text(
-                response.text,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Alternative: Simple toggle without header
+  Widget _buildSimpleToggleQuickResponseChips() {
+    return Column(
+      children: [
+        // Toggle button row
+        Container(
+          color: Colors.white,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text(
+                'Quick Responses',
                 style: TextStyle(
                   color: AppColorScheme.primaryColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
                 ),
               ),
-            ),
-          );
-        }).toList(),
+              IconButton(
+                icon: Icon(
+                  _showQuickResponses ? Icons.visibility_off : Icons.visibility,
+                  size: 20,
+                  color: AppColorScheme.primaryColor,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _showQuickResponses = !_showQuickResponses;
+                  });
+                },
+                padding: const EdgeInsets.all(4),
+              ),
+            ],
+          ),
+        ),
+        // Quick responses with animation
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: _showQuickResponses
+              ? Container(
+                  key: const ValueKey('quickResponses'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: HelpUtils().quickResponses.map((response) {
+                      return GestureDetector(
+                        onTap: () => _sendQuickResponse(response),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColorScheme.primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: AppColorScheme.primaryColor.withOpacity(
+                                0.3,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            response.text,
+                            style: TextStyle(
+                              color: AppColorScheme.primaryColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInputArea() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Column(
+        children: [
+          // Choose one of these:
+          _buildQuickResponseChips(), // Option 1: With header toggle
+          // _buildSimpleToggleQuickResponseChips(), // Option 2: Simple toggle
+          // _buildDraggableQuickResponseArea(), // Option 3: Draggable area
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 150),
+                  child: TextFormField(
+                    controller: _messageController,
+                    minLines: 1,
+                    maxLines: null,
+                    keyboardType: TextInputType.multiline,
+                    decoration: inputDecoration('Type your message here...'),
+                    textCapitalization: TextCapitalization.sentences,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Material(
+                color: AppColorScheme.primaryColor,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: _isButtonLoading ? null : _sendMessage,
+                  child: const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Icon(Icons.send, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -175,7 +354,6 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Use RichText to display formatted text
                         RichText(
                           text: TextSpan(
                             style: TextStyle(
@@ -211,7 +389,6 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
     );
   }
 
-  // Helper method to parse formatted text (bold and links)
   List<TextSpan> _parseFormattedText(
     String text, {
     required bool isSupport,
@@ -220,13 +397,10 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
     final spans = <TextSpan>[];
     int currentIndex = 0;
 
-    // Find all formatted patterns
     final linkPattern = RegExp(r"\[link url='(.+?)'\](.+?)\[/link\]");
     final boldPattern = RegExp(r'\*\*(.+?)\*\*');
 
-    // Process the text
     while (currentIndex < text.length) {
-      // Find next link or bold pattern
       final nextLink = linkPattern.firstMatch(text.substring(currentIndex));
       final nextBold = boldPattern.firstMatch(text.substring(currentIndex));
 
@@ -236,7 +410,6 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
       String? url;
       String? content;
 
-      // Determine which pattern comes first
       if (nextLink != null && nextBold != null) {
         if (nextLink.start < nextBold.start) {
           nextMatchStart = nextLink.start + currentIndex;
@@ -261,13 +434,11 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
         content = nextBold.group(1);
       }
 
-      // Add text before the match
       if (nextMatchStart != null && nextMatchStart > currentIndex) {
         final beforeText = text.substring(currentIndex, nextMatchStart);
         spans.add(TextSpan(text: beforeText));
       }
 
-      // Add the matched content
       if (nextMatchStart != null && content != null) {
         if (isLink && url != null) {
           spans.add(
@@ -297,7 +468,6 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
 
         currentIndex = nextMatchEnd!;
       } else {
-        // No more patterns found, add remaining text
         final remainingText = text.substring(currentIndex);
         spans.add(TextSpan(text: remainingText));
         break;
@@ -307,74 +477,29 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
     return spans;
   }
 
-  // Handle link tapping using your utility function
   Future<void> _handleLinkTap(String url, BuildContext context) async {
     try {
-      // Use your utility function
       await launchInBrowser(url);
     } catch (e) {
       logger.severe('Error launching URL: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Could not open link'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
+            duration: Duration(seconds: 2),
           ),
         );
       }
     }
   }
 
-  // Your utility function (copy this from your utils file)
   Future<void> launchInBrowser(String url) async {
     final uri = Uri.parse(url);
 
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       throw Exception('Could not launch $url');
     }
-  }
-
-  Widget _buildInputArea() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Column(
-        children: [
-          _buildQuickResponseChips(),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 150),
-                  child: TextFormField(
-                    controller: _messageController,
-                    minLines: 1,
-                    maxLines: null,
-                    keyboardType: TextInputType.multiline,
-                    decoration: inputDecoration('Type your message here...'),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Material(
-                color: AppColorScheme.primaryColor,
-                borderRadius: BorderRadius.circular(12),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: _isButtonLoading ? null : _sendMessage,
-                  child: const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Icon(Icons.send, color: Colors.white),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
   }
 
   @override

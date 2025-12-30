@@ -99,6 +99,10 @@ class BottomNavProvider with ChangeNotifier {
     }
   }
 
+  void unsetManongDailyLimit() {
+    _manongDailyLimit = null;
+  }
+
   void changeIndex(int newIndex) {
     if (_selectedIndex != newIndex) {
       _selectedIndex = newIndex;

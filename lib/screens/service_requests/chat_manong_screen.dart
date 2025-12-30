@@ -461,6 +461,9 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
                   );
                 }
 
+                // Convert UTC time to local time
+                final localTime = item.createdAt.toLocal(); // Add this line
+
                 // Regular message styling
                 return Align(
                   alignment: isMe
@@ -526,8 +529,9 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
                           const SizedBox(height: 4),
                         ],
 
+                        // Use localTime instead of item.createdAt
                         Text(
-                          DateFormat.jm().format(item.createdAt),
+                          DateFormat.jm().format(localTime), // Changed here
                           style: TextStyle(
                             fontSize: 10,
                             color: Colors.grey[600],
@@ -705,6 +709,7 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
                                 child: Icon(Icons.image),
                               ),
                             ),
+                            textCapitalization: TextCapitalization.sentences,
                           ),
                         ),
                       ),

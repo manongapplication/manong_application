@@ -134,7 +134,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     required String addressLine,
     required ValidIdType validIdType,
     required File validId,
-    String? password, // Make password optional
+    String? password,
   }) async {
     setState(() {
       _isButtonLoading = true;
@@ -148,7 +148,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         addressLine: addressLine,
         validIdType: validIdType,
         validId: validId,
-        password: password, // Pass password (could be null)
+        password: password,
       );
 
       if (response != null) {

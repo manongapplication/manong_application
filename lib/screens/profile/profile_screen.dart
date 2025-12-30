@@ -5,6 +5,7 @@ import 'package:manong_application/main.dart';
 import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/providers/bottom_nav_provider.dart';
 import 'package:manong_application/theme/colors.dart';
+import 'package:manong_application/widgets/incomplete_profile_card.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
@@ -131,76 +132,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIncompleteProfileCard() {
-    return Container(
-      margin: const EdgeInsets.only(top: 24),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Image.asset('assets/icon/manong_setup_acc_icon.png', height: 100),
-          const SizedBox(height: 20),
-          Text(
-            'Complete Your Profile',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 22,
-              color: AppColorScheme.primaryColor,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'You haven\'t set up your profile yet. Complete your information for a better experience.',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-              height: 1.4,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () async {
-              final result = await Navigator.pushNamed(
-                context,
-                '/complete-profile',
-              );
-
-              if (result != null && result is Map) {
-                if (result['update'] == true) {
-                  _getProfile();
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColorScheme.primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text(
-              'Complete Profile',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-            ),
-          ),
         ],
       ),
     );
@@ -505,7 +436,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     _buildProfileHeader(),
                     if (profile!.firstName == null || profile!.email == null)
-                      _buildIncompleteProfileCard(),
+                      IncompleteProfileCard(
+                        onTap: () async {
+                          final result = await Navigator.pushNamed(
+                            context,
+                            '/complete-profile',
+                          );
+
+                          if (result != null && result is Map) {
+                            if (result['update'] == true) {
+                              _getProfile();
+                            }
+                          }
+                        },
+                      ),
                     _buildProfileActions(),
                     const SizedBox(height: 32),
                   ],

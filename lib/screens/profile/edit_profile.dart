@@ -161,11 +161,96 @@ class _EditProfileState extends State<EditProfile> {
     );
   }
 
+  void _forgotPassword() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    if (profile?.phone == null) {
+      setState(() => _isLoading = false);
+      SnackBarUtils.showWarning(context, 'Phone number cannot be empty');
+      return;
+    }
+
+    try {
+      await authService?.sendVerificationTwilio(profile?.phone ?? '');
+
+      if (!mounted) return;
+
+      SnackBarUtils.showInfo(
+        context,
+        'We\'ve sent a 6-digit code to your phone. Enter it below to verify your number.',
+      );
+
+      Navigator.pushNamed(
+        context,
+        '/verify',
+        arguments: {
+          'authService': authService,
+          'phoneNumber': profile?.phone,
+          'isPasswordReset': true,
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      final errorMessage = e.toString().contains('blocked')
+          ? 'This number prefix is temporarily blocked. Please try a different number.'
+          : 'Failed to send code: $e';
+
+      SnackBarUtils.showError(context, errorMessage);
+
+      setState(() {
+        _error = errorMessage;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   Widget _buildProfileEdit() {
     return CardContainer2(
       children: [
         _buildTextFields(title: 'First Name', controller: firstNameController),
         _buildTextFields(title: 'Last Name', controller: lastNameController),
+        const SizedBox(height: 14),
+        GestureDetector(
+          onTap: _forgotPassword,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.lock_reset,
+                  color: AppColorScheme.primaryColor,
+                  size: 18,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Change Password',
+                  style: TextStyle(
+                    color: AppColorScheme.primaryColor,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
         // _buildTextFields(title: 'Email', controller: emailController),
       ],
     );

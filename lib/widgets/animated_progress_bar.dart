@@ -5,8 +5,17 @@ import 'package:manong_application/theme/colors.dart';
 ///
 /// Usage example:
 /// ```dart
+/// // Percentage mode
 /// AnimatedStackProgressBar(
 ///   percent: 0.7, // 70%
+///   height: 24,
+///   duration: Duration(milliseconds: 800),
+/// )
+///
+/// // Fraction mode
+/// AnimatedStackProgressBar(
+///   current: 1,
+///   total: 5, // will display "1/5" and calculate percent as 0.2
 ///   height: 24,
 ///   duration: Duration(milliseconds: 800),
 /// )
@@ -15,7 +24,9 @@ import 'package:manong_application/theme/colors.dart';
 /// This widget shows a layered progress bar with a smooth fill animation
 /// and a stacked percentage badge on top.
 class AnimatedStackProgressBar extends StatefulWidget {
-  final double percent; // 0.0 - 1.0
+  final double? percent; // 0.0 - 1.0 (optional if using current/total)
+  final int? current; // numerator (optional if using percent)
+  final int? total; // denominator (optional if using percent)
   final double height;
   final Duration duration;
   final BorderRadiusGeometry borderRadius;
@@ -24,10 +35,14 @@ class AnimatedStackProgressBar extends StatefulWidget {
   final Color fillColor;
   final TextStyle? percentTextStyle;
   final bool showPercentageBadge;
+  final String?
+  customLabel; // Custom label to display instead of percentage/fraction
 
   const AnimatedStackProgressBar({
     super.key,
-    required this.percent,
+    this.percent,
+    this.current,
+    this.total,
     this.height = 20,
     this.duration = const Duration(milliseconds: 600),
     this.borderRadius = const BorderRadius.all(Radius.circular(12)),
@@ -36,9 +51,21 @@ class AnimatedStackProgressBar extends StatefulWidget {
     this.fillColor = AppColorScheme.primaryColor,
     this.percentTextStyle,
     this.showPercentageBadge = true,
+    this.customLabel,
   }) : assert(
-         percent >= 0 && percent <= 1,
+         (percent != null && current == null && total == null) ||
+             (percent == null && current != null && total != null),
+         'Either provide percent (0.0-1.0) OR current and total values',
+       ),
+       assert(
+         percent == null || (percent >= 0 && percent <= 1),
          'percent must be between 0.0 and 1.0',
+       ),
+       assert(current == null || current >= 0, 'current must be non-negative'),
+       assert(total == null || total > 0, 'total must be positive'),
+       assert(
+         current == null || total == null || current <= total,
+         'current must be less than or equal to total',
        );
 
   @override
@@ -51,27 +78,64 @@ class _AnimatedStackProgressBarState extends State<AnimatedStackProgressBar>
   late AnimationController _ctrl;
   late Animation<double> _animation;
   double _oldPercent = 0.0;
+  late double _calculatedPercent;
 
   @override
   void initState() {
     super.initState();
-    _oldPercent = widget.percent;
+    _calculatedPercent = _calculatePercent();
+    _oldPercent = _calculatedPercent;
     _ctrl = AnimationController(vsync: this, duration: widget.duration);
     _animation = Tween<double>(
       begin: 0.0,
-      end: widget.percent,
+      end: _calculatedPercent,
     ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
     _ctrl.forward();
+  }
+
+  double _calculatePercent() {
+    if (widget.percent != null) {
+      return widget.percent!;
+    } else if (widget.current != null && widget.total != null) {
+      return widget.total! > 0 ? widget.current! / widget.total! : 0.0;
+    }
+    return 0.0;
+  }
+
+  String _getLabelText(double currentPercent) {
+    if (widget.customLabel != null) {
+      return widget.customLabel!;
+    }
+
+    if (widget.percent != null) {
+      return '${(currentPercent * 100).round()}% Complete';
+    } else if (widget.current != null && widget.total != null) {
+      return '${widget.current}/${widget.total}';
+    }
+
+    return '${(currentPercent * 100).round()}% Complete';
+  }
+
+  String _getBadgeText(double currentPercent) {
+    if (widget.percent != null) {
+      return '${(currentPercent * 100).round()}%';
+    } else if (widget.current != null && widget.total != null) {
+      return '${widget.current}/${widget.total}';
+    }
+
+    return '${(currentPercent * 100).round()}%';
   }
 
   @override
   void didUpdateWidget(covariant AnimatedStackProgressBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.percent != widget.percent) {
-      _oldPercent = oldWidget.percent;
+    final newPercent = _calculatePercent();
+    if (_calculatedPercent != newPercent) {
+      _oldPercent = _calculatedPercent;
+      _calculatedPercent = newPercent;
       _animation = Tween<double>(
         begin: _oldPercent,
-        end: widget.percent,
+        end: _calculatedPercent,
       ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
       _ctrl
         ..duration = widget.duration
@@ -191,7 +255,7 @@ class _AnimatedStackProgressBarState extends State<AnimatedStackProgressBar>
                           ? Colors.white
                           : Colors.black87;
                       return Text(
-                        '${(_animation.value * 100).round()}% Complete',
+                        _getLabelText(_animation.value),
                         style: percentTextStyle.copyWith(color: textColor),
                       );
                     },
@@ -199,7 +263,7 @@ class _AnimatedStackProgressBarState extends State<AnimatedStackProgressBar>
                 ),
               ),
 
-              // Percentage badge stacked on top-right of the bar
+              // // Percentage badge stacked on top-right of the bar
               // if (widget.showPercentageBadge)
               //   Positioned(
               //     right: 0,
@@ -207,7 +271,6 @@ class _AnimatedStackProgressBarState extends State<AnimatedStackProgressBar>
               //     child: AnimatedBuilder(
               //       animation: _animation,
               //       builder: (context, child) {
-              //         final percent = (_animation.value * 100).round();
               //         return Container(
               //           padding: const EdgeInsets.symmetric(
               //             horizontal: 10,
@@ -228,7 +291,7 @@ class _AnimatedStackProgressBarState extends State<AnimatedStackProgressBar>
               //             mainAxisSize: MainAxisSize.min,
               //             children: [
               //               Text(
-              //                 '$percent%',
+              //                 _getBadgeText(_animation.value),
               //                 style: TextStyle(
               //                   fontWeight: FontWeight.bold,
               //                   color: widget.fillColor,

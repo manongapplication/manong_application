@@ -32,7 +32,6 @@ class BottomNavSwipe extends StatefulWidget {
   final AppUser? user;
   final VoidCallback? onTapCompleteProfile;
   final bool? hasNoFeedback;
-  final ManongDailyLimit? manongDailyLimit;
   final BottomNavProvider? navProvider;
 
   const BottomNavSwipe({
@@ -52,7 +51,6 @@ class BottomNavSwipe extends StatefulWidget {
     this.user,
     this.onTapCompleteProfile,
     this.hasNoFeedback,
-    this.manongDailyLimit,
     this.navProvider,
   });
 
@@ -67,13 +65,11 @@ class _BottomNavSwipeState extends State<BottomNavSwipe> {
   int _commentCount = 0;
   String? _error;
   late bool? _hasNoFeedback;
-  ManongDailyLimit? _manongDailyLimit;
 
   @override
   void initState() {
     super.initState();
     _hasNoFeedback = widget.hasNoFeedback;
-    _manongDailyLimit = widget.manongDailyLimit;
   }
 
   @override
@@ -192,41 +188,6 @@ class _BottomNavSwipeState extends State<BottomNavSwipe> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildManongDailyLimitDraggableContainer() {
-    if (_manongDailyLimit == null) {
-      return const SizedBox.shrink();
-    }
-
-    return RoundedDraggableSheet(
-      initialChildSize: 0.15,
-      maxChildSize: 0.15,
-      minChildSize: 0,
-      snapSizes: [0.05, 0.15],
-      color: AppColorScheme.primaryLight,
-      children: [
-        Text(
-          _manongDailyLimit?.message ??
-              'Your daily limit reached! Come back again tomorrow!',
-        ),
-
-        AnimatedStackProgressBar(
-          percent:
-              (((_manongDailyLimit?.count ?? 0) /
-                          (_manongDailyLimit?.limit ?? 0)) *
-                      100)
-                  .clamp(0, 100)
-                  .toDouble(),
-          fillColor: AppColorScheme.primaryColor,
-          trackColor: AppColorScheme.primaryLight,
-          percentTextStyle: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: AppColorScheme.deepTeal,
-          ),
-        ),
-      ],
     );
   }
 
@@ -661,8 +622,6 @@ class _BottomNavSwipeState extends State<BottomNavSwipe> {
           _buildOngoingContainer(),
 
           _buildLeaveReviewDraggableContainer(),
-
-          _buildManongDailyLimitDraggableContainer(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(

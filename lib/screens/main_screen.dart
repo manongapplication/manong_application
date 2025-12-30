@@ -246,7 +246,6 @@ class _MainScreenState extends State<MainScreen> {
                   serviceRequestIsExpired: navProvider.serviceRequestIsExpired,
                   user: _user,
                   hasNoFeedback: navProvider.hasNoFeedback,
-                  manongDailyLimit: navProvider.manongDailyLimit,
                   onTapCompleteProfile: () async {
                     final result = await Navigator.pushNamed(
                       context, // Use current context

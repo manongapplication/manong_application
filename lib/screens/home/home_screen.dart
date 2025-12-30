@@ -11,6 +11,7 @@ import 'package:manong_application/api/service_item_api_service.dart';
 import 'package:manong_application/api/user_notification_api_service.dart';
 import 'package:manong_application/api/wordpress_post_api_service.dart';
 import 'package:manong_application/main.dart';
+import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/models/bookmark_item_type.dart';
 import 'package:manong_application/models/service_item.dart';
 import 'package:manong_application/models/wordpress_post.dart';
@@ -18,6 +19,7 @@ import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/color_utils.dart';
 import 'package:manong_application/utils/debouncer.dart';
 import 'package:manong_application/utils/permission_utils.dart';
+import 'package:manong_application/widgets/incomplete_profile_card.dart';
 import 'package:manong_application/widgets/instruction_steps.dart';
 import 'package:manong_application/widgets/manong_icon.dart';
 import 'package:manong_application/widgets/modal_icon_overlay.dart';
@@ -67,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // PERFORMANCE OPTIMIZATION: Cache for filtered results
   final Map<String, List<ServiceItem>> _filterCache = {};
+  AppUser? _profile;
 
   @override
   void initState() {
@@ -88,6 +91,40 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadToken();
     _getUnreadCount();
     _fetchWordpressPost();
+    _getProfile();
+  }
+
+  Future<void> _getProfile() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      final token = await AuthService().getNodeToken();
+
+      if (token == null || token.isEmpty) {
+        _debugLog('User is not logged in, skipping profile check');
+        return;
+      }
+
+      final response = await AuthService().getMyProfile();
+
+      if (mounted) {
+        setState(() {
+          _profile = response;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _error = 'Failed to load profile. Please try again.';
+        });
+      }
+      logger.severe('Error loading profile: $e');
+    }
   }
 
   Future<void> _batchCheckServiceBookmarks() async {
@@ -594,8 +631,26 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildNewsRoom() {
+  Widget _buildInstructionsRoom() {
     return InstructionSteps();
+  }
+
+  Widget _buildIncompleteProfileCard() {
+    if (_profile == null) return const SizedBox.shrink();
+    if (!(_profile!.firstName == null || _profile!.email == null)) {
+      return const SizedBox.shrink();
+    }
+    return IncompleteProfileCard(
+      onTap: () async {
+        final result = await Navigator.pushNamed(context, '/complete-profile');
+
+        if (result != null && result is Map) {
+          if (result['update'] == true) {
+            _getProfile();
+          }
+        }
+      },
+    );
   }
 
   Future<void> _fetchWordpressPost() async {
@@ -829,6 +884,7 @@ class _HomeScreenState extends State<HomeScreen> {
             SliverToBoxAdapter(
               child: Column(
                 children: [
+                  _buildIncompleteProfileCard(),
                   Container(
                     margin: const EdgeInsets.only(top: 12),
                     width: double.infinity,
@@ -869,7 +925,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     padding: const EdgeInsets.all(12),
-                    child: Column(children: [_buildNewsRoom()]),
+                    child: Column(children: [_buildInstructionsRoom()]),
                   ),
                 ],
               ),

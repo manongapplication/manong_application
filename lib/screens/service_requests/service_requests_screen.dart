@@ -21,10 +21,12 @@ import 'package:manong_application/utils/notification_utils.dart';
 import 'package:manong_application/utils/permission_utils.dart';
 import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/utils/status_utils.dart';
+import 'package:manong_application/widgets/animated_progress_bar.dart';
 import 'package:manong_application/widgets/app_bar_search.dart';
 import 'package:manong_application/widgets/empty_state_widget.dart';
 import 'package:manong_application/widgets/error_state_widget.dart';
 import 'package:manong_application/widgets/modal_icon_overlay.dart';
+import 'package:manong_application/widgets/rounded_draggable_sheet.dart';
 import 'package:manong_application/widgets/service_request_card.dart';
 import 'package:provider/provider.dart';
 import 'package:latlong2/latlong.dart' as latlong;
@@ -85,6 +87,7 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   bool _arrivalFetchInProgress = false;
   Manong? _currentManong;
   bool _isToggleLoading = false;
+  ManongDailyLimit? _manongDailyLimit;
 
   @override
   void initState() {
@@ -107,6 +110,38 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     _countUnseenPaymentTransactions();
   }
 
+  Widget _buildManongDailyLimitDraggableContainer() {
+    if (_isManong != true || _manongDailyLimit == null) {
+      return const SizedBox.shrink();
+    }
+
+    return RoundedDraggableSheet(
+      initialChildSize: 0.18,
+      maxChildSize: 0.18,
+      minChildSize: 0,
+      snapSizes: [0.05, 0.18],
+      color: AppColorScheme.primaryLight,
+      children: [
+        Text(
+          _manongDailyLimit?.message ??
+              'Your daily limit reached! Come back again tomorrow!',
+          textAlign: TextAlign.center,
+        ),
+
+        AnimatedStackProgressBar(
+          current: _manongDailyLimit?.count,
+          total: _manongDailyLimit?.limit,
+          fillColor: AppColorScheme.primaryColor,
+          trackColor: AppColorScheme.primaryLight,
+          percentTextStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColorScheme.deepTeal,
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _fetchDailyLimit() async {
     if (_isManong != true) return;
 
@@ -116,18 +151,26 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       if (response != null) {
         logger.info('_fetchDailyLimit $response');
         final data = response['data'];
-        if (data != true) {
+        if (data != null) {
           final ManongDailyLimit manongDailyLimit = ManongDailyLimit(
             isReached: true,
             message: data['message'],
             count: data['count'],
             limit: data['limit'],
           );
-          _navProvider.setManongDailyLimit(manongDailyLimit);
+
+          setState(() {
+            _manongDailyLimit = manongDailyLimit;
+          });
+        } else {
+          setState(() {
+            _manongDailyLimit = null;
+          });
         }
       }
     } catch (e) {
       logger.info('Error fetching daily limit ${e.toString()}');
+      _navProvider.unsetManongDailyLimit();
     }
   }
 
@@ -148,8 +191,9 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
 
           logger.info('_currentManong: $_currentManong');
         }
+
+        await _fetchDailyLimit();
       }
-      await _fetchDailyLimit();
     } catch (e) {
       logger.severe('Error fetching current manong: $e');
     }
@@ -406,17 +450,23 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   Widget _buildStatusRow() {
     return Container(
       color: AppColorScheme.primaryColor,
-      height: 48, // Set fixed height (was probably ~56-64 before)
+      height: 48,
+      width: double.infinity,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         physics: const AlwaysScrollableScrollPhysics(),
-        child: Row(
-          children: List.generate(
-            tabs.length,
-            (index) => _buildTopStatusChip(
-              title: tabs[index],
-              index: index,
-              active: _statusIndex == index,
+        child: Container(
+          constraints: BoxConstraints(
+            minWidth: MediaQuery.of(context).size.width,
+          ),
+          child: Row(
+            children: List.generate(
+              tabs.length,
+              (index) => _buildTopStatusChip(
+                title: tabs[index],
+                index: index,
+                active: _statusIndex == index,
+              ),
             ),
           ),
         ),
@@ -432,11 +482,13 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     return GestureDetector(
       onTap: () => _onStatusChanged(index),
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 16,
+        padding: EdgeInsets.symmetric(
+          horizontal: MediaQuery.of(context).size.width > 600
+              ? 24
+              : 16, // Adjust padding for tablets
           vertical: 12,
-        ), // Reduced vertical padding
-        height: 48, // Match parent height
+        ),
+        height: 48,
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
@@ -451,7 +503,9 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
             style: TextStyle(
               color: active ? Colors.white : Colors.white.withOpacity(0.7),
               fontWeight: active ? FontWeight.w600 : FontWeight.normal,
-              fontSize: 14,
+              fontSize: MediaQuery.of(context).size.width > 600
+                  ? 16
+                  : 14, // Adjust font size for tablets
             ),
           ),
         ),
@@ -555,6 +609,8 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       if (_isManong == true) {
         await Future.delayed(const Duration(milliseconds: 100));
         _fetchCurrentManong();
+      } else {
+        _navProvider.unsetManongDailyLimit();
       }
 
       final requests = response['data'] as List<dynamic>?;
@@ -1245,44 +1301,49 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         controller: _searchController,
         onChanged: _onSearchChanged,
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: Stack(
         children: [
-          _buildStatusRow(),
-          const SizedBox(height: 2),
-          _buildResultsInfo(filteredRequests.length),
-          _buildRatings(),
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.only(top: 0),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColorScheme.primaryColor,
-                        ),
-                      )
-                    : filteredRequests.isEmpty
-                    ? _buildEmptyState()
-                    : Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: _buildServiceRequestsList(filteredRequests),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildStatusRow(),
+              const SizedBox(height: 2),
+              _buildResultsInfo(filteredRequests.length),
+              _buildRatings(),
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 0),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: isLoading
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              color: AppColorScheme.primaryColor,
+                            ),
+                          )
+                        : filteredRequests.isEmpty
+                        ? _buildEmptyState()
+                        : Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: _buildServiceRequestsList(filteredRequests),
+                          ),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
+          _buildManongDailyLimitDraggableContainer(),
         ],
       ),
     );
