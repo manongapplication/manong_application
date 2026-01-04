@@ -450,25 +450,46 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     return Container(
       color: AppColorScheme.primaryColor,
       height: 48,
-      width: double.infinity,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Container(
-          constraints: BoxConstraints(
-            minWidth: MediaQuery.of(context).size.width,
-          ),
-          child: Row(
-            children: List.generate(
-              tabs.length,
-              (index) => _buildTopStatusChip(
-                title: tabs[index],
-                index: index,
-                active: _statusIndex == index,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.maxWidth;
+          final chipCount = tabs.length;
+          final chipWidth = 120.0; // Minimum width per chip
+
+          // Calculate if all chips can fit without scrolling
+          if (availableWidth >= chipCount * chipWidth) {
+            // Space them evenly across the row
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(
+                chipCount,
+                (index) => Expanded(
+                  child: _buildTopStatusChip(
+                    title: tabs[index],
+                    index: index,
+                    active: _statusIndex == index,
+                  ),
+                ),
               ),
-            ),
-          ),
-        ),
+            );
+          } else {
+            // Need horizontal scrolling
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Row(
+                children: List.generate(
+                  chipCount,
+                  (index) => _buildTopStatusChip(
+                    title: tabs[index],
+                    index: index,
+                    active: _statusIndex == index,
+                  ),
+                ),
+              ),
+            );
+          }
+        },
       ),
     );
   }
@@ -478,16 +499,20 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     required int index,
     required bool active,
   }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+
     return GestureDetector(
       onTap: () => _onStatusChanged(index),
       child: Container(
         padding: EdgeInsets.symmetric(
-          horizontal: MediaQuery.of(context).size.width > 600
-              ? 24
-              : 16, // Adjust padding for tablets
+          horizontal: isTablet ? 8 : 16,
           vertical: 12,
         ),
         height: 48,
+        constraints: BoxConstraints(
+          minWidth: isTablet ? 120 : 100, // Adjust minimum width for tablets
+        ),
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
@@ -499,12 +524,13 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         child: Center(
           child: Text(
             title,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: active ? Colors.white : Colors.white.withOpacity(0.7),
               fontWeight: active ? FontWeight.w600 : FontWeight.normal,
-              fontSize: MediaQuery.of(context).size.width > 600
-                  ? 16
-                  : 14, // Adjust font size for tablets
+              fontSize: isTablet ? 15 : 14,
             ),
           ),
         ),
