@@ -49,6 +49,7 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
   bool _isChatExpired = false;
   bool _isChatCancelled = false;
   bool _hasLoadedHistory = false; // Track if history has been loaded
+  final int _maxImages = 3;
 
   @override
   void initState() {
@@ -549,8 +550,20 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
     );
   }
 
-  Future<void> _pickImage() async {
-    // Prevent picking images if chat is ended
+  Future<File?> _compressImage(XFile xfile) async {
+    final compressedFile = await FlutterImageCompress.compressAndGetFile(
+      xfile.path,
+      '${xfile.path}_compressed.jpg',
+      minWidth: 1024,
+      minHeight: 1024,
+      quality: 60,
+    );
+
+    if (compressedFile == null) return null;
+    return File(compressedFile.path);
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
     if (!_canSendMessages) {
       SnackBarUtils.showWarning(
         navigatorKey.currentContext!,
@@ -561,41 +574,65 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
       return;
     }
 
-    final picker = ImagePicker();
-    final List<XFile>? images = await picker.pickMultiImage(
-      requestFullMetadata: false,
-    );
+    final ImagePicker picker = ImagePicker();
 
-    if (images == null || images.isEmpty) return;
-
-    if (images.length > 3) {
-      SnackBarUtils.showWarning(
-        navigatorKey.currentContext!,
-        'You can upload a maximum of 3 images',
-      );
-      return;
-    }
-
-    List<File> compressedImages = [];
-
-    for (var xfile in images) {
+    // Helper function for compression
+    Future<File?> _compressImage(XFile xfile) async {
       final compressedFile = await FlutterImageCompress.compressAndGetFile(
         xfile.path,
         '${xfile.path}_compressed.jpg',
-        minWidth: 1024, // maximum width
-        minHeight: 1024, // maximum height
+        minWidth: 1024,
+        minHeight: 1024,
         quality: 60,
       );
-
-      if (compressedFile != null) {
-        // Convert XFile to File
-        compressedImages.add(File(compressedFile.path));
-      }
+      return compressedFile != null ? File(compressedFile.path) : null;
     }
 
-    setState(() {
-      _images = compressedImages;
-    });
+    if (source == ImageSource.gallery) {
+      final List<XFile>? images = await picker.pickMultiImage(
+        requestFullMetadata: false,
+      );
+
+      if (images == null || images.isEmpty) return;
+
+      // Check combined total
+      if ((_images.length + images.length) > _maxImages) {
+        SnackBarUtils.showWarning(
+          navigatorKey.currentContext!,
+          'You can upload a maximum of 5 images',
+        );
+        return;
+      }
+
+      final List<File> compressedImages = [];
+      for (final xfile in images) {
+        final file = await _compressImage(xfile);
+        if (file != null) compressedImages.add(file);
+      }
+
+      setState(() {
+        _images.addAll(compressedImages);
+      });
+    } else {
+      final XFile? pickedFile = await picker.pickImage(source: source);
+      if (pickedFile == null) return;
+
+      // Check max images
+      if (_images.length >= 3) {
+        SnackBarUtils.showWarning(
+          navigatorKey.currentContext!,
+          'You can upload a maximum of 3 images',
+        );
+        return;
+      }
+
+      final File? compressed = await _compressImage(pickedFile);
+      if (compressed == null) return;
+
+      setState(() {
+        _images.add(compressed);
+      });
+    }
   }
 
   void _showImageDialog(File image, BuildContext context) {
@@ -642,55 +679,96 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Column(
                 children: [
-                  if (_images.isNotEmpty)
+                  if (_images.isNotEmpty) ...[
                     SizedBox(
-                      height: 100,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _images.length,
-                        itemBuilder: (context, index) {
-                          final img = _images[index];
-                          return Stack(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.all(4),
-                                child: InkWell(
-                                  onTap: () => _showImageDialog(
-                                    img,
-                                    navigatorKey.currentContext!,
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.file(
-                                      img,
-                                      width: 100,
-                                      height: 100,
-                                      fit: BoxFit.cover,
+                      height: 110,
+                      child: Row(
+                        children: [
+                          // Image previews
+                          Expanded(
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: _images.length,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              itemBuilder: (context, index) {
+                                final img = _images[index];
+                                return Stack(
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.all(4),
+                                      child: InkWell(
+                                        onTap: () => _showImageDialog(
+                                          img,
+                                          navigatorKey.currentContext!,
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          child: Image.file(
+                                            img,
+                                            width: 100,
+                                            height: 100,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
+                                    // Close button
+                                    Positioned(
+                                      top: 4,
+                                      right: 4,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.black54,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _images.remove(img);
+                                            });
+                                          },
+                                          child: const Icon(
+                                            Icons.close,
+                                            size: 20,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+
+                          // Image count
+                          Container(
+                            margin: const EdgeInsets.only(left: 8, right: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black26,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${_images.length}/$_maxImages',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
                               ),
-                              Positioned(
-                                top: 4,
-                                right: 8,
-                                child: GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _images.remove(img);
-                                    });
-                                  },
-                                  child: Icon(
-                                    Icons.close,
-                                    size: 24,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+                  ],
+
                   Row(
                     children: [
                       Expanded(
@@ -704,9 +782,29 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
                             keyboardType: TextInputType.multiline,
                             decoration: inputDecoration(
                               'Send a message...',
-                              suffixIcon: InkWell(
-                                onTap: _pickImage,
-                                child: Icon(Icons.image),
+                              suffixIcon: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  InkWell(
+                                    onTap: () => _pickImage(ImageSource.camera),
+                                    child: const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                      ),
+                                      child: Icon(Icons.camera_alt),
+                                    ),
+                                  ),
+                                  InkWell(
+                                    onTap: () =>
+                                        _pickImage(ImageSource.gallery),
+                                    child: const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                      ),
+                                      child: Icon(Icons.image),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                             textCapitalization: TextCapitalization.sentences,

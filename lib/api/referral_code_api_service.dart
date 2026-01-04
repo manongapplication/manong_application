@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:logging/logging.dart';
 import 'package:http/http.dart' as http;
-import 'package:manong_application/services/notification_service/device_id_service.dart';
+import 'package:manong_application/services/device_id_service.dart';
 
 class ReferralCodeApiService {
   final Logger logger = Logger('ReferralCodeApiService');

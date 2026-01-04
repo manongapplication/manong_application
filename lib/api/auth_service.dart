@@ -9,7 +9,7 @@ import 'package:manong_application/api/firebase_api_token.dart';
 import 'package:manong_application/models/address_category.dart';
 import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/models/valid_id_type.dart';
-import 'package:manong_application/services/notification_service/device_id_service.dart';
+import 'package:manong_application/services/device_id_service.dart';
 
 class AuthService {
   final storage = FlutterSecureStorage();

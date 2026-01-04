@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
-import 'package:manong_application/api/app_version_api_service.dart';
 import 'package:manong_application/api/tracking_api_service.dart';
 import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/models/service_request_status.dart';
@@ -8,13 +7,11 @@ import 'package:manong_application/providers/bottom_nav_provider.dart';
 import 'package:manong_application/screens/home/home_screen.dart';
 import 'package:manong_application/screens/profile/profile_screen.dart';
 import 'package:manong_application/screens/service_requests/service_requests_screen.dart';
-import 'package:manong_application/services/notification_service/update_checker.dart';
+import 'package:manong_application/services/update_checker.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/widgets/auth_footer.dart';
 import 'package:manong_application/widgets/bottom_nav_swipe.dart';
-import 'package:manong_application/widgets/version_update_dialog.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 class MainScreen extends StatefulWidget {

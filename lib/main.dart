@@ -10,11 +10,8 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:logging/logging.dart';
-import 'package:manong_application/api/app_maintenance_api_service.dart';
-import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/api/firebase_api_token.dart';
 import 'package:manong_application/api/socket_api_service.dart';
-import 'package:manong_application/models/app_maintenance.dart';
 import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/providers/app_maintenance_provider.dart';
@@ -46,7 +43,7 @@ import 'package:manong_application/screens/service_requests/chat_manong_screen.d
 import 'package:manong_application/screens/service_requests/route_tracking_screen.dart';
 import 'package:manong_application/screens/service_requests/service_requests_details_screen.dart';
 import 'package:manong_application/screens/service_requests/transaction_screen.dart';
-import 'package:manong_application/services/notification_service/notification_service.dart';
+import 'package:manong_application/services/notification_service.dart';
 import 'package:manong_application/utils/onboarding_storage.dart';
 import 'package:manong_application/utils/permission_utils.dart';
 import 'package:manong_application/widgets/authenticated_screen.dart';
@@ -238,8 +235,15 @@ void _navigateFromNotification(Map<String, dynamic> data) {
       arguments: {'serviceRequestId': int.tryParse(data['serviceRequestId'])},
     );
   } else if (data['type'] == 'chat') {
-    // Navigate to chat
-    // Add your chat navigation logic here
+    if (data['serviceRequestIdForChat'] != null) {
+      navigatorKey.currentState?.pushNamed(
+        '/service-request-details',
+        arguments: {
+          'serviceRequestId': int.tryParse(data['serviceRequestIdForChat']),
+          'goToChat': true,
+        },
+      );
+    }
   }
   // Add more navigation cases as needed
 }
@@ -424,6 +428,9 @@ class MyApp extends StatelessWidget {
                 serviceRequest: args?['serviceRequest'] as ServiceRequest?,
                 isManong: args?['isManong'] != null
                     ? args!['isManong'] as bool
+                    : null,
+                goToChat: args?['goToChat'] != null
+                    ? args!['goToChat'] as bool
                     : null,
               ),
             );

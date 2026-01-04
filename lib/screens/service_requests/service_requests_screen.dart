@@ -149,7 +149,6 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       final response = await ManongApiService().checkDailyLimit();
 
       if (response != null) {
-        logger.info('_fetchDailyLimit $response');
         final data = response['data'];
         if (data != null) {
           final ManongDailyLimit manongDailyLimit = ManongDailyLimit(

@@ -12,7 +12,6 @@ import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/manong_report.dart';
 import 'package:manong_application/models/payment_status.dart';
 import 'package:manong_application/models/refund_request.dart';
-import 'package:manong_application/models/refund_status.dart';
 import 'package:manong_application/models/service_request_status.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/models/service_settings.dart';
@@ -33,20 +32,20 @@ import 'package:manong_application/widgets/detailed_manong_report_card.dart';
 import 'package:manong_application/widgets/disclaimer_dialog.dart';
 import 'package:manong_application/widgets/error_state_widget.dart';
 import 'package:manong_application/widgets/label_value_row.dart';
-import 'package:manong_application/widgets/manong_report_dialog.dart';
 import 'package:manong_application/widgets/price_tag.dart';
 import 'package:manong_application/widgets/refund_dialog.dart';
-import 'package:manong_application/widgets/transaction_card.dart';
 import 'package:manong_application/widgets/transaction_list.dart';
 
 class ServiceRequestsDetailsScreen extends StatefulWidget {
   final ServiceRequest? serviceRequest;
   final bool? isManong;
+  final bool? goToChat;
 
   const ServiceRequestsDetailsScreen({
     super.key,
     this.serviceRequest,
     this.isManong,
+    this.goToChat,
   });
 
   @override
@@ -59,6 +58,7 @@ class _ServiceRequestsDetailsScreenState
   final Logger logger = Logger('ServiceRequestsDetailsScreen');
   final _trackingApiService = TrackingApiService();
   late bool? _isManong;
+  late bool? _goToChat;
   final distance = latlong.Distance();
   final storage = FlutterSecureStorage();
   bool checked = false;
@@ -76,13 +76,21 @@ class _ServiceRequestsDetailsScreenState
   void initState() {
     super.initState();
     _initializeComponents();
-    _fetchServiceRequest();
+    _fetchServiceRequest().then((_) {
+      if (_goToChat == true && _serviceRequest != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _goToChatFunction();
+        });
+      }
+    });
+
     _getTrackingStream();
     _fetchServiceSettings();
   }
 
   void _initializeComponents() {
     _isManong = widget.isManong;
+    _goToChat = widget.goToChat;
   }
 
   Future<void> _fetchServiceRequest() async {
@@ -1936,12 +1944,15 @@ class _ServiceRequestsDetailsScreenState
     return _buildStack(meters);
   }
 
-  void _goToChat() {
-    Navigator.pushNamed(
-      navigatorKey.currentContext!,
-      '/chat-manong',
-      arguments: {'serviceRequest': _serviceRequest},
-    );
+  void _goToChatFunction() {
+    if (_serviceRequest == null) {
+      logger.warning('Service request is null, cannot navigate to chat');
+      return;
+    }
+
+    Navigator.of(
+      context,
+    ).pushNamed('/chat-manong', arguments: {'serviceRequest': _serviceRequest});
   }
 
   void _startServiceRequest(ServiceRequest serviceRequest) async {
@@ -2062,7 +2073,7 @@ class _ServiceRequestsDetailsScreenState
       child: Scaffold(
         body: meters != null ? _buildState(meters) : null,
         floatingActionButton: FloatingActionButton(
-          onPressed: _goToChat,
+          onPressed: _goToChatFunction,
           tooltip: 'Message Manong',
           backgroundColor: AppColorScheme.primaryLight,
           child: Icon(Icons.message, color: AppColorScheme.primaryDark),
