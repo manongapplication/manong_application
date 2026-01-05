@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/auth_service.dart';
+import 'package:manong_application/api/user_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/widgets/card_container_2.dart';
+import 'package:manong_application/widgets/input_decorations.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
 
 final Logger logger = Logger('edit_profile');
@@ -28,6 +30,7 @@ class _EditProfileState extends State<EditProfile> {
   TextEditingController firstNameController = TextEditingController();
   TextEditingController lastNameController = TextEditingController();
   TextEditingController emailController = TextEditingController();
+  bool _isChangingPassword = false;
 
   @override
   void initState() {
@@ -161,58 +164,357 @@ class _EditProfileState extends State<EditProfile> {
     );
   }
 
-  void _forgotPassword() async {
-    if (!mounted) return;
+  void _changePassword() async {
+    if (_isChangingPassword) return;
 
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    setState(() => _isChangingPassword = true);
 
     if (profile?.phone == null) {
-      setState(() => _isLoading = false);
+      setState(() => _isChangingPassword = false);
       SnackBarUtils.showWarning(context, 'Phone number cannot be empty');
       return;
     }
 
     try {
-      await authService?.sendVerificationTwilio(profile?.phone ?? '');
-
-      if (!mounted) return;
-
-      SnackBarUtils.showInfo(
+      await Navigator.pushNamed(
         context,
-        'We\'ve sent a 6-digit code to your phone. Enter it below to verify your number.',
+        '/change-password',
+        arguments: {'phone': profile?.phone},
       );
+    } finally {
+      if (mounted) setState(() => _isChangingPassword = false);
+      _getProfile();
+    }
+  }
 
-      Navigator.pushNamed(
-        context,
-        '/verify',
-        arguments: {
-          'authService': authService,
-          'phoneNumber': profile?.phone,
-          'isPasswordReset': true,
+  void _deleteAccount() async {
+    // First confirmation dialog
+    bool confirm = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text('Delete Account'),
+        content: const Text(
+          'Are you sure you want to delete your account? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColorScheme.primaryColor),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      // Password confirmation dialog
+      final passwordController = TextEditingController();
+      bool obscurePassword = true;
+
+      final passwordConfirmed = await showDialog(
+        context: navigatorKey.currentContext!,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return AlertDialog(
+                backgroundColor: Colors.white,
+                title: const Text('Confirm Password'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Please enter your password to confirm account deletion.',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Text(
+                        '⚠️ Warning: This will permanently delete ALL your data, conversations, and history.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.red.shade700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: passwordController,
+                      obscureText: obscurePassword,
+                      decoration: inputDecoration(
+                        'Password',
+                        labelText: 'Password',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              obscurePassword = !obscurePassword;
+                            });
+                          },
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Password is required';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(color: AppColorScheme.primaryColor),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      if (passwordController.text.isNotEmpty) {
+                        Navigator.pop(context, true);
+                      }
+                    },
+                    child: const Text(
+                      'Confirm',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
         },
       );
-    } catch (e) {
-      if (!mounted) return;
 
-      final errorMessage = e.toString().contains('blocked')
-          ? 'This number prefix is temporarily blocked. Please try a different number.'
-          : 'Failed to send code: $e';
+      if (passwordConfirmed == true) {
+        // Show loading indicator
+        showDialog(
+          context: navigatorKey.currentContext!,
+          barrierDismissible: false,
+          builder: (context) =>
+              const Center(child: CircularProgressIndicator()),
+        );
 
-      SnackBarUtils.showError(context, errorMessage);
+        try {
+          // Call your API to delete account
+          final response = await UserApiService().deleteUserdata(
+            passwordController.text,
+          );
 
-      setState(() {
-        _error = errorMessage;
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+          Navigator.pop(navigatorKey.currentContext!);
+
+          if (response != null) {
+            if (response['success'] == true) {
+              // Show success message and navigate
+              if (mounted) {
+                SnackBarUtils.showSuccess(
+                  navigatorKey.currentContext!,
+                  response['message'] ?? 'Account deleted successfully',
+                );
+
+                Navigator.of(
+                  navigatorKey.currentContext!,
+                ).pushNamedAndRemoveUntil('/', (Route<dynamic> route) => false);
+              }
+            } else {
+              SnackBarUtils.showWarning(
+                navigatorKey.currentContext!,
+                response['message'] ?? 'Account deleted successfully',
+              );
+            }
+          } else {
+            if (mounted) {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Error'),
+                  content: const Text(
+                    'Failed to delete account. Please try again.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          Navigator.pop(navigatorKey.currentContext!);
+
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Error'),
+                content: Text('An error occurred: ${e.toString()}'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
+        }
       }
     }
+  }
+
+  List<Widget> _buildDeleteAccountArea() {
+    return [
+      Container(
+        decoration: BoxDecoration(
+          color: Colors.red.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red.shade300, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.red.shade100.withOpacity(0.3),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: _deleteAccount,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade100,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.delete_forever,
+                      color: Colors.red.shade800,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Delete Account',
+                          style: TextStyle(
+                            color: Colors.red.shade800,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Permanently delete your account and all data',
+                          style: TextStyle(
+                            color: Colors.red.shade600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: Colors.red.shade600),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+
+      const SizedBox(height: 12),
+
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Text(
+          '⚠️ This action cannot be undone. All your conversations, history, and settings will be permanently deleted.',
+          style: TextStyle(
+            color: Colors.red.shade700,
+            fontSize: 11,
+            fontStyle: FontStyle.italic,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    ];
+  }
+
+  Widget _buildChangePasswordButton() {
+    return GestureDetector(
+      onTap: _isChangingPassword ? null : _changePassword,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: AppColorScheme.primaryColor.withOpacity(0.3),
+          ),
+        ),
+        child: Row(
+          children: [
+            _isChangingPassword
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColorScheme.primaryColor,
+                    ),
+                  )
+                : Icon(
+                    Icons.lock_reset,
+                    color: AppColorScheme.primaryColor,
+                    size: 20,
+                  ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _isChangingPassword ? 'Changing...' : 'Change Password',
+                style: TextStyle(
+                  color: AppColorScheme.primaryColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            if (!_isChangingPassword)
+              Icon(
+                Icons.chevron_right,
+                color: AppColorScheme.primaryColor.withOpacity(0.7),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildProfileEdit() {
@@ -221,35 +523,18 @@ class _EditProfileState extends State<EditProfile> {
         _buildTextFields(title: 'First Name', controller: firstNameController),
         _buildTextFields(title: 'Last Name', controller: lastNameController),
         const SizedBox(height: 14),
-        GestureDetector(
-          onTap: _forgotPassword,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.lock_reset,
-                  color: AppColorScheme.primaryColor,
-                  size: 18,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Change Password',
-                  style: TextStyle(
-                    color: AppColorScheme.primaryColor,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+
+        _buildChangePasswordButton(),
+
+        const SizedBox(height: 32),
+
+        Divider(color: Colors.red.shade300),
+
+        const SizedBox(height: 24),
+
+        ..._buildDeleteAccountArea(),
+
+        const SizedBox(height: 14),
 
         // _buildTextFields(title: 'Email', controller: emailController),
       ],
@@ -430,7 +715,10 @@ class _EditProfileState extends State<EditProfile> {
                   )
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [_buildProfileHeader(), _buildProfileEdit()],
+                    children: [
+                      _buildProfileHeader(),
+                      SafeArea(child: _buildProfileEdit()),
+                    ],
                   ),
           ),
         ),

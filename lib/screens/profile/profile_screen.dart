@@ -146,7 +146,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildActionTile(
               icon: Icons.edit,
               title: 'Edit Profile',
-              subtitle: 'Update your personal information',
+              subtitle: 'Edit your profile or permanently delete your account',
               onTap: () {
                 Navigator.pushNamed(context, '/edit-profile').then((_) {
                   _getProfile();

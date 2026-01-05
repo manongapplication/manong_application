@@ -17,6 +17,7 @@ import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/providers/app_maintenance_provider.dart';
 import 'package:manong_application/providers/bottom_nav_provider.dart';
 import 'package:manong_application/screens/app_maintenance_screen.dart';
+import 'package:manong_application/screens/auth/change_password_screen.dart';
 import 'package:manong_application/screens/auth/create_password_Screen.dart';
 import 'package:manong_application/screens/auth/enter_password_screen.dart';
 import 'package:manong_application/screens/auth/password_reset.dart';
@@ -325,6 +326,11 @@ class MyApp extends StatelessWidget {
             final args = settings.arguments as Map<String, dynamic>?;
             return MaterialPageRoute(
               builder: (_) => EnterPasswordScreen(phone: args?['phone']),
+            );
+          case '/change-password':
+            final args = settings.arguments as Map<String, dynamic>?;
+            return MaterialPageRoute(
+              builder: (_) => ChangePasswordScreen(phone: args?['phone']),
             );
           case '/verify':
             final args = settings.arguments as Map<String, dynamic>?;
