@@ -448,7 +448,7 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Text(
+                          child: SelectableText(
                             item.content,
                             style: TextStyle(
                               color: Colors.grey[700],
@@ -485,7 +485,7 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        SelectableText(
                           item.content,
                           style: TextStyle(
                             color: isMe ? Colors.white : Colors.black,
@@ -531,7 +531,7 @@ class _ChatManongScreenState extends State<ChatManongScreen> {
                         ],
 
                         // Use localTime instead of item.createdAt
-                        Text(
+                        SelectableText(
                           DateFormat.jm().format(localTime), // Changed here
                           style: TextStyle(
                             fontSize: 10,

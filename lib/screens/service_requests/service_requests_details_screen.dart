@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -380,7 +381,7 @@ class _ServiceRequestsDetailsScreenState
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_serviceRequest?.user?.firstName ?? ''),
+                  SelectableText(_serviceRequest?.user?.firstName ?? ''),
                   _buildStarRatings(),
                   if (_serviceRequest?.feedback?.comment != null) ...[
                     Padding(
@@ -388,7 +389,9 @@ class _ServiceRequestsDetailsScreenState
                         horizontal: 8,
                         vertical: 4,
                       ),
-                      child: Text(_serviceRequest?.feedback?.comment ?? ''),
+                      child: SelectableText(
+                        _serviceRequest?.feedback?.comment ?? '',
+                      ),
                     ),
                   ],
                 ],
@@ -441,6 +444,19 @@ class _ServiceRequestsDetailsScreenState
     }
   }
 
+  void _copyToClipboard(String? text) {
+    final value = text ?? 'N/A';
+    if (value.isNotEmpty && value != 'N/A') {
+      Clipboard.setData(ClipboardData(text: value));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Copied: $value'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   Widget _buildUserDetails(double meters) {
     if (_serviceRequest!.user == null || _serviceRequest == null) {
       return const SizedBox.shrink();
@@ -477,25 +493,41 @@ class _ServiceRequestsDetailsScreenState
           ),
         ],
         const SizedBox(height: 12),
-        Text(
-          "Request Number",
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+        Row(
+          children: [
+            Text(
+              "Request Number",
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => _copyToClipboard(_serviceRequest?.requestNumber),
+              child: Icon(
+                Icons.content_copy,
+                size: 16,
+                color: AppColorScheme.primaryColor,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColorScheme.primaryLight,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColorScheme.primaryColor),
-          ),
-          child: Text(
-            _serviceRequest?.requestNumber ?? 'N/A',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColorScheme.primaryDark,
-              letterSpacing: 0.5,
+        GestureDetector(
+          onTap: () => _copyToClipboard(_serviceRequest?.requestNumber),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColorScheme.primaryLight,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColorScheme.primaryColor),
+            ),
+            child: SelectableText(
+              _serviceRequest?.requestNumber ?? 'N/A',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColorScheme.primaryDark,
+                letterSpacing: 0.5,
+              ),
             ),
           ),
         ),
@@ -510,7 +542,7 @@ class _ServiceRequestsDetailsScreenState
 
           Row(
             children: [
-              Text(
+              SelectableText(
                 '${_serviceRequest!.user?.firstName} ${_serviceRequest!.user?.lastName}',
                 style: TextStyle(fontSize: 18, color: Colors.black),
               ),
@@ -528,7 +560,7 @@ class _ServiceRequestsDetailsScreenState
 
           Row(
             children: [
-              Text(
+              SelectableText(
                 '${_serviceRequest!.user?.nickname}',
                 style: TextStyle(fontSize: 18, color: Colors.black),
               ),
@@ -545,7 +577,7 @@ class _ServiceRequestsDetailsScreenState
 
         Row(
           children: [
-            Text(
+            SelectableText(
               _serviceRequest!.user?.phone ?? "",
               style: TextStyle(fontSize: 18, color: Colors.black),
             ),
@@ -696,13 +728,14 @@ class _ServiceRequestsDetailsScreenState
               color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(_serviceRequest?.serviceDetails ?? ''),
+            child: SelectableText(_serviceRequest?.serviceDetails ?? ''),
           ),
         ],
         const SizedBox(height: 8),
 
         // -- Notes
-        if (_serviceRequest?.notes != null) ...[
+        if (_serviceRequest?.notes != null &&
+            (_serviceRequest?.notes ?? '').trim().isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(
             'Notes',
@@ -715,7 +748,7 @@ class _ServiceRequestsDetailsScreenState
               color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(_serviceRequest!.notes ?? ''),
+            child: SelectableText(_serviceRequest!.notes ?? ''),
           ),
         ],
 
@@ -2069,14 +2102,17 @@ class _ServiceRequestsDetailsScreenState
       endLng: _trackingApiService.manongLatLngNotifier.value?.longitude ?? 0,
     );
 
-    return Material(
-      child: Scaffold(
-        body: meters != null ? _buildState(meters) : null,
-        floatingActionButton: FloatingActionButton(
-          onPressed: _goToChatFunction,
-          tooltip: 'Message Manong',
-          backgroundColor: AppColorScheme.primaryLight,
-          child: Icon(Icons.message, color: AppColorScheme.primaryDark),
+    return GestureDetector(
+      onTap: () => FocusScope.of(navigatorKey.currentContext!).unfocus(),
+      child: Material(
+        child: Scaffold(
+          body: meters != null ? _buildState(meters) : null,
+          floatingActionButton: FloatingActionButton(
+            onPressed: _goToChatFunction,
+            tooltip: 'Message Manong',
+            backgroundColor: AppColorScheme.primaryLight,
+            child: Icon(Icons.message, color: AppColorScheme.primaryDark),
+          ),
         ),
       ),
     );

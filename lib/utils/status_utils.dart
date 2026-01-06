@@ -96,3 +96,17 @@ int? getTabIndex(dynamic status) {
   }
   return null;
 }
+
+String getStatusesForTab(String tab) {
+  final statuses = tabStatuses[tab];
+  if (statuses == null) return '';
+
+  return statuses
+      .map((status) {
+        if (status is ServiceRequestStatus) return status.value;
+        if (status is PaymentStatus) return status.value;
+        return '';
+      })
+      .where((s) => s.isNotEmpty)
+      .join(',');
+}

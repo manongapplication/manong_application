@@ -393,7 +393,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: myAppBar(title: 'Account'),
+      appBar: myAppBar(leading: Icon(Icons.person), title: 'Account'),
       backgroundColor: AppColorScheme.backgroundGrey,
       body: RefreshIndicator(
         onRefresh: _getProfile,

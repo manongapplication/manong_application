@@ -422,13 +422,43 @@ class _TransactionScreenState extends State<TransactionScreen> {
   Widget _buildResultsCount() {
     return Padding(
       padding: const EdgeInsets.only(right: 4),
-      child: Text(
-        '(${_filteredTransactions.length} ${_filteredTransactions.length == 1 ? 'result' : 'results'})',
-        style: TextStyle(
-          fontSize: 12,
-          color: Colors.grey.shade600,
-          fontWeight: FontWeight.w500,
-        ),
+      child: Row(
+        children: [
+          Text(
+            '${_filteredTransactions.length} ${_filteredTransactions.length == 1 ? 'result' : 'results'}',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          // Show "+" if more available but not loading
+          if (_hasMore && !_isLoadingMore && _filteredTransactions.length > 0)
+            Padding(
+              padding: const EdgeInsets.only(left: 2),
+              child: Text(
+                '+',
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          // Show loading spinner when loading more
+          if (_isLoadingMore)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColorScheme.primaryColor,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -505,14 +535,29 @@ class _TransactionScreenState extends State<TransactionScreen> {
       child: ListView.builder(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _filteredTransactions.length + (_isLoadingMore ? 1 : 0),
+        itemCount: _filteredTransactions.length + (_hasMore ? 1 : 0),
         itemBuilder: (context, index) {
+          // Loading indicator at the bottom
           if (index >= _filteredTransactions.length) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: CircularProgressIndicator(
-                  color: AppColorScheme.primaryColor,
+            return Container(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: Column(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColorScheme.primaryColor,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Loading more...',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ],
                 ),
               ),
             );

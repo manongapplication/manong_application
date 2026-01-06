@@ -89,10 +89,15 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   bool _isToggleLoading = false;
   ManongDailyLimit? _manongDailyLimit;
 
+  final ScrollController _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
     _initializeComponents();
+
+    _fetchInitialStatus();
+
     _fetchServiceRequests();
     _getOngoingServiceRequest().then((_) => _setManongLatLng());
 
@@ -110,6 +115,12 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     _countUnseenPaymentTransactions();
   }
 
+  void _fetchInitialStatus() {
+    final initialTab = tabs[_statusIndex];
+    final initialStatuses = getStatusesForTab(initialTab);
+    _fetchServiceRequests(status: initialStatuses);
+  }
+
   Widget _buildManongDailyLimitDraggableContainer() {
     if (_isManong != true || _manongDailyLimit == null) {
       return const SizedBox.shrink();
@@ -120,7 +131,7 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       maxChildSize: 0.18,
       minChildSize: 0,
       snapSizes: [0.05, 0.18],
-      color: AppColorScheme.primaryLight,
+      color: Color.fromARGB(255, 216, 229, 231).withOpacity(0.8),
       children: [
         Text(
           _manongDailyLimit?.message ??
@@ -420,6 +431,16 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       setState(() {
         _statusIndex = index;
       });
+
+      final tab = tabs[index];
+      final statuses = getStatusesForTab(
+        tab,
+      ); // e.g., "awaitingAcceptance,accepted,refunding,paid"
+
+      _currentPage = 1;
+      _hasMore = true;
+
+      _fetchServiceRequests(status: statuses);
     }
   }
 
@@ -539,51 +560,89 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   }
 
   void _setupScrollListener() {
-    _itemPositionsListener.itemPositions.addListener(() {
-      // Find the last visible item index
-      final positions = _itemPositionsListener.itemPositions.value;
-      if (positions.isNotEmpty) {
-        final maxIndex = positions
-            .map((p) => p.index)
-            .reduce((a, b) => a > b ? a : b);
+    _scrollController.addListener(() {
+      // Get current scroll position and max scroll
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      final currentScroll = _scrollController.position.pixels;
 
-        // If the user scrolled close to the end
-        if (maxIndex >= _getFilteredRequests().length - 3 &&
+      // Calculate how close we are to the bottom (80% threshold)
+      if (maxScroll > 0) {
+        final scrollPercentage = currentScroll / maxScroll;
+
+        // Load more when we're 80% scrolled down
+        if (scrollPercentage > 0.8 &&
             !_isLoadingMore &&
-            _hasMore) {
-          _fetchMoreServiceRequests();
+            _hasMore &&
+            _getFilteredRequests().isNotEmpty) {
+          logger.info('''
+=== SCROLL LISTENER ===
+Scroll percentage: ${(scrollPercentage * 100).toStringAsFixed(1)}%
+Max scroll: $maxScroll
+Current: $currentScroll
+Filtered requests: ${_getFilteredRequests().length}
+Has more: $_hasMore
+Is loading: $_isLoadingMore
+=== END ===
+''');
+
+          if (!_isLoadingMore && _hasMore) {
+            logger.info('Auto-load triggered - 80% scrolled!');
+            _fetchMoreServiceRequests();
+          }
         }
       }
     });
   }
 
   Future<void> _fetchMoreServiceRequests() async {
-    if (_isLoadingMore || !_hasMore) return; // lock to prevent multiple calls
+    if (_isLoadingMore || !_hasMore) return;
 
     setState(() => _isLoadingMore = true);
 
     try {
+      logger.info('Fetching more service requests, page: $_currentPage');
+
+      final tab = tabs[_statusIndex];
+      final statuses = getStatusesForTab(tab);
+
       final response = await _serviceRequestApiService.fetchServiceRequests(
         page: _currentPage,
         limit: _limit,
+        status: statuses,
       );
 
-      logger.info('_fetchMoreServiceRequests $response');
+      logger.info('_fetchMoreServiceRequests response: $response');
 
       if (response == null) {
         setState(() => _hasMore = false);
         return;
       }
 
-      final requests = (response as List<dynamic>)
+      final responseData = response['data'] as List<dynamic>?;
+
+      if (responseData == null || responseData.isEmpty) {
+        setState(() => _hasMore = false);
+        return;
+      }
+
+      final requests = responseData
           .map((json) => ServiceRequest.fromJson(json as Map<String, dynamic>))
           .toList();
+
+      logger.info('Loaded ${requests.length} more requests');
 
       setState(() {
         _serviceRequest.addAll(requests);
         _currentPage++;
         _isLoadingMore = false;
-        if (requests.length < _limit) _hasMore = false;
+
+        // Check if we should load more
+        if (requests.length < _limit) {
+          _hasMore = false;
+          logger.info(
+            'No more pages available (received ${requests.length} < $_limit)',
+          );
+        }
       });
     } catch (e) {
       logger.severe('Error fetching more service requests $e');
@@ -591,7 +650,10 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     }
   }
 
-  Future<void> _fetchServiceRequests({bool loadMore = false}) async {
+  Future<void> _fetchServiceRequests({
+    bool loadMore = false,
+    String? status,
+  }) async {
     if (!mounted || (!_hasMore && loadMore)) return;
 
     try {
@@ -603,8 +665,9 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         setState(() {
           isLoading = true;
           _error = null;
-          _currentPage = 1;
+          _currentPage = 1; // **ADDED: Reset to page 1**
           _hasMore = true;
+          _serviceRequest = []; // **ADDED: Clear existing data**
         });
       }
 
@@ -613,6 +676,7 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       final response = await _serviceRequestApiService.fetchServiceRequests(
         page: _currentPage,
         limit: _limit,
+        status: status,
       );
 
       logger.info('_fetchServiceRequests raw $response');
@@ -665,11 +729,21 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         if (loadMore) {
           _serviceRequest.addAll(parsedRequests);
           _isLoadingMore = false;
+          _currentPage++; // Only increment on loadMore
         } else {
           _serviceRequest = parsedRequests;
           isLoading = false;
+          _currentPage = 2; // Set to page 2 after initial load
         }
-        if (parsedRequests.length < _limit) _hasMore = false;
+
+        if (parsedRequests.length < _limit) {
+          _hasMore = false;
+          logger.info(
+            'No more pages available (received ${parsedRequests.length} < $_limit)',
+          );
+        } else {
+          _hasMore = true;
+        }
 
         final completedRequests = _serviceRequest
             .where(
@@ -699,8 +773,6 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         });
       }
 
-      _currentPage++;
-
       logger.info('Fetched ${parsedRequests.length} service requests');
     } catch (e) {
       logger.severe('Error fetching service requests $e');
@@ -717,6 +789,37 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         });
       }
     }
+  }
+
+  String _getSearchableText(ServiceRequest req) {
+    final buffer = StringBuffer();
+
+    // User info
+    buffer.write('${req.user?.firstName ?? ''} ');
+    buffer.write('${req.user?.lastName ?? ''} ');
+    buffer.write('${req.user?.email ?? ''} ');
+    buffer.write('${req.user?.phone ?? ''} ');
+
+    // Manong info
+    buffer.write('${req.manong?.appUser.firstName ?? ''} ');
+    buffer.write('${req.manong?.appUser.lastName ?? ''} ');
+    buffer.write('${req.manong?.appUser.email ?? ''} ');
+    buffer.write('${req.manong?.appUser.phone ?? ''} ');
+
+    // Service info
+    buffer.write('${req.serviceItem?.title ?? ''} ');
+    buffer.write('${req.subServiceItem?.title ?? ''} ');
+    buffer.write('${req.urgencyLevel?.level ?? ''} ');
+    buffer.write('${req.requestNumber ?? ''} ');
+
+    return buffer.toString().toLowerCase().trim();
+  }
+
+  bool _matchesSearchQueryOptimized(ServiceRequest req, String query) {
+    if (query.isEmpty) return true;
+
+    final searchableText = _getSearchableText(req);
+    return searchableText.contains(query.toLowerCase());
   }
 
   List<ServiceRequest> _getFilteredRequests() {
@@ -754,22 +857,9 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
 
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
-      filtered = filtered.where((req) {
-        final manong = req.manong?.appUser.firstName?.toLowerCase() ?? '';
-        final service = req.serviceItem?.title.toLowerCase() ?? '';
-        final subService = req.subServiceItem?.title.toLowerCase() ?? '';
-        final urgency = req.urgencyLevel?.level.toLowerCase() ?? '';
-        final requestNumber = req.requestNumber?.toLowerCase() ?? '';
-
-        final matches =
-            manong.contains(query) ||
-            service.contains(query) ||
-            subService.contains(query) ||
-            urgency.contains(query) ||
-            requestNumber.contains(query);
-
-        return matches;
-      }).toList();
+      filtered = filtered
+          .where((req) => _getSearchableText(req).contains(query))
+          .toList();
     }
 
     filtered.sort((a, b) {
@@ -798,6 +888,7 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   }
 
   Widget _buildResultsInfo(int count) {
+    final filteredCount = _getFilteredRequests().length;
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
@@ -833,9 +924,41 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
               }
             },
           ),
-          Text(
-            '($count result${count != 1 ? 's' : ''})',
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          Row(
+            children: [
+              Text(
+                '$filteredCount item${filteredCount != 1 ? 's' : ''}',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              ),
+
+              // **ADDED: Show "+" if more available but not loading**
+              if (_hasMore && !_isLoadingMore && filteredCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(left: 2),
+                  child: Text(
+                    '+',
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+
+              // **ADDED: Show loading spinner when loading more**
+              if (_isLoadingMore)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColorScheme.primaryColor,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -1111,22 +1234,79 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       color: AppColorScheme.primaryColor,
       backgroundColor: AppColorScheme.backgroundGrey,
       onRefresh: _fetchServiceRequests,
-
-      child: ScrollablePositionedList.builder(
-        itemCount: filteredRequests.length + (_isLoadingMore ? 1 : 0),
+      child: ListView.builder(
+        controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        itemScrollController: _itemScrollController,
+        itemCount: filteredRequests.length + (_hasMore ? 1 : 0),
         itemBuilder: (context, index) {
+          // If this is the Load More item
           if (index >= filteredRequests.length) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(8),
-                child: CircularProgressIndicator(
-                  color: AppColorScheme.primaryColor,
-                ),
+            return Container(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+              margin: const EdgeInsets.only(bottom: 100),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
+              child: _isLoadingMore
+                  ? const Column(
+                      children: [
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: AppColorScheme.primaryColor,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Loading more requests...',
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                        ),
+                      ],
+                    )
+                  : ElevatedButton(
+                      onPressed: _fetchMoreServiceRequests,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColorScheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        elevation: 3,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        minimumSize: const Size(double.infinity, 52),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 16,
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.arrow_downward, size: 20),
+                          SizedBox(width: 12),
+                          Text(
+                            'Load More Requests',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
             );
           }
+
+          // Regular service request item
           ServiceRequest serviceRequestItem = filteredRequests[index];
 
           if (_ongoingServiceRequest?.id == serviceRequestItem.id) {
@@ -1144,9 +1324,6 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
               },
             );
           } else {
-            logger.info(
-              'This is not ongoing request ${_ongoingServiceRequest?.id} ${serviceRequestItem.id}',
-            );
             return _buildServiceRequestCard(serviceRequestItem, null);
           }
         },
@@ -1192,11 +1369,14 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
         return;
       }
 
-      _itemScrollController.scrollTo(
-        index: filteredIndex,
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeInOut,
-      );
+      // Scroll to the item
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollController.animateTo(
+          filteredIndex * 200.0, // Approximate height of each item
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      });
 
       _highlightedId.value = requestId;
 
@@ -1298,10 +1478,8 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
               Padding(
                 padding: const EdgeInsets.only(right: 16),
                 child: ManongStatusToggle(
-                  status: _currentManong!
-                      .profile!
-                      .status, // Use 'status' not 'initialStatus'
-                  isLoading: _isToggleLoading, // Pass loading state
+                  status: _currentManong!.profile!.status,
+                  isLoading: _isToggleLoading,
                   onStatusChanged: (newStatus) async {
                     setState(() {
                       _isToggleLoading = true;
@@ -1359,10 +1537,7 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
                           )
                         : filteredRequests.isEmpty
                         ? _buildEmptyState()
-                        : Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: _buildServiceRequestsList(filteredRequests),
-                          ),
+                        : _buildServiceRequestsList(filteredRequests),
                   ),
                 ),
               ),
@@ -1378,6 +1553,7 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   void dispose() {
     _highlightedId.dispose();
     _searchController.dispose();
+    _scrollController.dispose(); // Add this
     if (_ongoingServiceRequest != null) {
       logger.info(
         'Disconnected with lat ${_trackingApiService.manongLatLngNotifier.value?.latitude} && Lng ${_trackingApiService.manongLatLngNotifier.value?.longitude}',

@@ -354,11 +354,12 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        RichText(
-                          text: TextSpan(
+                        SelectableText.rich(
+                          TextSpan(
                             style: TextStyle(
                               color: isSupport ? Colors.black : Colors.white,
                               fontSize: 16,
+                              height: 1.2,
                             ),
                             children: _parseFormattedText(
                               message.content,

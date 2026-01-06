@@ -94,6 +94,7 @@ class ServiceRequestApiService {
   Future<Map<String, dynamic>?> fetchServiceRequests({
     int page = 1,
     int limit = 10,
+    String? status,
   }) async {
     try {
       if (baseUrl == null) {
@@ -102,9 +103,15 @@ class ServiceRequestApiService {
 
       final token = await AuthService().getNodeToken();
 
-      final uri = Uri.parse('$baseUrl/service-requests').replace(
-        queryParameters: {'page': page.toString(), 'limit': limit.toString()},
-      );
+      final queryParams = {'page': page.toString(), 'limit': limit.toString()};
+
+      if (status != null && status.isNotEmpty) {
+        queryParams['status'] = status;
+      }
+
+      final uri = Uri.parse(
+        '$baseUrl/service-requests',
+      ).replace(queryParameters: queryParams);
 
       final response = await http
           .get(
