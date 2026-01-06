@@ -8,23 +8,43 @@ echo "=== Starting Xcode Cloud Post-Clone Script ==="
 # Print current directory for debugging
 echo "Current directory: $(pwd)"
 
-# Navigate to the project root directory from the ios/ci_scripts folder.
-cd ../../
-echo "After cd, directory: $(pwd)"
+# Define Flutter installation directory
+FLUTTER_DIR="/Volumes/workspace/flutter"
 
-# Verify we can find the Flutter executable and get its path.
-FLUTTER_PATH=$(command -v flutter || echo "flutter not found")
-echo "Flutter Path: $FLUTTER_PATH"
-
-# Check if flutter exists
-if ! command -v flutter &> /dev/null; then
-    echo "ERROR: Flutter command not found!"
-    exit 1
+# Check if Flutter is already installed
+if [ ! -d "$FLUTTER_DIR" ] || [ ! -f "$FLUTTER_DIR/bin/flutter" ]; then
+    echo "Installing Flutter..."
+    
+    # Clone Flutter repository
+    git clone https://github.com/flutter/flutter.git --depth 1 -b stable "$FLUTTER_DIR"
+    
+    # Add Flutter to PATH
+    export PATH="$FLUTTER_DIR/bin:$PATH"
+    
+    # Accept licenses
+    flutter doctor --android-licenses --verbose
+    
+    # Pre-download development binaries
+    flutter precache
+    
+    echo "Flutter installation complete"
+else
+    echo "Flutter already installed at: $FLUTTER_DIR"
+    export PATH="$FLUTTER_DIR/bin:$PATH"
 fi
 
-# Get Flutter version for debugging
+# Verify Flutter installation
+echo "Flutter Path: $(command -v flutter)"
 echo "Flutter version:"
 flutter --version
+
+# Run flutter doctor for diagnostics
+echo "Running flutter doctor..."
+flutter doctor
+
+# Navigate to project root
+cd /Volumes/workspace/repository
+echo "Project directory: $(pwd)"
 
 # Get Flutter dependencies (pubspec.yaml).
 echo "Fetching Flutter dependencies..."
