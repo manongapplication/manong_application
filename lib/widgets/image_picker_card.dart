@@ -41,20 +41,69 @@ class _ImagePickerState extends State<ImagePickerCard> {
   }
 
   Future<bool> _checkAndRequestPermission(ImageSource source) async {
-    bool hasPermission;
+    try {
+      bool hasPermission;
 
-    if (source == ImageSource.camera) {
-      hasPermission = await _permissionUtils.checkCameraPermission();
-    } else {
-      hasPermission = await _permissionUtils.checkGalleryPermission();
-    }
+      if (source == ImageSource.camera) {
+        hasPermission = await _permissionUtils.checkCameraPermission();
+      } else {
+        hasPermission = await _permissionUtils.checkGalleryPermission();
+      }
 
-    if (!hasPermission) {
-      _showPermissionSettingsDialog(source);
+      if (!hasPermission) {
+        // Show dialog with retry option first
+        _showPermissionRetryDialog(source);
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      logger.severe('Error checking permission: $e');
       return false;
     }
+  }
 
-    return true;
+  void _showPermissionRetryDialog(ImageSource source) {
+    String permissionType = source == ImageSource.camera ? 'Camera' : 'Gallery';
+
+    showDialog(
+      context: navigatorKey.currentContext!,
+      builder: (context) => AlertDialog(
+        title: Text('$permissionType Permission Required'),
+        content: Text(
+          '$permissionType permission is required to upload photos. '
+          'Would you like to grant permission?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              // Try again
+              bool hasPermission = source == ImageSource.camera
+                  ? await _permissionUtils.checkCameraPermission()
+                  : await _permissionUtils.checkGalleryPermission();
+
+              if (!hasPermission) {
+                // If still not granted, show settings dialog
+                _showPermissionSettingsDialog(source);
+              }
+            },
+            child: Text('Grant Permission'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _permissionUtils.openAppSettings();
+            },
+            child: Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
   }
 
   // Show settings dialog for permanently denied permissions
