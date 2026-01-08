@@ -44,7 +44,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>We use the camera so you can take and upload photos of the issue, such as a leaking pipe or damaged area, when requesting a service.</string>
+	<string>We need access to your camera to take photos of plumbing or handyman issues, such as a leaking pipe or broken faucet, which will be uploaded with your service request so the technician can prepare before arriving.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>We use your location in the background to enable real-time tracking while a Manong is on the way to your service location.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
@@ -52,8 +52,8 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>We use your location to find nearby available Manongs and show your service location when booking a service.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We use your photo library so you can upload existing images of the issue when requesting a service.</string>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<string>We need access to your photo library to upload photos of plumbing or handyman issues, such as a leaking pipe or broken faucet, which will be attached to your service request for technician review.</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>\
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
