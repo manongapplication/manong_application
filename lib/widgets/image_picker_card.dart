@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/theme/colors.dart';
+import 'package:manong_application/utils/permission_utils.dart';
 import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/widgets/image_dialog.dart';
 
@@ -28,6 +29,7 @@ class _ImagePickerState extends State<ImagePickerCard> {
   List<File> get _images => widget.images;
   final ImagePicker picker = ImagePicker();
   final int maxImages = 3;
+  final PermissionUtils _permissionUtils = PermissionUtils();
 
   Future<bool> _isValidImage(File file) async {
     try {
@@ -38,7 +40,60 @@ class _ImagePickerState extends State<ImagePickerCard> {
     }
   }
 
+  Future<bool> _checkAndRequestPermission(ImageSource source) async {
+    bool hasPermission;
+
+    if (source == ImageSource.camera) {
+      hasPermission = await _permissionUtils.checkCameraPermission();
+    } else {
+      hasPermission = await _permissionUtils.checkGalleryPermission();
+    }
+
+    if (!hasPermission) {
+      _showPermissionSettingsDialog(source);
+      return false;
+    }
+
+    return true;
+  }
+
+  // Show settings dialog for permanently denied permissions
+  void _showPermissionSettingsDialog(ImageSource source) {
+    String permissionType = source == ImageSource.camera ? 'Camera' : 'Gallery';
+
+    showDialog(
+      context: navigatorKey.currentContext!,
+      builder: (context) => AlertDialog(
+        title: Text('$permissionType Permission Required'),
+        content: Text(
+          '$permissionType permission is required to upload photos. '
+          'Please enable it in your device settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _permissionUtils.openAppSettings();
+            },
+            child: Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _pickImage(ImageSource source) async {
+    // Check permission first
+    bool hasPermission = await _checkAndRequestPermission(source);
+    if (!hasPermission) {
+      logger.info('Permission not granted for ${source.name}');
+      return;
+    }
+
     if (source == ImageSource.gallery) {
       final List<XFile> pickedFiles = await picker.pickMultiImage(
         imageQuality: 80, // compress

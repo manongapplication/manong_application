@@ -13,7 +13,7 @@ class PermissionUtils {
 
   bool _locationPermissionGranted = false;
   bool get locationPermissionGranted => _locationPermissionGranted;
-  
+
   bool _notificationPermissionGranted = false;
   bool get notificationPermissionGranted => _notificationPermissionGranted;
 
@@ -24,7 +24,7 @@ class PermissionUtils {
 
   Future<bool> isLocationPermissionGranted() async {
     // Return cached value if recent
-    if (_lastLocationCheck != null && 
+    if (_lastLocationCheck != null &&
         DateTime.now().difference(_lastLocationCheck!) < _cacheDuration) {
       return _locationPermissionGranted;
     }
@@ -32,28 +32,29 @@ class PermissionUtils {
     var status = await Permission.location.status;
     _locationPermissionGranted = status.isGranted;
     _lastLocationCheck = DateTime.now();
-    
+
     return _locationPermissionGranted;
   }
 
   Future<bool> isNotificationPermissionGranted() async {
     // Return cached value if recent
-    if (_lastNotificationCheck != null && 
+    if (_lastNotificationCheck != null &&
         DateTime.now().difference(_lastNotificationCheck!) < _cacheDuration) {
       return _notificationPermissionGranted;
     }
 
     if (Platform.isIOS) {
-      final settings = await FirebaseMessaging.instance.getNotificationSettings();
+      final settings = await FirebaseMessaging.instance
+          .getNotificationSettings();
       logger.info('iOS Notification status: ${settings.authorizationStatus}');
-      _notificationPermissionGranted = 
+      _notificationPermissionGranted =
           settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional;
     } else {
       var status = await Permission.notification.status;
       _notificationPermissionGranted = status.isGranted;
     }
-    
+
     _lastNotificationCheck = DateTime.now();
     return _notificationPermissionGranted;
   }
@@ -73,16 +74,19 @@ class PermissionUtils {
 
   Future<bool> checkNotificationPermission() async {
     logger.info('Notification permission checked!');
-    
+
     bool result = false;
-    
+
     if (Platform.isIOS) {
       // On iOS, we can't directly request notification permission again
       // if it was already denied. We can only guide users to settings.
-      final settings = await FirebaseMessaging.instance.getNotificationSettings();
-      
-      logger.info('Current iOS notification status: ${settings.authorizationStatus}');
-      
+      final settings = await FirebaseMessaging.instance
+          .getNotificationSettings();
+
+      logger.info(
+        'Current iOS notification status: ${settings.authorizationStatus}',
+      );
+
       switch (settings.authorizationStatus) {
         case AuthorizationStatus.authorized:
         case AuthorizationStatus.provisional:
@@ -90,29 +94,30 @@ class PermissionUtils {
           result = true;
           logger.info('iOS notification permission already granted');
           break;
-          
+
         case AuthorizationStatus.denied:
           // On iOS, if denied, we can only open app settings
           logger.info('iOS notification permission denied');
           _notificationPermissionGranted = false;
           result = false;
           break;
-          
+
         case AuthorizationStatus.notDetermined:
           // Only request if not determined yet
-          logger.info('iOS notification permission not determined, requesting...');
-          final newSettings = await FirebaseMessaging.instance.requestPermission(
-            alert: true,
-            badge: true,
-            sound: true,
+          logger.info(
+            'iOS notification permission not determined, requesting...',
           );
-          
-          _notificationPermissionGranted = 
-              newSettings.authorizationStatus == AuthorizationStatus.authorized ||
-              newSettings.authorizationStatus == AuthorizationStatus.provisional;
+          final newSettings = await FirebaseMessaging.instance
+              .requestPermission(alert: true, badge: true, sound: true);
+
+          _notificationPermissionGranted =
+              newSettings.authorizationStatus ==
+                  AuthorizationStatus.authorized ||
+              newSettings.authorizationStatus ==
+                  AuthorizationStatus.provisional;
           result = _notificationPermissionGranted;
           break;
-          
+
         default:
           _notificationPermissionGranted = false;
           result = false;
@@ -128,8 +133,92 @@ class PermissionUtils {
       _notificationPermissionGranted = status.isGranted;
       result = _notificationPermissionGranted;
     }
-    
+
     _lastNotificationCheck = DateTime.now();
     return result;
+  }
+
+  Future<bool> isCameraPermissionGranted() async {
+    var status = await Permission.camera.status;
+    return status.isGranted || status.isLimited;
+  }
+
+  Future<bool> isGalleryPermissionGranted() async {
+    if (Platform.isAndroid) {
+      // For Android, check photos permission (Android 13+)
+      var status = await Permission.photos.status;
+      return status.isGranted || status.isLimited;
+    } else {
+      // For iOS, check photos permission
+      var status = await Permission.photos.status;
+      return status.isGranted || status.isLimited;
+    }
+  }
+
+  Future<bool> checkCameraPermission() async {
+    logger.info('Checking camera permission...');
+
+    var status = await Permission.camera.status;
+
+    if (status.isGranted || status.isLimited) {
+      logger.info('Camera permission already granted');
+      return true;
+    } else if (status.isDenied) {
+      logger.info('Camera permission denied, requesting...');
+      status = await Permission.camera.request();
+      return status.isGranted || status.isLimited;
+    } else if (status.isPermanentlyDenied) {
+      logger.info('Camera permission permanently denied');
+      return false;
+    } else if (status.isRestricted) {
+      logger.info('Camera permission restricted');
+      return false;
+    }
+
+    return false;
+  }
+
+  Future<bool> checkGalleryPermission() async {
+    logger.info('Checking gallery permission...');
+
+    Permission permission;
+    String permissionName;
+
+    if (Platform.isAndroid) {
+      permission = Permission.photos;
+      permissionName = 'Photos';
+    } else {
+      permission = Permission.photos;
+      permissionName = 'Photos';
+    }
+
+    var status = await permission.status;
+
+    if (status.isGranted || status.isLimited) {
+      logger.info('$permissionName permission already granted');
+      return true;
+    } else if (status.isDenied) {
+      logger.info('$permissionName permission denied, requesting...');
+      status = await permission.request();
+      return status.isGranted || status.isLimited;
+    } else if (status.isPermanentlyDenied) {
+      logger.info('$permissionName permission permanently denied');
+      return false;
+    } else if (status.isRestricted) {
+      logger.info('$permissionName permission restricted');
+      return false;
+    }
+
+    return false;
+  }
+
+  // Helper method to open app settings
+  Future<void> openAppSettings() async {
+    try {
+      await openAppSettings();
+      logger.info('Opened app settings');
+    } catch (e) {
+      logger.severe('Error opening app settings: $e');
+    }
   }
 }
