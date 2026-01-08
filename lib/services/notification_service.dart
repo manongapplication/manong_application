@@ -15,9 +15,9 @@ class NotificationService {
 
     const DarwinInitializationSettings darwinSettings =
         DarwinInitializationSettings(
-          requestAlertPermission: true,
-          requestBadgePermission: true,
-          requestSoundPermission: true,
+          requestAlertPermission: false,
+          requestBadgePermission: false,
+          requestSoundPermission: false,
         );
 
     final InitializationSettings settings = InitializationSettings(
@@ -33,10 +33,10 @@ class NotificationService {
       },
     );
 
-    // Request permissions for iOS
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
-      await _requestIosPermissions();
-    }
+    // // Request permissions for iOS
+    // if (defaultTargetPlatform == TargetPlatform.iOS) {
+    //   await _requestIosPermissions();
+    // }
   }
 
   static Future<void> _requestIosPermissions() async {
