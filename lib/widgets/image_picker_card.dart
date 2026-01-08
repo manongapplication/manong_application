@@ -6,7 +6,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/theme/colors.dart';
-import 'package:manong_application/utils/permission_utils.dart';
 import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/widgets/image_dialog.dart';
 
@@ -29,7 +28,6 @@ class _ImagePickerState extends State<ImagePickerCard> {
   List<File> get _images => widget.images;
   final ImagePicker picker = ImagePicker();
   final int maxImages = 3;
-  final PermissionUtils _permissionUtils = PermissionUtils();
 
   Future<bool> _isValidImage(File file) async {
     try {
@@ -40,109 +38,7 @@ class _ImagePickerState extends State<ImagePickerCard> {
     }
   }
 
-  Future<bool> _checkAndRequestPermission(ImageSource source) async {
-    try {
-      bool hasPermission;
-
-      if (source == ImageSource.camera) {
-        hasPermission = await _permissionUtils.checkCameraPermission();
-      } else {
-        hasPermission = await _permissionUtils.checkGalleryPermission();
-      }
-
-      if (!hasPermission) {
-        // Show dialog with retry option first
-        _showPermissionRetryDialog(source);
-        return false;
-      }
-
-      return true;
-    } catch (e) {
-      logger.severe('Error checking permission: $e');
-      return false;
-    }
-  }
-
-  void _showPermissionRetryDialog(ImageSource source) {
-    String permissionType = source == ImageSource.camera ? 'Camera' : 'Gallery';
-
-    showDialog(
-      context: navigatorKey.currentContext!,
-      builder: (context) => AlertDialog(
-        title: Text('$permissionType Permission Required'),
-        content: Text(
-          '$permissionType permission is required to upload photos. '
-          'Would you like to grant permission?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              // Try again
-              bool hasPermission = source == ImageSource.camera
-                  ? await _permissionUtils.checkCameraPermission()
-                  : await _permissionUtils.checkGalleryPermission();
-
-              if (!hasPermission) {
-                // If still not granted, show settings dialog
-                _showPermissionSettingsDialog(source);
-              }
-            },
-            child: Text('Grant Permission'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _permissionUtils.openAppSettings();
-            },
-            child: Text('Open Settings'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Show settings dialog for permanently denied permissions
-  void _showPermissionSettingsDialog(ImageSource source) {
-    String permissionType = source == ImageSource.camera ? 'Camera' : 'Gallery';
-
-    showDialog(
-      context: navigatorKey.currentContext!,
-      builder: (context) => AlertDialog(
-        title: Text('$permissionType Permission Required'),
-        content: Text(
-          '$permissionType permission is required to upload photos. '
-          'Please enable it in your device settings.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _permissionUtils.openAppSettings();
-            },
-            child: Text('Open Settings'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _pickImage(ImageSource source) async {
-    // Check permission first
-    bool hasPermission = await _checkAndRequestPermission(source);
-    if (!hasPermission) {
-      logger.info('Permission not granted for ${source.name}');
-      return;
-    }
-
     if (source == ImageSource.gallery) {
       final List<XFile> pickedFiles = await picker.pickMultiImage(
         imageQuality: 80, // compress
