@@ -99,6 +99,37 @@ class _ImagePickerState extends State<ImagePickerCard> {
     );
   }
 
+  Future<void> _pickImageWithDialog(ImageSource source) async {
+    String sourceName = source == ImageSource.camera
+        ? 'Camera'
+        : 'Photo Library';
+    String message = source == ImageSource.camera
+        ? 'We use your camera so you can take photos of the issue, like a leaking pipe or broken faucet, when requesting a service.'
+        : 'We use your photo library to upload existing photos of the issue, like a leaking pipe or broken faucet, when requesting a service.';
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$sourceName Access Required'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+
+    if (proceed == true) {
+      await _pickImage(source);
+    }
+  }
+
   Future<void> _onSelectImageSource() async {
     showModalBottomSheet(
       context: context,
@@ -114,7 +145,7 @@ class _ImagePickerState extends State<ImagePickerCard> {
                 title: const Text('Take a photo'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _pickImage(ImageSource.camera);
+                  await _pickImageWithDialog(ImageSource.camera);
                 },
               ),
               ListTile(
@@ -122,7 +153,7 @@ class _ImagePickerState extends State<ImagePickerCard> {
                 title: const Text('Choose from gallery'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _pickImage(ImageSource.gallery);
+                  await _pickImageWithDialog(ImageSource.gallery);
                 },
               ),
               ListTile(

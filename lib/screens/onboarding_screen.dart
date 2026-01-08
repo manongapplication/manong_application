@@ -193,6 +193,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                 await _permissionUtils!.checkLocationPermission();
                 if (mounted) Navigator.of(navigatorKey.currentContext!).pop();
               },
+              text: 'Continue',
             ),
           );
         },

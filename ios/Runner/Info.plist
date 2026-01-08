@@ -44,19 +44,20 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>We need camera access to take pictures.</string>
+	<string>We use the camera so you can take and upload photos of the issue, such as a leaking pipe or damaged area, when requesting a service.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs access to your location to show nearby service providers.</string>
+	<string>We use your location in the background to enable real-time tracking while a Manong is on the way to your service location.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>This app needs access to your location at all times for location-based services.</string>
+	<string>We use your location to support live location updates during an active service, even when the app is not in use.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs access to your location when in use to show nearby service providers.</string>
+	<string>We use your location to find nearby available Manongs and show your service location when booking a service.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We need photo library access to pick images.</string>
+	<string>We use your photo library so you can upload existing images of the issue when requesting a service.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>location</string>
 		<string>remote-notification</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
@@ -83,5 +84,7 @@
 	<string>alert</string>
 	<key>NSUserNotificationSoundName</key>
 	<string>default</string>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>We use notifications to update you about your bookings, reminders, and important alerts.</string>
 </dict>
 </plist>
