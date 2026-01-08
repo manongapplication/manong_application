@@ -53,7 +53,7 @@
 	<string>We use your location to find nearby available Manongs and show your service location when booking a service.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>We need access to your photo library to upload photos of plumbing or handyman issues, such as a leaking pipe or broken faucet, which will be attached to your service request for technician review.</string>
-	<key>UIApplicationSupportsIndirectInputEvents</key>\
+	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
