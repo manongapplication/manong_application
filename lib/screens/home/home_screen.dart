@@ -154,7 +154,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _filterServiceItems(String query) {
     final cacheKey = query.toLowerCase();
 
-    // Check cache first
+    // Check cache first for performance
     if (_filterCache.containsKey(cacheKey)) {
       final cached = _filterCache[cacheKey]!;
       if (!_listEquals(cached, _filteredServiceItems)) {
@@ -167,24 +167,47 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final lowerQuery = query.toLowerCase();
 
-    // Filter in single pass with early returns
+    // Single-pass filtering with comprehensive search
     final filtered = _allServiceItems.where((service) {
+      // 1. Check title match
       final titleMatches = service.title.toLowerCase().contains(lowerQuery);
 
-      // Only check subservices if query is long enough (performance optimization)
-      bool subServiceMatches = false;
-      if (lowerQuery.length >= 2 && service.subServiceItems.isNotEmpty) {
-        // PERFORMANCE OPTIMIZATION: Use any() instead of loop
-        subServiceMatches = service.subServiceItems.any(
-          (subService) => subService.title.toLowerCase().contains(lowerQuery),
+      // 2. Check description match (if description exists)
+      bool descriptionMatches = false;
+      if (service.description != null && service.description!.isNotEmpty) {
+        descriptionMatches = service.description!.toLowerCase().contains(
+          lowerQuery,
         );
       }
 
-      return titleMatches || subServiceMatches;
+      // 3. Check subservices (only if query is long enough for performance)
+      bool subServiceMatches = false;
+      if (lowerQuery.length >= 2 && service.subServiceItems.isNotEmpty) {
+        subServiceMatches = service.subServiceItems.any((subService) {
+          // Check subservice title
+          final subTitleMatch = subService.title.toLowerCase().contains(
+            lowerQuery,
+          );
+
+          // Check subservice description if available
+          bool subDescriptionMatch = false;
+          if (subService.description != null &&
+              subService.description!.isNotEmpty) {
+            subDescriptionMatch = subService.description!
+                .toLowerCase()
+                .contains(lowerQuery);
+          }
+
+          return subTitleMatch || subDescriptionMatch;
+        });
+      }
+
+      return titleMatches || descriptionMatches || subServiceMatches;
     }).toList();
 
-    // Sort: bookmarked items first, then by created date (latest first), then alphabetical
+    // Sort with prioritization
     filtered.sort((a, b) {
+      // 1. Bookmarked items first
       final aBookmarked =
           BookmarkItemManager.getCachedStatus(
             a.id,
@@ -198,25 +221,38 @@ class _HomeScreenState extends State<HomeScreen> {
           ) ??
           false;
 
-      // 1. Bookmarked items first
       if (aBookmarked && !bBookmarked) return -1;
       if (!aBookmarked && bBookmarked) return 1;
 
-      // 2. Sort by created date (latest first)
+      // 2. Sort by relevance (items matching in title come before description matches)
+      final aTitleMatch = a.title.toLowerCase().contains(lowerQuery);
+      final bTitleMatch = b.title.toLowerCase().contains(lowerQuery);
+      final aDescMatch = a.description.toLowerCase().contains(lowerQuery);
+      final bDescMatch = b.description.toLowerCase().contains(lowerQuery);
+
+      // Title matches prioritized over description matches
+      if (aTitleMatch && !bTitleMatch) return -1;
+      if (!aTitleMatch && bTitleMatch) return 1;
+
+      // If both match in same field, check description matches
+      if (aDescMatch && !bDescMatch) return -1;
+      if (!aDescMatch && bDescMatch) return 1;
+
+      // 3. Sort by created date (latest first)
       final aCreatedAt = a.createdAt ?? DateTime(1900);
       final bCreatedAt = b.createdAt ?? DateTime(1900);
 
       if (aCreatedAt.isAfter(bCreatedAt)) return -1;
       if (aCreatedAt.isBefore(bCreatedAt)) return 1;
 
-      // 3. If same date, sort alphabetically
+      // 4. If same date, sort alphabetically
       return a.title.compareTo(b.title);
     });
 
-    // Cache the result
+    // Cache the result for future identical queries
     _filterCache[cacheKey] = filtered;
 
-    // Only update if the filtered list actually changed
+    // Only update state if the filtered list has actually changed
     if (!_listEquals(filtered, _filteredServiceItems)) {
       setState(() {
         _filteredServiceItems = filtered;
