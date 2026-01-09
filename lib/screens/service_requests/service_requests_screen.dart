@@ -974,7 +974,7 @@ Is loading: $_isLoadingMore
       searchQuery: _searchQuery,
       emptyMessage: 'No service requests found',
       onPressed: _clearSearch,
-      onRefresh: _fetchServiceRequests,
+      onRefresh: _refreshWithCurrentFilters,
     );
   }
 
@@ -1142,6 +1142,18 @@ Is loading: $_isLoadingMore
     }
   }
 
+  Future<void> _refreshWithCurrentFilters() async {
+    final tab = tabs[_statusIndex];
+    final statuses = getStatusesForTab(tab);
+
+    setState(() {
+      _currentPage = 1;
+      _hasMore = true;
+    });
+
+    await _fetchServiceRequests(status: statuses);
+  }
+
   Widget _buildServiceRequestCard(
     ServiceRequest serviceRequestItem,
     double? meters,
@@ -1221,7 +1233,7 @@ Is loading: $_isLoadingMore
               );
             },
             onRefresh: () {
-              _fetchServiceRequests();
+              _refreshWithCurrentFilters;
             },
           ),
         );
@@ -1233,7 +1245,7 @@ Is loading: $_isLoadingMore
     return RefreshIndicator(
       color: AppColorScheme.primaryColor,
       backgroundColor: AppColorScheme.backgroundGrey,
-      onRefresh: _fetchServiceRequests,
+      onRefresh: _refreshWithCurrentFilters,
       child: ListView.builder(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
