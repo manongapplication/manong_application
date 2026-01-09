@@ -69,6 +69,44 @@ This ensures a smooth and secure service experience!
 
 Need help during service? Call: [link url='tel:09486373877'](0948) 637-3877[/link]""",
     ),
+
+    QuickResponse(
+      text: "How to Register",
+      response: """**Step-by-Step Registration Guide:**
+
+1. **Click Login/Register**
+   - Open the Manong app and tap on the "Login" button
+
+2. **Enter Mobile Number**
+   - Input your active mobile number
+   - Make sure you can receive SMS on this number
+
+3. **Verify with OTP**
+   - A 6-digit code will be sent to your mobile
+   - Enter the code in the verification box
+
+4. **Set Your Password**
+   - Create a secure password (at least 8 characters)
+   - Confirm your password
+
+5. **Complete Your Profile**
+   - Click "Complete Profile" to proceed
+   - Enter your personal information:
+     • First Name
+     • Last Name  
+     • Email Address
+     • Address Category & Address
+     • Upload Valid ID or Selfie
+
+6. **Wait for Verification**
+   - Your account will be on hold until we verify your identity
+   - This usually takes 1-2 business days
+
+7. **Request Services**
+   - Once verified, you can now request services!
+
+**Need help?** Contact: [link url='mailto:support@manongapp.com']support@manongapp.com[/link] or [link url='tel:09486373877'](0948) 637-3877[/link]""",
+    ),
   ];
 
   String generateResponse(String userMessage) {

@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:manong_application/main.dart';
 import 'package:manong_application/theme/colors.dart';
 
 class AuthFooter extends StatelessWidget {
@@ -62,20 +64,34 @@ class AuthFooter extends StatelessWidget {
               ],
             ),
             SizedBox(height: 18),
-            RichText(
-              textAlign: TextAlign.center,
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    style: TextStyle(color: Colors.black),
-                    text: 'Need help? ',
+            Builder(
+              builder: (context) {
+                return RichText(
+                  textAlign: TextAlign.center,
+                  text: TextSpan(
+                    children: [
+                      const TextSpan(
+                        style: TextStyle(color: Colors.black),
+                        text: 'Need help? ',
+                      ),
+                      TextSpan(
+                        style: const TextStyle(
+                          color: Colors.blue,
+                          decoration: TextDecoration.underline,
+                        ),
+                        text: 'Chat with Us',
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () {
+                            Navigator.pushNamed(
+                              context, // Use Builder's context
+                              '/help-and-support',
+                            );
+                          },
+                      ),
+                    ],
                   ),
-                  TextSpan(
-                    style: TextStyle(color: Colors.blue),
-                    text: 'Visit our Help Centre.',
-                  ),
-                ],
-              ),
+                );
+              },
             ),
             SizedBox(height: 8),
           ],
