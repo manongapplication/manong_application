@@ -45,12 +45,12 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>We need access to your camera to take photos of plumbing or handyman issues, such as a leaking pipe or broken faucet, which will be uploaded with your service request so the technician can prepare before arriving.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>We use your location in the background to enable real-time tracking while a Manong is on the way to your service location.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>We use your location to support live location updates during an active service, even when the app is not in use.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>We use your location to find nearby available Manongs and show your service location when booking a service.</string>
+	<string>We use your location to find nearby service providers, calculate distances, and match you with available professionals. Location is accessed only while using the app and shared only with assigned service professionals.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Manong uses your location in the background to provide real-time tracking of service professionals as they travel to your location, and to share your live location with the assigned Manong during active services for accurate service coordination.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Manong uses your location to find nearby service providers, calculate accurate service distances, and match you with available professionals for booking services.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>We need access to your photo library to upload photos of plumbing or handyman issues, such as a leaking pipe or broken faucet, which will be attached to your service request for technician review.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
@@ -85,6 +85,6 @@
 	<key>NSUserNotificationSoundName</key>
 	<string>default</string>
 	<key>NSUserNotificationUsageDescription</key>
-	<string>We use notifications to update you about your bookings, reminders, and important alerts.</string>
+	<string>We use notifications to send you updates about your bookings, service reminders, and important alerts.</string>
 </dict>
 </plist>
