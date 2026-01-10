@@ -178,7 +178,8 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     if (!granted && mounted) {
       _locationDialogShown = true; // Mark as shown
 
-      showDialog(
+      // Store the showDialog result to control navigation
+      await showDialog<void>(
         context: navigatorKey.currentContext!,
         barrierDismissible: false, // Prevent dismissing by tapping outside
         builder: (context) {
@@ -186,182 +187,222 @@ class _OnboardingScreenState extends State<StatefulWidget> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Container(
-              padding: const EdgeInsets.all(24),
+            insetPadding: const EdgeInsets.all(
+              20,
+            ), // Add padding from screen edges
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight:
+                    MediaQuery.of(context).size.height * 0.8, // Limit height
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.location_on,
-                    size: 60,
-                    color: AppColorScheme.primaryColor,
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Location Access Required',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppColorScheme.deepTeal,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Manong collects location data to:',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColorScheme.tealDark,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildBulletPoint('Show nearby service providers'),
-                        _buildBulletPoint(
-                          'Calculate accurate service distances',
-                        ),
-                        _buildBulletPoint('Enable real-time service tracking'),
-                        _buildBulletPoint(
-                          'Match you with closest professionals',
-                        ),
-                        _buildBulletPoint(
-                          'Share your location with assigned Manong during active services',
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildInfoPoint(
-                          'Location data is collected only for the purposes listed above',
-                        ),
-                        _buildInfoPoint(
-                          'Your location is accessed when using the app for booking services',
-                        ),
-                        _buildInfoPoint(
-                          'Background location may be used during active services for real-time tracking',
-                        ),
-                        _buildInfoPoint(
-                          'Your location is shared ONLY with the assigned service professional',
-                        ),
-                        _buildInfoPoint(
-                          'Live location data is deleted within 24 hours after service completion',
-                        ),
-                        _buildInfoPoint(
-                          'We do not share your location with third parties',
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            // User must take affirmative action - cannot just dismiss
-                          },
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              side: BorderSide(
-                                color: AppColorScheme.primaryColor,
-                              ),
-                            ),
-                          ),
-                          child: Text(
-                            'Not Now',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: AppColorScheme.primaryColor,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColorScheme.primaryColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 2,
-                          ),
-                          onPressed: () async {
-                            Navigator.of(context).pop();
-                            await _permissionUtils!.checkLocationPermission();
-                          },
-                          child: const Text(
-                            'Continue',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  GestureDetector(
-                    onTap: () async {
-                      Navigator.of(context).pop();
-                      await launchUrlScreen(
-                        navigatorKey.currentContext!,
-                        'https://manongapp.com/index.php/privacy-policy/',
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                  // SCROLLABLE CONTENT AREA
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.privacy_tip_outlined,
-                            size: 16,
-                            color: Colors.blue,
+                            Icons.location_on,
+                            size: 60,
+                            color: AppColorScheme.primaryColor,
                           ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Learn more in our Privacy Policy',
+                          const SizedBox(height: 20),
+                          const Text(
+                            'Location Access Required',
                             style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.blue,
-                              decoration: TextDecoration.underline,
-                              fontWeight: FontWeight.w500,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: AppColorScheme.deepTeal,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Manong collects location data to:',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: AppColorScheme.tealDark,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildBulletPoint(
+                                  'Show nearby service providers',
+                                ),
+                                _buildBulletPoint(
+                                  'Calculate accurate service distances',
+                                ),
+                                _buildBulletPoint(
+                                  'Enable real-time service tracking',
+                                ),
+                                _buildBulletPoint(
+                                  'Match you with closest professionals',
+                                ),
+                                _buildBulletPoint(
+                                  'Share location with assigned Manong during active services',
+                                ),
+                              ],
                             ),
                           ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildInfoPoint(
+                                  'Location data is collected only for the purposes listed above',
+                                ),
+                                _buildInfoPoint(
+                                  'Your location is accessed when using the app for booking services',
+                                ),
+                                _buildInfoPoint(
+                                  'Background location may be used during active services for real-time tracking',
+                                ),
+                                _buildInfoPoint(
+                                  'Your location is shared ONLY with the assigned service professional',
+                                ),
+                                _buildInfoPoint(
+                                  'Live location data is deleted within 24 hours after service completion',
+                                ),
+                                _buildInfoPoint(
+                                  'We do not share your location with third parties',
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  GestureDetector(
-                    onTap: () async {
-                      Navigator.of(context).pop();
-                      _showDataUsageDetails(context);
-                    },
-                    child: const Text(
-                      'What data do we collect and why?',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey,
-                        decoration: TextDecoration.underline,
-                      ),
+
+                  // FIXED BOTTOM BUTTONS AREA (NON-SCROLLABLE)
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextButton(
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                },
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    side: BorderSide(
+                                      color: AppColorScheme.primaryColor,
+                                    ),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Not Now',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: AppColorScheme.primaryColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColorScheme.primaryColor,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  elevation: 2,
+                                ),
+                                onPressed: () async {
+                                  Navigator.of(context).pop();
+                                  await _permissionUtils!
+                                      .checkLocationPermission();
+                                },
+                                child: const Text(
+                                  'Continue',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        GestureDetector(
+                          onTap: () async {
+                            await launchUrlScreen(
+                              navigatorKey.currentContext!,
+                              'https://manongapp.com/index.php/privacy-policy/',
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.privacy_tip_outlined,
+                                  size: 16,
+                                  color: Colors.blue,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Learn more in our Privacy Policy',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.blue,
+                                    decoration: TextDecoration.underline,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () async {
+                            // Don't close current dialog, show details on top
+                            _showDataUsageDetails(
+                              context,
+                              maintainMainDialog: true,
+                            );
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.only(top: 4),
+                            child: Text(
+                              'What data do we collect and why?',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -373,15 +414,210 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     }
   }
 
+  void _showDataUsageDetails(
+    BuildContext context, {
+    bool maintainMainDialog = false,
+  }) async {
+    // Store the result so we can show location dialog again if needed
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          insetPadding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // HEADER
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  child: const Text(
+                    'Data Collection Details',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColorScheme.deepTeal,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
+                // SCROLLABLE CONTENT
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Location Data Usage:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColorScheme.tealDark,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildDetailPoint(
+                          'Foreground Access: When actively using the app for booking',
+                        ),
+                        _buildDetailPoint(
+                          'Background Access: During active services for real-time tracking',
+                        ),
+                        _buildDetailPoint(
+                          'Precise location for accurate matching and routing',
+                        ),
+                        _buildDetailPoint(
+                          'Live tracking of service professionals en route',
+                        ),
+                        _buildDetailPoint(
+                          'Location sharing with assigned Manong during service',
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Service-Specific Usage:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColorScheme.tealDark,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildDetailPoint(
+                          'Booking Phase: Find nearby professionals, calculate ETAs',
+                        ),
+                        _buildDetailPoint(
+                          'Service Phase: Real-time tracking, location sharing',
+                        ),
+                        _buildDetailPoint(
+                          'Completion: Location data anonymized/deleted',
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Data Security:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColorScheme.tealDark,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildDetailPoint('End-to-end encrypted transmission'),
+                        _buildDetailPoint(
+                          'Access limited to assigned service professional only',
+                        ),
+                        _buildDetailPoint(
+                          'Automatic deletion within 24 hours after service',
+                        ),
+                        _buildDetailPoint(
+                          'No sharing with third-party advertisers',
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'User Control:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColorScheme.tealDark,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildDetailPoint(
+                          'Manage permissions anytime in device settings',
+                        ),
+                        _buildDetailPoint(
+                          'Background tracking only during active services',
+                        ),
+                        _buildDetailPoint(
+                          'Can disable location access at any time',
+                        ),
+                        const SizedBox(height: 12),
+                        GestureDetector(
+                          onTap: () async {
+                            Navigator.of(
+                              context,
+                            ).pop(false); // Don't close completely
+                            await launchUrlScreen(
+                              navigatorKey.currentContext!,
+                              'https://manongapp.com/index.php/privacy-policy/',
+                            );
+                            // Show data details again after web view
+                            if (mounted) {
+                              _showDataUsageDetails(
+                                context,
+                                maintainMainDialog: maintainMainDialog,
+                              );
+                            }
+                          },
+                          child: const Text(
+                            'View full Privacy Policy for complete details',
+                            style: TextStyle(
+                              color: Colors.blue,
+                              decoration: TextDecoration.underline,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // CLOSE BUTTON (FIXED AT BOTTOM)
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColorScheme.primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          onPressed: () => Navigator.of(context).pop(true),
+                          child: const Text(
+                            'Close',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    // If we need to show main dialog again after closing details
+    if (maintainMainDialog && result == true && mounted) {
+      // The details dialog is closed, main location dialog is still in stack
+      // No need to show again as it's already there
+    }
+  }
+
   Widget _buildBulletPoint(String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(Icons.circle, size: 8, color: AppColorScheme.primaryColor),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 15))),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
         ],
       ),
     );
@@ -403,134 +639,6 @@ class _OnboardingScreenState extends State<StatefulWidget> {
           ),
         ],
       ),
-    );
-  }
-
-  void _showDataUsageDetails(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'Data Collection Details',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppColorScheme.deepTeal,
-            ),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Location Data Usage:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColorScheme.tealDark,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _buildDetailPoint(
-                  'Foreground Access: When actively using the app for booking',
-                ),
-                _buildDetailPoint(
-                  'Background Access: During active services for real-time tracking',
-                ),
-                _buildDetailPoint(
-                  'Precise location for accurate matching and routing',
-                ),
-                _buildDetailPoint(
-                  'Live tracking of service professionals en route',
-                ),
-                _buildDetailPoint(
-                  'Location sharing with assigned Manong during service',
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Service-Specific Usage:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColorScheme.tealDark,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _buildDetailPoint(
-                  'Booking Phase: Find nearby professionals, calculate ETAs',
-                ),
-                _buildDetailPoint(
-                  'Service Phase: Real-time tracking, location sharing',
-                ),
-                _buildDetailPoint(
-                  'Completion: Location data anonymized/deleted',
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Data Security:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColorScheme.tealDark,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _buildDetailPoint('End-to-end encrypted transmission'),
-                _buildDetailPoint(
-                  'Access limited to assigned service professional only',
-                ),
-                _buildDetailPoint(
-                  'Automatic deletion within 24 hours after service',
-                ),
-                _buildDetailPoint('No sharing with third-party advertisers'),
-                const SizedBox(height: 12),
-                const Text(
-                  'User Control:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColorScheme.tealDark,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _buildDetailPoint(
-                  'Manage permissions anytime in device settings',
-                ),
-                _buildDetailPoint(
-                  'Background tracking only during active services',
-                ),
-                _buildDetailPoint('Can disable location access at any time'),
-                const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: () async {
-                    Navigator.of(context).pop();
-                    await launchUrlScreen(
-                      navigatorKey.currentContext!,
-                      'https://manongapp.com/index.php/privacy-policy/',
-                    );
-                  },
-                  child: const Text(
-                    'View full Privacy Policy for complete details',
-                    style: TextStyle(
-                      color: Colors.blue,
-                      decoration: TextDecoration.underline,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
     );
   }
 
