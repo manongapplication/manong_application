@@ -7,6 +7,7 @@ import 'package:manong_application/screens/main_screen.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/onboarding_storage.dart';
 import 'package:manong_application/utils/permission_utils.dart';
+import 'package:manong_application/utils/url_utils.dart';
 import 'package:manong_application/widgets/modal_icon_overlay.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
@@ -185,20 +186,126 @@ class _OnboardingScreenState extends State<StatefulWidget> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            child: ModalIconOverlay(
-              icons: Icons.location_on,
-              description:
-                  'Location permission helps us show nearby service providers and improve your experience.',
-              onPressed: () async {
-                await _permissionUtils!.checkLocationPermission();
-                if (mounted) Navigator.of(navigatorKey.currentContext!).pop();
-              },
-              text: 'Continue',
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.location_on,
+                    size: 60,
+                    color: AppColorScheme.primaryColor,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Location Access Required',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Manong collects location data to:',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildBulletPoint('Show nearby service providers'),
+                        _buildBulletPoint(
+                          'Calculate accurate service distances',
+                        ),
+                        _buildBulletPoint(
+                          'Improve location-based recommendations',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '• Your location is only accessed when the app is in use',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const Text(
+                    '• We do not share your location with third parties',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            // User must take affirmative action - cannot just dismiss
+                          },
+                          child: const Text(
+                            'Not Now',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: AppColorScheme.primaryColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColorScheme.primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          onPressed: () async {
+                            Navigator.of(context).pop();
+                            await _permissionUtils!.checkLocationPermission();
+                          },
+                          child: const Text(
+                            'Continue',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () async {
+                      await launchUrlScreen(
+                        navigatorKey.currentContext!,
+                        'https://manongapp.com/index.php/privacy-policy/',
+                      );
+                    },
+                    child: const Text(
+                      'Learn more in our Privacy Policy',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.blue,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },
       );
     }
+  }
+
+  Widget _buildBulletPoint(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('• ', style: TextStyle(fontSize: 16)),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 16))),
+        ],
+      ),
+    );
   }
 
   // Reset dialog flags when going back to previous pages

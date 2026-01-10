@@ -6,9 +6,9 @@ import 'package:manong_application/models/chat_message.dart';
 import 'package:manong_application/models/quick_response.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/help_utils.dart';
+import 'package:manong_application/utils/url_utils.dart';
 import 'package:manong_application/widgets/input_decorations.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class HelpAndSupportScreen extends StatefulWidget {
   const HelpAndSupportScreen({super.key});
@@ -492,14 +492,6 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
           ),
         );
       }
-    }
-  }
-
-  Future<void> launchInBrowser(String url) async {
-    final uri = Uri.parse(url);
-
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      throw Exception('Could not launch $url');
     }
   }
 
