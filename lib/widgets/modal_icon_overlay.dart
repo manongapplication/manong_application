@@ -34,7 +34,7 @@ class ModalIconOverlay extends StatelessWidget {
               foregroundColor: Colors.white,
             ),
             onPressed: onPressed,
-            child: Text(text ?? 'Grant Permission'),
+            child: Text(text ?? 'Continue'),
           ),
         ],
       ),
