@@ -21,9 +21,13 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<StatefulWidget> {
   final PageController _pageController = PageController();
+  final PageController _galleryController = PageController(
+    viewportFraction: 0.8,
+  );
   late PermissionUtils? _permissionUtils;
   late FlutterSecureStorage _storage;
   int _currentPage = 0;
+  int _galleryPage = 0;
   late OnboardingStorage _onboardingStorage;
 
   // Track which dialogs have been shown
@@ -31,21 +35,89 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   bool _notificationDialogShown = false;
   bool _isCheckingPermissions = false;
 
-  final List<Map<String, String>> _instructions = [
+  // Add privacy policy page as first item
+  final List<Map<String, dynamic>> _instructions = [
+    {'type': 'privacy_policy', 'title': 'Privacy Policy'},
     {
+      'type': 'gallery',
       'text': 'Welcome to Manong – Home services anytime you need.',
       'image': 'assets/icon/logo.png',
     },
     {
+      'type': 'normal',
       'text': 'Enable location to find nearby professionals quickly.',
       'image': 'assets/icon/manong_oboarding_find_manong.png',
     },
     {
+      'type': 'normal',
       'text': 'Get updates with notifications about your bookings.',
       'image': 'assets/icon/manong_oboarding_notification_manong.png',
     },
   ];
 
+  // Using Material Icons but more specific to each feature
+  final List<Map<String, dynamic>> _galleryItems = [
+    {
+      'image': 'assets/screenshots/01.png',
+      'title': 'Browse Services',
+      'description': 'Choose from various home services...',
+      'icon': Icons.home_repair_service, // 🏠 Home repair icon
+    },
+    {
+      'image': 'assets/screenshots/02.png',
+      'title': 'Select Specific Service',
+      'description': 'Pick the exact service you need...',
+      'icon': Icons.build, // 🔨 Build/tools icon
+    },
+    {
+      'image': 'assets/screenshots/03.png',
+      'title': 'Auto-Detected Location',
+      'description': 'We automatically detect your location...',
+      'icon': Icons.my_location, // 📍 My location icon
+    },
+    {
+      'image': 'assets/screenshots/04.png',
+      'title': 'Set Priority Level',
+      'description': 'Choose urgency level...',
+      'icon': Icons.priority_high, // ⚠️ Priority icon
+    },
+    {
+      'image': 'assets/screenshots/05.png',
+      'title': 'Find Available Manongs',
+      'description': 'Browse available professionals...',
+      'icon': Icons.engineering, // 👷 Engineering/worker icon
+    },
+    {
+      'image': 'assets/screenshots/06.png',
+      'title': 'View Manong Details',
+      'description': 'See location, distance...',
+      'icon': Icons.account_circle, // 👤 Account/profile icon
+    },
+    {
+      'image': 'assets/screenshots/07.png',
+      'title': 'Complete Booking',
+      'description': 'Review service details...',
+      'icon': Icons.shopping_cart_checkout, // 🛒 Shopping cart checkout
+    },
+    {
+      'image': 'assets/screenshots/08.png',
+      'title': 'Track Arrival in Real-Time',
+      'description': 'Monitor your Manong\'s arrival...',
+      'icon': Icons.directions_run, // 🏃 Directions run for en route
+    },
+    {
+      'image': 'assets/screenshots/09.png',
+      'title': 'Live Tracking on Map',
+      'description': 'Track your Manong\'s location...',
+      'icon': Icons.gps_not_fixed, // 🛰️ GPS tracking icon
+    },
+    {
+      'image': 'assets/screenshots/10.png',
+      'title': 'Rate & Review',
+      'description': 'Leave feedback and reviews...',
+      'icon': Icons.thumb_up, // 👍 Thumbs up for rating
+    },
+  ];
   @override
   void initState() {
     super.initState();
@@ -86,13 +158,15 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     _isCheckingPermissions = true;
 
     try {
-      // Ensure location permission if on location page
-      if (_currentPage >= 1) {
+      // Ensure location permission if on location page (skip privacy policy page)
+      if (_currentPage >= 2) {
+        // Changed from 1 to 2 because we added privacy policy page
         await _permissionUtils!.checkLocationPermission();
       }
 
       // Ensure notification permission if on notification page
-      if (_currentPage >= 2) {
+      if (_currentPage >= 3) {
+        // Changed from 2 to 3
         await _permissionUtils!.checkNotificationPermission();
       }
     } finally {
@@ -668,19 +742,23 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     });
 
     // Reset dialog flags if user goes back to previous pages
-    if (index < 1) {
+    if (index < 2) {
+      // Changed from 1 to 2
       _locationDialogShown = false;
     }
-    if (index < 2) {
+    if (index < 3) {
+      // Changed from 2 to 3
       _notificationDialogShown = false;
     }
 
     // Show dialogs only when moving forward to specific pages
-    if (index == 1 && !_locationDialogShown) {
+    if (index == 2 && !_locationDialogShown) {
+      // Changed from 1 to 2
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showLocationPermissionDialog();
       });
-    } else if (index == 2 && !_notificationDialogShown) {
+    } else if (index == 3 && !_notificationDialogShown) {
+      // Changed from 2 to 3
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showNotificationPermissionDialog();
       });
@@ -697,6 +775,25 @@ class _OnboardingScreenState extends State<StatefulWidget> {
           height: _currentPage == index ? 12 : 8,
           decoration: BoxDecoration(
             color: _currentPage == index
+                ? AppColorScheme.primaryColor
+                : Colors.grey.shade400,
+            shape: BoxShape.circle,
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildGalleryIndicator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(_galleryItems.length, (index) {
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: _galleryPage == index ? 12 : 8,
+          height: _galleryPage == index ? 12 : 8,
+          decoration: BoxDecoration(
+            color: _galleryPage == index
                 ? AppColorScheme.primaryColor
                 : Colors.grey.shade400,
             shape: BoxShape.circle,
@@ -727,6 +824,447 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     );
   }
 
+  // Privacy policy page
+  Widget _buildPrivacyPolicyPage() {
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.privacy_tip_outlined,
+                    size: 32,
+                    color: AppColorScheme.primaryColor,
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Privacy Policy',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: AppColorScheme.deepTeal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildPrivacySection(
+                      title: 'Welcome to Manong',
+                      content:
+                          'By using our Service, you agree to the collection and use of information in accordance with this Privacy Policy.',
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    _buildPrivacySection(
+                      title: 'Information We Collect',
+                      content:
+                          'We collect personal information like your name, contact details, and location data to provide you with better services.',
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    _buildPrivacySection(
+                      title: 'Location Data',
+                      content: 'We collect location data to:',
+                      points: [
+                        'Find nearby service professionals',
+                        'Calculate accurate travel times',
+                        'Enable real-time service tracking',
+                        'Share your location with assigned Manong during active services',
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    _buildPrivacySection(
+                      title: 'How We Use Your Information',
+                      content: 'Your information is used to:',
+                      points: [
+                        'Connect you with service providers',
+                        'Process bookings and payments',
+                        'Send service updates and notifications',
+                        'Improve our app features',
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    _buildPrivacySection(
+                      title: 'Data Security',
+                      content:
+                          'We implement security measures to protect your data. Location data is automatically deleted within 24 hours after service completion.',
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    _buildPrivacySection(
+                      title: 'Your Rights',
+                      content:
+                          'You can manage location permissions anytime in your device settings.',
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    GestureDetector(
+                      onTap: () async {
+                        await launchUrlScreen(
+                          navigatorKey.currentContext!,
+                          'https://manongapp.com/index.php/privacy-policy/',
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.blue[200]!),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.open_in_browser,
+                              color: Colors.blue,
+                              size: 20,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'View Full Privacy Policy Online',
+                              style: TextStyle(
+                                color: Colors.blue,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrivacySection({
+    required String title,
+    required String content,
+    List<String>? points,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: AppColorScheme.tealDark,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          content,
+          style: const TextStyle(
+            fontSize: 16,
+            height: 1.5,
+            color: Colors.black87,
+          ),
+        ),
+        if (points != null) ...[
+          const SizedBox(height: 12),
+          ...points.map(
+            (point) => Padding(
+              padding: const EdgeInsets.only(bottom: 8, left: 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.circle,
+                    size: 8,
+                    color: AppColorScheme.primaryColor,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      point,
+                      style: const TextStyle(fontSize: 15, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _onGalleryPageChanged(int index) {
+    setState(() {
+      _galleryPage = index;
+    });
+  }
+
+  Widget _buildGalleryPage() {
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+              child: Column(
+                children: [
+                  // Header row with centered logo
+                  Stack(
+                    children: [
+                      // Logo centered
+                      Center(
+                        child: Image.asset(
+                          'assets/icon/logo.png',
+                          width: 48,
+                          height: 48,
+                        ),
+                      ),
+                      // Skip button aligned to the right
+                      if (_galleryPage < _galleryItems.length - 1)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () {
+                              // Skip to next onboarding page
+                              _pageController.animateToPage(
+                                2, // Skip to next page after gallery
+                                duration: const Duration(milliseconds: 500),
+                                curve: Curves.easeInOut,
+                              );
+                            },
+                            child: Text(
+                              'Skip',
+                              style: TextStyle(
+                                color: AppColorScheme.primaryColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'How Manong Works',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: AppColorScheme.deepTeal,
+                    ),
+                  ),
+                  Text(
+                    'Your trusted home service partner',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+
+            // Gallery with larger images
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                child: PageView.builder(
+                  controller: _galleryController,
+                  itemCount: _galleryItems.length,
+                  onPageChanged: _onGalleryPageChanged,
+                  itemBuilder: (context, index) {
+                    final item = _galleryItems[index];
+                    final isLastGalleryItem = index == _galleryItems.length - 1;
+
+                    return Container(
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      child: Column(
+                        children: [
+                          // Feature indicator - compact
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: AppColorScheme.primaryColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '${index + 1}',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    item['title']!,
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColorScheme.deepTeal,
+                                    ),
+                                    maxLines: 2,
+                                    textAlign: TextAlign.left,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Image - MAXIMUM SIZE
+                          Expanded(
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 0),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.08),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.asset(
+                                  item['image']!,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // Description with optional "Get Started" button
+                          Container(
+                            margin: const EdgeInsets.only(top: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  item['description']!,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    height: 1.4,
+                                    color: Colors.black87,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 3,
+                                ),
+                                if (isLastGalleryItem) ...[
+                                  const SizedBox(height: 20),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            AppColorScheme.primaryColor,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 14,
+                                          horizontal: 32,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        elevation: 4,
+                                      ),
+                                      onPressed: _nextPage,
+                                      child: const Text(
+                                        'Get Started',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+            // Compact navigation - Hide on last gallery screen
+            if (_galleryPage < _galleryItems.length - 1)
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                child: Column(
+                  children: [
+                    // Progress dots
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        _galleryItems.length,
+                        (dotIndex) => Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          width: _galleryPage == dotIndex ? 24 : 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: _galleryPage == dotIndex
+                                ? AppColorScheme.primaryColor
+                                : Colors.grey[300],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Simple instruction
+                    Text(
+                      'Swipe to continue',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -741,32 +1279,39 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                 itemBuilder: (context, index) {
                   final item = _instructions[index];
 
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Image.asset(
-                            item['image']!,
-                            width: 250,
-                            height: 250,
-                            filterQuality: FilterQuality.high,
-                          ),
-                          const SizedBox(height: 40),
-                          Text(
-                            item['text']!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              height: 1.4,
+                  if (item['type'] == 'privacy_policy') {
+                    return _buildPrivacyPolicyPage();
+                  } else if (item['type'] == 'gallery') {
+                    return _buildGalleryPage();
+                  } else {
+                    // Normal onboarding page
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.asset(
+                              item['image']!,
+                              width: 250,
+                              height: 250,
+                              filterQuality: FilterQuality.high,
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 40),
+                            Text(
+                              item['text']!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                  }
                 },
               ),
             ),
@@ -783,6 +1328,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   @override
   void dispose() {
     _pageController.dispose();
+    _galleryController.dispose();
     super.dispose();
   }
 }

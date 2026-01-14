@@ -634,7 +634,7 @@ class _BottomNavSwipeState extends State<BottomNavSwipe> {
         items: [
           _buildNavItem(Icons.home, 'Home', 0),
           _buildNavItem(Icons.assignment, 'My Requests', 1),
-          _buildNavItem(Icons.person, 'Profile', 2),
+          _buildNavItem(Icons.person, 'Settings', 2),
         ],
       ),
     );

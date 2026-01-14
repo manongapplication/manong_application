@@ -46,8 +46,8 @@ import 'package:manong_application/screens/service_requests/service_requests_det
 import 'package:manong_application/screens/service_requests/transaction_screen.dart';
 import 'package:manong_application/services/notification_service.dart';
 import 'package:manong_application/utils/onboarding_storage.dart';
-import 'package:manong_application/utils/permission_utils.dart';
 import 'package:manong_application/widgets/authenticated_screen.dart';
+import 'package:manong_application/widgets/gallery_tutorial_screen.dart';
 import 'package:manong_application/widgets/location_map.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
@@ -320,6 +320,10 @@ class MyApp extends StatelessWidget {
                 ),
               );
             }
+          case '/gallery-tutorial':
+            return MaterialPageRoute(
+              builder: (_) => const GalleryTutorialScreen(),
+            );
           case '/register':
             return MaterialPageRoute(builder: (_) => RegisterScreen());
           case '/enter-password':

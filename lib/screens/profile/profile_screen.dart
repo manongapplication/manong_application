@@ -5,6 +5,7 @@ import 'package:manong_application/main.dart';
 import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/providers/bottom_nav_provider.dart';
 import 'package:manong_application/theme/colors.dart';
+import 'package:manong_application/utils/url_utils.dart';
 import 'package:manong_application/widgets/incomplete_profile_card.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -186,6 +187,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.pushNamed(context, '/help-and-support');
             },
           ),
+          const SizedBox(height: 12),
+          _buildActionTile(
+            icon: Icons.school,
+            title: 'App Tutorial',
+            subtitle: 'Learn how to use Manong step-by-step',
+            onTap: () {
+              Navigator.pushNamed(context, '/gallery-tutorial');
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildActionTile(
+            icon: Icons.privacy_tip,
+            title: 'Privacy Policy',
+            subtitle: 'View how we collect and use your data',
+            onTap: () async {
+              await launchUrlScreen(
+                navigatorKey.currentContext!,
+                'https://manongapp.com/index.php/privacy-policy/',
+              );
+            },
+          ),
+
           const SizedBox(height: 12),
           _buildActionTile(
             icon: Icons.logout,
@@ -393,7 +416,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: myAppBar(leading: Icon(Icons.person), title: 'Account'),
+      appBar: myAppBar(leading: Icon(Icons.person), title: 'Settings'),
       backgroundColor: AppColorScheme.backgroundGrey,
       body: RefreshIndicator(
         onRefresh: _getProfile,
