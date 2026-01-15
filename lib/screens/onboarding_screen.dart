@@ -87,33 +87,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     }
   }
 
-  Widget _buildDisclosurePoint(String title, String description) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: AppColorScheme.tealDark,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            description,
-            style: const TextStyle(fontSize: 14, color: Colors.black87),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildLocationDisclosurePage() {
-    final isAndroid = Platform.isAndroid;
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -704,7 +678,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     if (granted) {
       // Already have permission, skip dialog AND GO TO NEXT PAGE
       _isRequestingLocation = false; // Reset button
-      print('DEBUG: Permission already granted, going to next page');
+      debugPrint('DEBUG: Permission already granted, going to next page');
       if (mounted) {
         _nextPage(); // ADD THIS LINE
       }
