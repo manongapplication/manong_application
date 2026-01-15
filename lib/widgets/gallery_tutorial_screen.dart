@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:manong_application/theme/colors.dart';
+import 'package:manong_application/utils/tutorial_utils.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
 
 class GalleryTutorialScreen extends StatefulWidget {
@@ -15,74 +16,7 @@ class _GalleryTutorialScreenState extends State<GalleryTutorialScreen> {
   );
   int _galleryPage = 0;
 
-  final List<Map<String, dynamic>> _galleryItems = [
-    {
-      'image': 'assets/screenshots/01.png',
-      'title': 'Browse Services',
-      'description':
-          'Choose from various home services like appliance repair, carpentry, cleaning, and electrical work.',
-      'icon': Icons.home_repair_service, // 🏠 Home repair icon
-    },
-    {
-      'image': 'assets/screenshots/02.png',
-      'title': 'Select Specific Service',
-      'description':
-          'Pick the exact service you need, like Door & Cabinet repair within Carpentry.',
-      'icon': Icons.build, // 🔨 Build/tools icon
-    },
-    {
-      'image': 'assets/screenshots/03.png',
-      'title': 'Auto-Detected Location',
-      'description':
-          'We automatically detect your location to find nearby Manongs.',
-      'icon': Icons.my_location, // 📍 My location icon
-    },
-    {
-      'image': 'assets/screenshots/04.png',
-      'title': 'Set Priority Level',
-      'description':
-          'Choose urgency level from Standard to Emergency based on your needs.',
-      'icon': Icons.priority_high, // ⚠️ Priority icon
-    },
-    {
-      'image': 'assets/screenshots/05.png',
-      'title': 'Find Available Manongs',
-      'description':
-          'Browse available professionals with their skills and ratings.',
-      'icon': Icons.engineering, // 👷 Engineering/worker icon
-    },
-    {
-      'image': 'assets/screenshots/06.png',
-      'title': 'View Manong Details',
-      'description':
-          'See location, distance, and information about each Manong.',
-      'icon': Icons.account_circle, // 👤 Account/profile icon
-    },
-    {
-      'image': 'assets/screenshots/07.png',
-      'title': 'Complete Booking',
-      'description': 'Review service details and choose payment method.',
-      'icon': Icons.shopping_cart_checkout, // 🛒 Shopping cart checkout
-    },
-    {
-      'image': 'assets/screenshots/08.png',
-      'title': 'Track Arrival in Real-Time',
-      'description': 'Monitor your Manong\'s arrival time and booking status.',
-      'icon': Icons.directions_run, // 🏃 Directions run for en route
-    },
-    {
-      'image': 'assets/screenshots/09.png',
-      'title': 'Live Tracking on Map',
-      'description': 'Track your Manong\'s location in real-time on the map.',
-      'icon': Icons.gps_not_fixed, // 🛰️ GPS tracking icon
-    },
-    {
-      'image': 'assets/screenshots/10.png',
-      'title': 'Rate & Review',
-      'description': 'Leave feedback and reviews after service completion.',
-      'icon': Icons.thumb_up, // 👍 Thumbs up for rating
-    },
-  ];
+  final List<Map<String, dynamic>> _galleryItems = TutorialUtils().galleryItems;
 
   @override
   void initState() {

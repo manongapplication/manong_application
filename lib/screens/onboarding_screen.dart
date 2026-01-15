@@ -7,6 +7,7 @@ import 'package:manong_application/screens/main_screen.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/onboarding_storage.dart';
 import 'package:manong_application/utils/permission_utils.dart';
+import 'package:manong_application/utils/tutorial_utils.dart';
 import 'package:manong_application/utils/url_utils.dart';
 import 'package:manong_application/widgets/modal_icon_overlay.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -35,8 +36,12 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   bool _notificationDialogShown = false;
   bool _isCheckingPermissions = false;
 
+  bool _userAcceptedLocationDisclosure = false;
+  bool _isRequestingLocation = false;
+
   // Add privacy policy page as first item
   final List<Map<String, dynamic>> _instructions = [
+    {'type': 'location_disclosure', 'title': 'Location Data Collection'},
     {'type': 'privacy_policy', 'title': 'Privacy Policy'},
     {
       'type': 'gallery',
@@ -45,7 +50,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     },
     {
       'type': 'normal',
-      'text': 'Enable location to find nearby professionals quickly.',
+      'text': 'Connect with experienced local professionals.',
       'image': 'assets/icon/manong_oboarding_find_manong.png',
     },
     {
@@ -55,69 +60,8 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     },
   ];
 
-  // Using Material Icons but more specific to each feature
-  final List<Map<String, dynamic>> _galleryItems = [
-    {
-      'image': 'assets/screenshots/01.png',
-      'title': 'Browse Services',
-      'description': 'Choose from various home services...',
-      'icon': Icons.home_repair_service, // 🏠 Home repair icon
-    },
-    {
-      'image': 'assets/screenshots/02.png',
-      'title': 'Select Specific Service',
-      'description': 'Pick the exact service you need...',
-      'icon': Icons.build, // 🔨 Build/tools icon
-    },
-    {
-      'image': 'assets/screenshots/03.png',
-      'title': 'Auto-Detected Location',
-      'description': 'We automatically detect your location...',
-      'icon': Icons.my_location, // 📍 My location icon
-    },
-    {
-      'image': 'assets/screenshots/04.png',
-      'title': 'Set Priority Level',
-      'description': 'Choose urgency level...',
-      'icon': Icons.priority_high, // ⚠️ Priority icon
-    },
-    {
-      'image': 'assets/screenshots/05.png',
-      'title': 'Find Available Manongs',
-      'description': 'Browse available professionals...',
-      'icon': Icons.engineering, // 👷 Engineering/worker icon
-    },
-    {
-      'image': 'assets/screenshots/06.png',
-      'title': 'View Manong Details',
-      'description': 'See location, distance...',
-      'icon': Icons.account_circle, // 👤 Account/profile icon
-    },
-    {
-      'image': 'assets/screenshots/07.png',
-      'title': 'Complete Booking',
-      'description': 'Review service details...',
-      'icon': Icons.shopping_cart_checkout, // 🛒 Shopping cart checkout
-    },
-    {
-      'image': 'assets/screenshots/08.png',
-      'title': 'Track Arrival in Real-Time',
-      'description': 'Monitor your Manong\'s arrival...',
-      'icon': Icons.directions_run, // 🏃 Directions run for en route
-    },
-    {
-      'image': 'assets/screenshots/09.png',
-      'title': 'Live Tracking on Map',
-      'description': 'Track your Manong\'s location...',
-      'icon': Icons.gps_not_fixed, // 🛰️ GPS tracking icon
-    },
-    {
-      'image': 'assets/screenshots/10.png',
-      'title': 'Rate & Review',
-      'description': 'Leave feedback and reviews...',
-      'icon': Icons.thumb_up, // 👍 Thumbs up for rating
-    },
-  ];
+  final List<Map<String, dynamic>> _galleryItems = TutorialUtils().galleryItems;
+
   @override
   void initState() {
     super.initState();
@@ -130,6 +74,520 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     _storage = FlutterSecureStorage();
     _permissionUtils = PermissionUtils();
     _storage.write(key: 'is_first_time', value: '');
+
+    _loadUserConsent();
+  }
+
+  Future<void> _loadUserConsent() async {
+    final value = await _storage.read(key: 'location_disclosure_accepted');
+    if (mounted) {
+      setState(() {
+        _userAcceptedLocationDisclosure = value == 'true';
+      });
+    }
+  }
+
+  Widget _buildDisclosurePoint(String title, String description) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: AppColorScheme.tealDark,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            description,
+            style: const TextStyle(fontSize: 14, color: Colors.black87),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationDisclosurePage() {
+    final isAndroid = Platform.isAndroid;
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // Main Content
+            SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 40,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Icon
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: AppColorScheme.primaryColor.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.location_on_rounded,
+                          size: 40,
+                          color: AppColorScheme.primaryColor,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    // Main Title
+                    Text(
+                      'Location Access',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: AppColorScheme.deepTeal,
+                        height: 1.2,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Subtitle
+                    Text(
+                      'To provide the best service experience',
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Colors.grey[600],
+                        height: 1.4,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.blue[200]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                size: 18,
+                                color: Colors.blue[700],
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Location Data Collection',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.blue[800],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            // Same text for both platforms - meets Google's requirements
+                            'Manong collects location data to enable real-time service tracking, including in the background when the app is closed or not in use.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[700],
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Key Benefits
+                    _buildBenefitCard(
+                      icon: Icons.pin_drop_rounded,
+                      title: 'Find Nearby Professionals',
+                      description: 'See available Manongs in your area',
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    _buildBenefitCard(
+                      icon: Icons.track_changes_rounded,
+                      title: 'Real-Time Tracking',
+                      description: 'Track your Manong\'s arrival in real-time',
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    _buildBenefitCard(
+                      icon: Icons.timer_rounded,
+                      title: 'Accurate ETAs',
+                      description: 'Get precise arrival time estimates',
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // Privacy Note
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.shield_rounded,
+                            size: 20,
+                            color: Colors.green[600],
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Your privacy matters',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  '• Location shared only with your assigned Manong\n'
+                                  '• Data deleted within 24 hours after service\n'
+                                  '• Manage permissions anytime in Settings',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Simple fade effect at bottom to indicate more content
+                    Container(
+                      height: 60,
+                      margin: const EdgeInsets.only(top: 20, bottom: 40),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.white.withOpacity(0),
+                            Colors.white.withOpacity(0.3),
+                            Colors.white.withOpacity(0.7),
+                            Colors.white,
+                          ],
+                        ),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.expand_more_rounded,
+                          size: 24,
+                          color: Colors.grey[400],
+                        ),
+                      ),
+                    ),
+
+                    // Extra space for buttons
+                    const SizedBox(height: 60),
+                  ],
+                ),
+              ),
+            ),
+
+            // Fixed Bottom Buttons
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.only(
+                  left: 20,
+                  right: 20,
+                  top: 14,
+                  bottom: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 12,
+                      offset: const Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Simple scroll hint text
+                    Container(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.swipe_up_rounded,
+                            size: 14,
+                            color: Colors.grey[500],
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Swipe up for more details',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Accept Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isRequestingLocation
+                            ? null
+                            : () async {
+                                if (_isRequestingLocation) return;
+
+                                setState(() {
+                                  _isRequestingLocation = true;
+                                });
+
+                                try {
+                                  // Save acceptance
+                                  _storage.write(
+                                    key: 'location_disclosure_accepted',
+                                    value: 'true',
+                                  );
+                                  setState(() {
+                                    _userAcceptedLocationDisclosure = true;
+                                  });
+
+                                  if (Platform.isAndroid) {
+                                    // CRITICAL: ALWAYS reset before showing
+                                    _locationDialogShown = false;
+
+                                    await _showLocationPermissionDialog();
+
+                                    // Button will be reset in the dialog logic
+                                  } else {
+                                    // For iOS, show dialog too (but with iOS-specific options)
+                                    _locationDialogShown = false;
+                                    await _showLocationPermissionDialog();
+                                  }
+                                } catch (e) {
+                                  // Handle error
+                                  if (mounted) {
+                                    setState(() {
+                                      _isRequestingLocation = false;
+                                    });
+                                  }
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _isRequestingLocation
+                              ? Colors.grey[400]
+                              : AppColorScheme.primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: _isRequestingLocation
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const Text(
+                                'Allow Location Access',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // Skip Option
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            _storage.write(
+                              key: 'location_disclosure_accepted',
+                              value: 'false',
+                            );
+                            setState(() {
+                              _userAcceptedLocationDisclosure = false;
+                            });
+                            _nextPage();
+                          },
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                          ),
+                          child: Text(
+                            'Skip for now',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Privacy Policy Link
+                        TextButton(
+                          onPressed: () async {
+                            await launchUrlScreen(
+                              navigatorKey.currentContext!,
+                              'https://manongapp.com/index.php/privacy-policy/',
+                            );
+                          },
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 8,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.privacy_tip_outlined,
+                                size: 14,
+                                color: Colors.blue,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Privacy',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBenefitCard({
+    required IconData icon,
+    required String title,
+    required String description,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14), // Reduced from 16
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14), // Slightly reduced
+        border: Border.all(color: Colors.grey[200]!, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02), // Reduced opacity
+            blurRadius: 8, // Reduced from 12
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44, // Reduced from 48
+            height: 44, // Reduced from 48
+            decoration: BoxDecoration(
+              color: AppColorScheme.primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10), // Reduced from 12
+            ),
+            child: Center(
+              child: Icon(
+                icon,
+                size: 22, // Reduced from 24
+                color: AppColorScheme.primaryColor,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14), // Reduced from 16
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15, // Reduced from 16
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 3), // Reduced from 4
+                Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 13, // Reduced from 14
+                    color: Colors.grey[600],
+                    height: 1.3, // Reduced from 1.4
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _nextPage() async {
@@ -139,9 +597,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
         curve: Curves.easeInOut,
       );
     } else {
-      // On the last page, ensure permissions are checked
       await _ensurePermissions();
-
       await navigatorKey.currentContext!
           .read<OnboardingStorage>()
           .setNotFirstTime();
@@ -154,19 +610,13 @@ class _OnboardingScreenState extends State<StatefulWidget> {
 
   Future<void> _ensurePermissions() async {
     if (_isCheckingPermissions || _permissionUtils == null) return;
-
     _isCheckingPermissions = true;
 
     try {
-      // Ensure location permission if on location page (skip privacy policy page)
-      if (_currentPage >= 2) {
-        // Changed from 1 to 2 because we added privacy policy page
+      if (_currentPage == 3 && _userAcceptedLocationDisclosure) {
         await _permissionUtils!.checkLocationPermission();
       }
-
-      // Ensure notification permission if on notification page
-      if (_currentPage >= 3) {
-        // Changed from 2 to 3
+      if (_currentPage >= 4) {
         await _permissionUtils!.checkNotificationPermission();
       }
     } finally {
@@ -244,124 +694,101 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   }
 
   Future<void> _showLocationPermissionDialog() async {
-    // Only show once and only if permission isn't already granted
+    // Check if already showing or permission already granted
     if (_locationDialogShown || _permissionUtils == null) return;
 
+    // Also check if permission is already granted
     bool granted = await _permissionUtils!.isLocationPermissionGranted();
+    if (granted) {
+      // Already have permission, skip dialog AND GO TO NEXT PAGE
+      _isRequestingLocation = false; // Reset button
+      print('DEBUG: Permission already granted, going to next page');
+      if (mounted) {
+        _nextPage(); // ADD THIS LINE
+      }
+      return;
+    }
 
-    if (!granted && mounted) {
-      _locationDialogShown = true; // Mark as shown
+    if (mounted) {
+      _locationDialogShown = true; // Mark as shown immediately
 
-      // Store the showDialog result to control navigation
       await showDialog<void>(
         context: navigatorKey.currentContext!,
-        barrierDismissible: false, // Prevent dismissing by tapping outside
+        barrierDismissible: false,
         builder: (context) {
+          final isAndroid = Platform.isAndroid;
+
           return Dialog(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            insetPadding: const EdgeInsets.all(
-              20,
-            ), // Add padding from screen edges
+            insetPadding: const EdgeInsets.all(20),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxHeight:
-                    MediaQuery.of(context).size.height * 0.8, // Limit height
+                maxHeight: MediaQuery.of(context).size.height * 0.8,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // SCROLLABLE CONTENT AREA
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.location_on,
-                            size: 60,
-                            color: AppColorScheme.primaryColor,
-                          ),
-                          const SizedBox(height: 20),
-                          const Text(
-                            'Location Access Required',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: AppColorScheme.deepTeal,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Manong collects location data to:',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: AppColorScheme.tealDark,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _buildBulletPoint(
-                                  'Show nearby service providers',
-                                ),
-                                _buildBulletPoint(
-                                  'Calculate accurate service distances',
-                                ),
-                                _buildBulletPoint(
-                                  'Enable real-time service tracking',
-                                ),
-                                _buildBulletPoint(
-                                  'Match you with closest professionals',
-                                ),
-                                _buildBulletPoint(
-                                  'Share location with assigned Manong during active services',
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _buildInfoPoint(
-                                  'Location data is collected only for the purposes listed above',
-                                ),
-                                _buildInfoPoint(
-                                  'Your location is accessed when using the app for booking services',
-                                ),
-                                _buildInfoPoint(
-                                  'Background location may be used during active services for real-time tracking',
-                                ),
-                                _buildInfoPoint(
-                                  'Your location is shared ONLY with the assigned service professional',
-                                ),
-                                _buildInfoPoint(
-                                  'Live location data is deleted within 24 hours after service completion',
-                                ),
-                                _buildInfoPoint(
-                                  'We do not share your location with third parties',
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
+                  // Platform-specific icon
+                  Icon(
+                    isAndroid ? Icons.location_on : Icons.location_on_outlined,
+                    size: 60,
+                    color: AppColorScheme.primaryColor,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Platform-specific title
+                  Text(
+                    isAndroid
+                        ? 'Location Access Required'
+                        : 'Allow "Manong" to access your location?',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColorScheme.deepTeal,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Platform-specific description
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Text(
+                      isAndroid
+                          ? 'Manong collects location data in the background to enable real-time service tracking when the app is closed or not in use.'
+                          : 'This allows Manong to show nearby service professionals and enable real-time tracking during service delivery.',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: AppColorScheme.tealDark,
                       ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
 
-                  // FIXED BOTTOM BUTTONS AREA (NON-SCROLLABLE)
+                  const SizedBox(height: 20),
+
+                  // Platform-specific iOS note
+                  if (!isAndroid) ...[
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue[100]!),
+                      ),
+                      child: const Text(
+                        'On iOS, you can choose:\n• "Allow While Using App" (recommended)\n• "Allow Once"\n• "Don\'t Allow"',
+                        style: TextStyle(fontSize: 13, color: Colors.blue),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // FIXED BOTTOM BUTTONS
                   Container(
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                     child: Column(
@@ -372,6 +799,14 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                               child: TextButton(
                                 onPressed: () {
                                   Navigator.of(context).pop();
+                                  // CRITICAL: Reset flags when user says "Not Now"
+                                  _locationDialogShown = false;
+                                  _isRequestingLocation = false;
+
+                                  // GO TO NEXT PAGE even when user says "Not Now"
+                                  if (mounted) {
+                                    _nextPage();
+                                  }
                                 },
                                 style: TextButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
@@ -385,7 +820,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                                   ),
                                 ),
                                 child: Text(
-                                  'Not Now',
+                                  isAndroid ? 'Not Now' : 'Don\'t Allow',
                                   style: TextStyle(
                                     fontSize: 16,
                                     color: AppColorScheme.primaryColor,
@@ -410,12 +845,19 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                                 ),
                                 onPressed: () async {
                                   Navigator.of(context).pop();
+                                  _locationDialogShown = false;
+                                  _isRequestingLocation = false;
                                   await _permissionUtils!
                                       .checkLocationPermission();
+
+                                  // GO TO NEXT PAGE after requesting permission
+                                  if (mounted) {
+                                    _nextPage();
+                                  }
                                 },
-                                child: const Text(
-                                  'Continue',
-                                  style: TextStyle(
+                                child: Text(
+                                  isAndroid ? 'Continue' : 'Allow',
+                                  style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -423,58 +865,6 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 12),
-                        GestureDetector(
-                          onTap: () async {
-                            await launchUrlScreen(
-                              navigatorKey.currentContext!,
-                              'https://manongapp.com/index.php/privacy-policy/',
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.privacy_tip_outlined,
-                                  size: 16,
-                                  color: Colors.blue,
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Learn more in our Privacy Policy',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.blue,
-                                    decoration: TextDecoration.underline,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () async {
-                            // Don't close current dialog, show details on top
-                            _showDataUsageDetails(
-                              context,
-                              maintainMainDialog: true,
-                            );
-                          },
-                          child: const Padding(
-                            padding: EdgeInsets.only(top: 4),
-                            child: Text(
-                              'What data do we collect and why?',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ),
                         ),
                       ],
                     ),
@@ -484,255 +874,12 @@ class _OnboardingScreenState extends State<StatefulWidget> {
             ),
           );
         },
-      );
+      ).then((_) {
+        // Always reset flags when dialog closes
+        _locationDialogShown = false;
+        _isRequestingLocation = false;
+      });
     }
-  }
-
-  void _showDataUsageDetails(
-    BuildContext context, {
-    bool maintainMainDialog = false,
-  }) async {
-    // Store the result so we can show location dialog again if needed
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          insetPadding: const EdgeInsets.all(20),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.8,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // HEADER
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  child: const Text(
-                    'Data Collection Details',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColorScheme.deepTeal,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-
-                // SCROLLABLE CONTENT
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Location Data Usage:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColorScheme.tealDark,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildDetailPoint(
-                          'Foreground Access: When actively using the app for booking',
-                        ),
-                        _buildDetailPoint(
-                          'Background Access: During active services for real-time tracking',
-                        ),
-                        _buildDetailPoint(
-                          'Precise location for accurate matching and routing',
-                        ),
-                        _buildDetailPoint(
-                          'Live tracking of service professionals en route',
-                        ),
-                        _buildDetailPoint(
-                          'Location sharing with assigned Manong during service',
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Service-Specific Usage:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColorScheme.tealDark,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildDetailPoint(
-                          'Booking Phase: Find nearby professionals, calculate ETAs',
-                        ),
-                        _buildDetailPoint(
-                          'Service Phase: Real-time tracking, location sharing',
-                        ),
-                        _buildDetailPoint(
-                          'Completion: Location data anonymized/deleted',
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Data Security:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColorScheme.tealDark,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildDetailPoint('End-to-end encrypted transmission'),
-                        _buildDetailPoint(
-                          'Access limited to assigned service professional only',
-                        ),
-                        _buildDetailPoint(
-                          'Automatic deletion within 24 hours after service',
-                        ),
-                        _buildDetailPoint(
-                          'No sharing with third-party advertisers',
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'User Control:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColorScheme.tealDark,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildDetailPoint(
-                          'Manage permissions anytime in device settings',
-                        ),
-                        _buildDetailPoint(
-                          'Background tracking only during active services',
-                        ),
-                        _buildDetailPoint(
-                          'Can disable location access at any time',
-                        ),
-                        const SizedBox(height: 12),
-                        GestureDetector(
-                          onTap: () async {
-                            Navigator.of(
-                              context,
-                            ).pop(false); // Don't close completely
-                            await launchUrlScreen(
-                              navigatorKey.currentContext!,
-                              'https://manongapp.com/index.php/privacy-policy/',
-                            );
-                            // Show data details again after web view
-                            if (mounted) {
-                              _showDataUsageDetails(
-                                context,
-                                maintainMainDialog: maintainMainDialog,
-                              );
-                            }
-                          },
-                          child: const Text(
-                            'View full Privacy Policy for complete details',
-                            style: TextStyle(
-                              color: Colors.blue,
-                              decoration: TextDecoration.underline,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // CLOSE BUTTON (FIXED AT BOTTOM)
-                Container(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColorScheme.primaryColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          onPressed: () => Navigator.of(context).pop(true),
-                          child: const Text(
-                            'Close',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    // If we need to show main dialog again after closing details
-    if (maintainMainDialog && result == true && mounted) {
-      // The details dialog is closed, main location dialog is still in stack
-      // No need to show again as it's already there
-    }
-  }
-
-  Widget _buildBulletPoint(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.circle, size: 8, color: AppColorScheme.primaryColor),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoPoint(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.check_circle, size: 14, color: Colors.green),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 13, color: Colors.grey),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailPoint(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.arrow_right, size: 16, color: Colors.grey),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   // Reset dialog flags when going back to previous pages
@@ -741,27 +888,28 @@ class _OnboardingScreenState extends State<StatefulWidget> {
       _currentPage = index;
     });
 
-    // Reset dialog flags if user goes back to previous pages
-    if (index < 2) {
-      // Changed from 1 to 2
-      _locationDialogShown = false;
-    }
-    if (index < 3) {
-      // Changed from 2 to 3
-      _notificationDialogShown = false;
+    // Permission is now requested ON THE DISCLOSURE PAGE ITSELF
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      // Only show notification permission on its page
+      if (index == 4 && !_notificationDialogShown) {
+        await _showNotificationPermissionDialog();
+      }
+    });
+  }
+
+  Future<void> requestLocationForActiveService() async {
+    // STEP 1: Foreground first
+    if (await Permission.locationWhenInUse.isDenied) {
+      await Permission.locationWhenInUse.request();
+      return;
     }
 
-    // Show dialogs only when moving forward to specific pages
-    if (index == 2 && !_locationDialogShown) {
-      // Changed from 1 to 2
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _showLocationPermissionDialog();
-      });
-    } else if (index == 3 && !_notificationDialogShown) {
-      // Changed from 2 to 3
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _showNotificationPermissionDialog();
-      });
+    // STEP 2: Background ONLY when service is active
+    if (await Permission.locationAlways.isDenied) {
+      await Permission.locationAlways.request();
     }
   }
 
@@ -769,34 +917,16 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(_instructions.length, (index) {
-        return Container(
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: _currentPage == index ? 12 : 8,
-          height: _currentPage == index ? 12 : 8,
+          width: _currentPage == index ? 20 : 8,
+          height: 8,
           decoration: BoxDecoration(
             color: _currentPage == index
                 ? AppColorScheme.primaryColor
-                : Colors.grey.shade400,
-            shape: BoxShape.circle,
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget _buildGalleryIndicator() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(_galleryItems.length, (index) {
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: _galleryPage == index ? 12 : 8,
-          height: _galleryPage == index ? 12 : 8,
-          decoration: BoxDecoration(
-            color: _galleryPage == index
-                ? AppColorScheme.primaryColor
-                : Colors.grey.shade400,
-            shape: BoxShape.circle,
+                : Colors.grey[300],
+            borderRadius: BorderRadius.circular(4),
           ),
         );
       }),
@@ -804,20 +934,26 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   }
 
   Widget _buildNextButton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20), // Reduced
       child: SizedBox(
         width: double.infinity,
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColorScheme.primaryColor,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            padding: const EdgeInsets.symmetric(vertical: 16), // Reduced
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            elevation: 0,
           ),
           onPressed: _nextPage,
           child: Text(
-            _currentPage == _instructions.length - 1 ? "Get Started" : "Next",
-            style: const TextStyle(fontSize: 16),
+            _currentPage == _instructions.length - 1
+                ? "Get Started"
+                : "Continue",
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
         ),
       ),
@@ -827,6 +963,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   // Privacy policy page
   Widget _buildPrivacyPolicyPage() {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -987,6 +1124,24 @@ class _OnboardingScreenState extends State<StatefulWidget> {
             color: Colors.black87,
           ),
         ),
+        if (title == 'Location Data') const SizedBox(height: 16),
+        if (title == 'Location Data')
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.yellow[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange),
+            ),
+            child: const Text(
+              'Google Play Prominent Disclosure: "Manong collects location data in the background to enable real-time service tracking when the app is closed or not in use."', // ← UPDATED TEXT
+              style: TextStyle(
+                fontSize: 14,
+                fontStyle: FontStyle.italic,
+                color: Colors.brown,
+              ),
+            ),
+          ),
         if (points != null) ...[
           const SizedBox(height: 12),
           ...points.map(
@@ -1024,6 +1179,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
 
   Widget _buildGalleryPage() {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -1047,14 +1203,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
-                            onPressed: () {
-                              // Skip to next onboarding page
-                              _pageController.animateToPage(
-                                2, // Skip to next page after gallery
-                                duration: const Duration(milliseconds: 500),
-                                curve: Curves.easeInOut,
-                              );
-                            },
+                            onPressed: _nextPage,
                             child: Text(
                               'Skip',
                               style: TextStyle(
@@ -1268,6 +1417,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -1279,30 +1429,30 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                 itemBuilder: (context, index) {
                   final item = _instructions[index];
 
-                  if (item['type'] == 'privacy_policy') {
+                  if (item['type'] == 'location_disclosure') {
+                    return _buildLocationDisclosurePage();
+                  } else if (item['type'] == 'privacy_policy') {
                     return _buildPrivacyPolicyPage();
                   } else if (item['type'] == 'gallery') {
                     return _buildGalleryPage();
                   } else {
-                    // Normal onboarding page
                     return Center(
                       child: Padding(
-                        padding: const EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(20), // Reduced from 24
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Image.asset(
                               item['image']!,
-                              width: 250,
-                              height: 250,
-                              filterQuality: FilterQuality.high,
+                              width: 220, // Reduced from 250
+                              height: 220, // Reduced from 250
                             ),
-                            const SizedBox(height: 40),
+                            const SizedBox(height: 32), // Reduced from 40
                             Text(
                               item['text']!,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
-                                fontSize: 20,
+                                fontSize: 18, // Reduced from 20
                                 fontWeight: FontWeight.bold,
                                 height: 1.4,
                               ),
@@ -1315,9 +1465,9 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                 },
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 24), // Reduced from 40
             _buildPageIndicator(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16), // Reduced from 20
             _buildNextButton(),
           ],
         ),

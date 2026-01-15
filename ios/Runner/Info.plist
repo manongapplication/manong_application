@@ -45,8 +45,6 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>We need access to your camera to take photos of plumbing or handyman issues, such as a leaking pipe or broken faucet, which will be uploaded with your service request so the technician can prepare before arriving.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>We use your location to find nearby service providers, calculate distances, and match you with available professionals. Location is accessed only while using the app and shared only with assigned service professionals.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Manong uses your location in the background to provide real-time tracking of service professionals as they travel to your location, and to share your live location with the assigned Manong during active services for accurate service coordination.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
