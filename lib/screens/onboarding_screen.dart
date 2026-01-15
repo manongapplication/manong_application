@@ -207,8 +207,10 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            // Same text for both platforms - meets Google's requirements
-                            'Manong collects location data to enable real-time service tracking, including in the background when the app is closed or not in use.',
+                            Platform.isAndroid
+                                ? 'Manong collects location data to enable real-time service tracking, including in the background when the app is closed or not in use.'
+                                : 'Manong uses location data to find nearby service professionals and enable real-time tracking during active services. Location access depends on the permission you choose.',
+
                             style: TextStyle(
                               fontSize: 13,
                               color: Colors.grey[700],
@@ -1133,8 +1135,10 @@ class _OnboardingScreenState extends State<StatefulWidget> {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.orange),
             ),
-            child: const Text(
-              'Google Play Prominent Disclosure: "Manong collects location data in the background to enable real-time service tracking when the app is closed or not in use."', // ← UPDATED TEXT
+            child: Text(
+              Platform.isAndroid
+                  ? 'Google Play Prominent Disclosure: "Manong collects location data in the background to enable real-time service tracking when the app is closed or not in use."'
+                  : 'iOS Location Disclosure: "Manong uses location data during active services to show nearby professionals and provide real-time tracking, depending on your permission settings."',
               style: TextStyle(
                 fontSize: 14,
                 fontStyle: FontStyle.italic,
