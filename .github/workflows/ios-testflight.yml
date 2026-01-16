@@ -25,7 +25,7 @@ jobs:
 
       # 4️⃣ Build iOS IPA (skip codesign)
       - name: Build iOS IPA
-        run: flutter build ipa --release --no-codesign --output=build/ios/ipa
+        run: flutter build ipa --release --no-codesign
 
       # 5️⃣ Install Bundler 2.7.2
       - name: Install Bundler
