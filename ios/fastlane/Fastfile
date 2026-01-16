@@ -1,12 +1,10 @@
 default_platform(:ios)
 
 platform :ios do
-  desc "Upload Flutter-built IPA to TestFlight"
+  desc "Upload Flutter IPA to TestFlight"
   lane :beta do
-    # Flutter outputs IPA here (relative to project root)
-    ipa_path = File.expand_path("../../build/ios/ipa/Runner.ipa", __FILE__)
+    ipa_path = File.expand_path("../build/ios/ipa/Runner.ipa", Dir.pwd)
 
-    # Check if file exists
     unless File.exist?(ipa_path)
       UI.user_error!("Could not find IPA at path: #{ipa_path}")
     end
