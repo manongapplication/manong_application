@@ -1,5 +1,3 @@
-# Fastfile (ios/Fastfile)
-
 default_platform(:ios)
 
 platform :ios do
@@ -8,6 +6,7 @@ platform :ios do
     # Flutter outputs IPA here (relative to project root)
     ipa_path = File.expand_path("../../build/ios/ipa/Runner.ipa", __FILE__)
 
+    # Check if file exists
     unless File.exist?(ipa_path)
       UI.user_error!("Could not find IPA at path: #{ipa_path}")
     end
