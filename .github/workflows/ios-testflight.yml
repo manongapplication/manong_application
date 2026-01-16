@@ -23,9 +23,9 @@ jobs:
       - name: Install Flutter deps
         run: flutter pub get
 
-      # 4️⃣ Build iOS app (no codesign, for CI)
+      # 4️⃣ Build iOS IPA (skip codesign)
       - name: Build iOS (no codesign)
-        run: flutter build ios --release --no-codesign
+        run: flutter build ipa --release --no-codesign
 
       # 5️⃣ Install compatible Bundler version
       - name: Install Bundler 2.7.2
