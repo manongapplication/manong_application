@@ -27,9 +27,9 @@ jobs:
       - name: Build iOS (no codesign)
         run: flutter build ios --release --no-codesign
 
-      # 5️⃣ Install Bundler
-      - name: Install Bundler
-        run: gem install bundler
+      # 5️⃣ Install compatible Bundler version
+      - name: Install Bundler 2.7.2
+        run: gem install bundler -v 2.7.2
 
       # 6️⃣ Install Fastlane via Gemfile
       - name: Install Fastlane
@@ -40,7 +40,7 @@ jobs:
             echo 'source "https://rubygems.org"' > Gemfile
             echo 'gem "fastlane", "~> 2.230.0"' >> Gemfile
           fi
-          bundle install
+          bundle _2.7.2_ install
 
       # 7️⃣ Upload to TestFlight
       - name: Upload to TestFlight
