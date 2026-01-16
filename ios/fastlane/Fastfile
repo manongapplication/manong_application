@@ -1,17 +1,17 @@
+# Fastfile (ios/Fastfile)
+
 default_platform(:ios)
 
 platform :ios do
   desc "Upload Flutter-built IPA to TestFlight"
   lane :beta do
-    # Path to Flutter-generated IPA (relative to ios/Fastfile)
-    ipa_path = File.expand_path("../build/ios/ipa/Runner.ipa", __dir__)
+    # Flutter outputs IPA here (relative to project root)
+    ipa_path = File.expand_path("../../build/ios/ipa/Runner.ipa", __FILE__)
 
-    # Make sure the file exists
     unless File.exist?(ipa_path)
       UI.user_error!("Could not find IPA at path: #{ipa_path}")
     end
 
-    # Upload to TestFlight using API key directly
     upload_to_testflight(
       ipa: ipa_path,
       skip_waiting_for_build_processing: true,
