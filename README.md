@@ -1,10 +1,10 @@
 # manong_application
 
-A new Flutter project.
+Manong App is a Flutter-based mobile application for booking local handyman and home services.
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+This project is a starting point for the Manong App Flutter application.
 
 A few resources to get you started if this is your first Flutter project:
 
