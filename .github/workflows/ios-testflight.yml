@@ -24,11 +24,11 @@ jobs:
         run: flutter pub get
 
       # 4️⃣ Build iOS IPA (skip codesign)
-      - name: Build iOS (no codesign)
+      - name: Build iOS IPA
         run: flutter build ipa --release --no-codesign
 
-      # 5️⃣ Install compatible Bundler version
-      - name: Install Bundler 2.7.2
+      # 5️⃣ Install Bundler 2.7.2
+      - name: Install Bundler
         run: gem install bundler -v 2.7.2
 
       # 6️⃣ Install Fastlane via Gemfile
@@ -42,7 +42,7 @@ jobs:
           fi
           bundle _2.7.2_ install
 
-      # 7️⃣ Upload to TestFlight
+      # 7️⃣ Upload IPA to TestFlight
       - name: Upload to TestFlight
         env:
           APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
