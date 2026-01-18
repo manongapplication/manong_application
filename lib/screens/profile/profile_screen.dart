@@ -206,7 +206,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                       onPressed: () {
-                        Navigator.pushNamed(context, '/register');
+                        Navigator.pushNamed(
+                          context,
+                          '/register',
+                          arguments: {'isLoginFlow': true},
+                        );
                       },
                       child: Text(
                         'Log In',
