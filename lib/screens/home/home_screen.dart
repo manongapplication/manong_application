@@ -878,7 +878,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                _buildNotificationBell(),
+                                if (_token != null) ...[
+                                  _buildNotificationBell(),
+                                ],
                               ],
                             ),
                           )

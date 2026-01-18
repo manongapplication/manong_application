@@ -3,22 +3,29 @@ import 'package:flutter/material.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/theme/colors.dart';
 
-class AuthFooter extends StatelessWidget {
+class AuthFooter extends StatefulWidget {
   const AuthFooter({super.key});
 
   @override
+  State<AuthFooter> createState() => _AuthFooterState();
+}
+
+class _AuthFooterState extends State<AuthFooter> {
+  bool _helpPressed = false;
+  bool _settingsPressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    // TODO: implement build
     return SafeArea(
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.08),
-              blurRadius: 10,
+              blurRadius: 16,
               offset: Offset(0, -4),
             ),
           ],
@@ -27,74 +34,153 @@ class AuthFooter extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(height: 6),
+            // Main Action Buttons
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColorScheme.primaryLight,
-                    padding: EdgeInsets.symmetric(horizontal: 52, vertical: 16),
-                  ),
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/register');
-                  },
-                  child: Text(
-                    'Sign Up',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: AppColorScheme.tealDark,
+                // Sign Up Button (Outlined Style)
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColorScheme.primaryColor,
+                      side: BorderSide(
+                        color: AppColorScheme.primaryColor,
+                        width: 1.5,
+                      ),
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      backgroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/register');
+                    },
+                    child: Text(
+                      'Create Account',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
-                SizedBox(width: 8),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColorScheme.primaryColor,
-                    padding: EdgeInsets.symmetric(horizontal: 52, vertical: 16),
-                  ),
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/register');
-                  },
-                  child: Text(
-                    'Login',
-                    style: TextStyle(fontSize: 16, color: Colors.white),
+
+                SizedBox(width: 12),
+
+                // Login Button (Filled)
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColorScheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                      shadowColor: AppColorScheme.primaryColor.withOpacity(0.3),
+                    ),
+                    onPressed: () {
+                      Navigator.pushNamed(
+                        context,
+                        '/register',
+                        arguments: {'isLoginFlow': true},
+                      );
+                    },
+                    child: Text(
+                      'Log In',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-            SizedBox(height: 18),
-            Builder(
-              builder: (context) {
-                return RichText(
-                  textAlign: TextAlign.center,
-                  text: TextSpan(
-                    children: [
-                      const TextSpan(
-                        style: TextStyle(color: Colors.black),
-                        text: 'Need help? ',
-                      ),
-                      TextSpan(
-                        style: const TextStyle(
-                          color: Colors.blue,
-                          decoration: TextDecoration.underline,
-                        ),
-                        text: 'Chat with Us',
-                        recognizer: TapGestureRecognizer()
-                          ..onTap = () {
-                            Navigator.pushNamed(
-                              context, // Use Builder's context
-                              '/help-and-support',
-                            );
-                          },
-                      ),
-                    ],
+
+            SizedBox(height: 24),
+
+            // Secondary Actions - Cleaner Layout
+            Container(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // Help Button with feedback
+                  _buildInteractiveButton(
+                    icon: Icons.help_outline,
+                    label: 'Get Help',
+                    isPressed: _helpPressed,
+                    onTapDown: () => setState(() => _helpPressed = true),
+                    onTapUp: () => setState(() => _helpPressed = false),
+                    onTapCancel: () => setState(() => _helpPressed = false),
+                    onTap: () {
+                      Navigator.pushNamed(context, '/help-and-support');
+                    },
                   ),
-                );
-              },
+
+                  // Vertical Divider
+                  Container(width: 1, height: 20, color: Colors.grey[300]),
+
+                  // Settings Button with feedback
+                  _buildInteractiveButton(
+                    icon: Icons.settings_outlined,
+                    label: 'Settings',
+                    isPressed: _settingsPressed,
+                    onTapDown: () => setState(() => _settingsPressed = true),
+                    onTapUp: () => setState(() => _settingsPressed = false),
+                    onTapCancel: () => setState(() => _settingsPressed = false),
+                    onTap: () {
+                      Navigator.pushNamed(context, '/profile');
+                    },
+                  ),
+                ],
+              ),
             ),
-            SizedBox(height: 8),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInteractiveButton({
+    required IconData icon,
+    required String label,
+    required bool isPressed,
+    required VoidCallback onTapDown,
+    required VoidCallback onTapUp,
+    required VoidCallback onTapCancel,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        splashColor: Colors.grey[300],
+        highlightColor: Colors.grey[200],
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: Colors.grey[600]),
+              SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

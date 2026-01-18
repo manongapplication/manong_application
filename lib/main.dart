@@ -39,7 +39,9 @@ import 'package:manong_application/screens/onboarding_screen.dart';
 import 'package:manong_application/screens/profile/complete_profile_screen.dart';
 import 'package:manong_application/screens/profile/edit_profile.dart';
 import 'package:manong_application/screens/profile/help_and_support_screen.dart';
+import 'package:manong_application/screens/profile/location_settings_screen.dart';
 import 'package:manong_application/screens/profile/notification_settings_screen.dart';
+import 'package:manong_application/screens/profile/profile_screen.dart';
 import 'package:manong_application/screens/service_requests/chat_manong_screen.dart';
 import 'package:manong_application/screens/service_requests/route_tracking_screen.dart';
 import 'package:manong_application/screens/service_requests/service_requests_details_screen.dart';
@@ -325,7 +327,10 @@ class MyApp extends StatelessWidget {
               builder: (_) => const GalleryTutorialScreen(),
             );
           case '/register':
-            return MaterialPageRoute(builder: (_) => RegisterScreen());
+            final args = settings.arguments as Map<String, dynamic>?;
+            return MaterialPageRoute(
+              builder: (_) => RegisterScreen(isLoginFlow: args?['isLoginFlow']),
+            );
           case '/enter-password':
             final args = settings.arguments as Map<String, dynamic>?;
             return MaterialPageRoute(
@@ -514,6 +519,8 @@ class MyApp extends StatelessWidget {
             return MaterialPageRoute(
               builder: (_) => NotificationSettingsScreen(),
             );
+          case '/location-settings':
+            return MaterialPageRoute(builder: (_) => LocationSettingsScreen());
           case '/payment-redirect':
             final args = settings.arguments as Map<String, dynamic>?;
             return MaterialPageRoute(
@@ -531,6 +538,8 @@ class MyApp extends StatelessWidget {
             return MaterialPageRoute(builder: (_) => HelpAndSupportScreen());
           case '/create-password':
             return MaterialPageRoute(builder: (_) => CreatePasswordScreen());
+          case '/profile':
+            return MaterialPageRoute(builder: (_) => ProfileScreen());
         }
         return null;
       },

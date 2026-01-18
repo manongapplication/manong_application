@@ -830,9 +830,10 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
 
           Positioned(
             top: 10,
-            left: 10,
+            right: 10,
             child: Column(
               children: [
+                SizedBox(width: 40, height: 60),
                 SizedBox(
                   width: 40,
                   height: 40,

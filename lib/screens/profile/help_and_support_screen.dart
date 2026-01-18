@@ -28,7 +28,8 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
   final List<ChatMessage> _messages = [
     ChatMessage(
       id: -1,
-      content: "Hello! I'm Manong Support Bot 🤖\n\nHow can I help you today?",
+      content:
+          "Hello! I'm Manong Support Bot 🤖\n\nNote: This is an automated assistant. Your chat is completely private and not shared with anyone.\n\nHow can I help you today?",
       senderId: -1,
       receiverId: -1,
       createdAt: DateTime.now(),

@@ -13,30 +13,30 @@ class GetLocation {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
 
     if (!serviceEnabled) {
-      showDialog(
-        context: context, // ← CHANGE THIS: Use passed context
-        builder: (context) => AlertDialog(
-          title: Text('Location Disabled'),
-          content: Text(
-            'Please enable location services to use this feature.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await Geolocator.openLocationSettings();
-                await Future.delayed(Duration(seconds: 2));
-                Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false); // ← CHANGE THIS
-              },
-              child: Text('Open Settings'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Cancel'),
-            ),
-          ],
-        ),
-      );
+      // showDialog(
+      //   context: context, // ← CHANGE THIS: Use passed context
+      //   builder: (context) => AlertDialog(
+      //     title: Text('Location Disabled'),
+      //     content: Text(
+      //       'Please enable location services to use this feature.',
+      //     ),
+      //     actions: [
+      //       TextButton(
+      //         onPressed: () async {
+      //           Navigator.of(context).pop();
+      //           await Geolocator.openLocationSettings();
+      //           await Future.delayed(Duration(seconds: 2));
+      //           Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false); // ← CHANGE THIS
+      //         },
+      //         child: Text('Open Settings'),
+      //       ),
+      //       TextButton(
+      //         onPressed: () => Navigator.of(context).pop(),
+      //         child: Text('Cancel'),
+      //       ),
+      //     ],
+      //   ),
+      // );
 
       return null;
     }

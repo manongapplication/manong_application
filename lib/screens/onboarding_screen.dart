@@ -36,29 +36,55 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   bool _notificationDialogShown = false;
   bool _isCheckingPermissions = false;
 
+  // For Android only - track location disclosure acceptance
   bool _userAcceptedLocationDisclosure = false;
   bool _isRequestingLocation = false;
 
-  // Add privacy policy page as first item
-  final List<Map<String, dynamic>> _instructions = [
-    {'type': 'location_disclosure', 'title': 'Location Data Collection'},
-    {'type': 'privacy_policy', 'title': 'Privacy Policy'},
-    {
-      'type': 'gallery',
-      'text': 'Welcome to Manong – Home services anytime you need.',
-      'image': 'assets/icon/logo.png',
-    },
-    {
-      'type': 'normal',
-      'text': 'Connect with experienced local professionals.',
-      'image': 'assets/icon/manong_oboarding_find_manong.png',
-    },
-    {
-      'type': 'normal',
-      'text': 'Get updates with notifications about your bookings.',
-      'image': 'assets/icon/manong_oboarding_notification_manong.png',
-    },
-  ];
+  // Platform-specific instructions
+  List<Map<String, dynamic>> get _instructions {
+    if (Platform.isAndroid) {
+      // Android: Include location disclosure for Google Play compliance
+      return [
+        {'type': 'location_disclosure', 'title': 'Location Data Collection'},
+        {'type': 'privacy_policy', 'title': 'Privacy Policy'},
+        {
+          'type': 'gallery',
+          'text': 'Welcome to Manong – Home services anytime you need.',
+          'image': 'assets/icon/logo.png',
+        },
+        {
+          'type': 'normal',
+          'text': 'Connect with experienced local professionals.',
+          'image': 'assets/icon/manong_oboarding_find_manong.png',
+        },
+        {
+          'type': 'normal',
+          'text': 'Get updates with notifications about your bookings.',
+          'image': 'assets/icon/manong_oboarding_notification_manong.png',
+        },
+      ];
+    } else {
+      // iOS: No location disclosure in onboarding
+      return [
+        {'type': 'privacy_policy', 'title': 'Privacy Policy'},
+        {
+          'type': 'gallery',
+          'text': 'Welcome to Manong – Home services anytime you need.',
+          'image': 'assets/icon/logo.png',
+        },
+        {
+          'type': 'normal',
+          'text': 'Connect with experienced local professionals.',
+          'image': 'assets/icon/manong_oboarding_find_manong.png',
+        },
+        {
+          'type': 'normal',
+          'text': 'Get updates with notifications about your bookings.',
+          'image': 'assets/icon/manong_oboarding_notification_manong.png',
+        },
+      ];
+    }
+  }
 
   final List<Map<String, dynamic>> _galleryItems = TutorialUtils().galleryItems;
 
@@ -75,10 +101,15 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     _permissionUtils = PermissionUtils();
     _storage.write(key: 'is_first_time', value: '');
 
-    _loadUserConsent();
+    // Only load consent for Android
+    if (Platform.isAndroid) {
+      _loadUserConsent();
+    }
   }
 
   Future<void> _loadUserConsent() async {
+    if (!Platform.isAndroid) return;
+
     final value = await _storage.read(key: 'location_disclosure_accepted');
     if (mounted) {
       setState(() {
@@ -87,7 +118,16 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     }
   }
 
+  // Android-only location disclosure page
   Widget _buildLocationDisclosurePage() {
+    if (!Platform.isAndroid) {
+      // For iOS, skip this page
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _nextPage();
+      });
+      return const SizedBox.shrink();
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -181,13 +221,10 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            Platform.isAndroid
-                                ? 'Manong collects location data to enable real-time service tracking, including in the background when the app is closed or not in use.'
-                                : 'Manong uses location data to find nearby service professionals and enable real-time tracking during active services. Location access depends on the permission you choose.',
-
+                            'Manong collects location data to enable real-time service tracking, including in the background when the app is closed or not in use.',
                             style: TextStyle(
                               fontSize: 13,
-                              color: Colors.grey[700],
+                              color: Colors.grey.shade700,
                               height: 1.4,
                             ),
                           ),
@@ -368,18 +405,10 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                                     _userAcceptedLocationDisclosure = true;
                                   });
 
-                                  if (Platform.isAndroid) {
-                                    // CRITICAL: ALWAYS reset before showing
-                                    _locationDialogShown = false;
+                                  // CRITICAL: ALWAYS reset before showing
+                                  _locationDialogShown = false;
 
-                                    await _showLocationPermissionDialog();
-
-                                    // Button will be reset in the dialog logic
-                                  } else {
-                                    // For iOS, show dialog too (but with iOS-specific options)
-                                    _locationDialogShown = false;
-                                    await _showLocationPermissionDialog();
-                                  }
+                                  await _showLocationPermissionDialog();
                                 } catch (e) {
                                   // Handle error
                                   if (mounted) {
@@ -506,15 +535,15 @@ class _OnboardingScreenState extends State<StatefulWidget> {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14), // Reduced from 16
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14), // Slightly reduced
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.grey[200]!, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02), // Reduced opacity
-            blurRadius: 8, // Reduced from 12
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
@@ -522,21 +551,17 @@ class _OnboardingScreenState extends State<StatefulWidget> {
       child: Row(
         children: [
           Container(
-            width: 44, // Reduced from 48
-            height: 44, // Reduced from 48
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
               color: AppColorScheme.primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10), // Reduced from 12
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Center(
-              child: Icon(
-                icon,
-                size: 22, // Reduced from 24
-                color: AppColorScheme.primaryColor,
-              ),
+              child: Icon(icon, size: 22, color: AppColorScheme.primaryColor),
             ),
           ),
-          const SizedBox(width: 14), // Reduced from 16
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -544,18 +569,18 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 15, // Reduced from 16
+                    fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
                   ),
                 ),
-                const SizedBox(height: 3), // Reduced from 4
+                const SizedBox(height: 3),
                 Text(
                   description,
                   style: TextStyle(
-                    fontSize: 13, // Reduced from 14
+                    fontSize: 13,
                     color: Colors.grey[600],
-                    height: 1.3, // Reduced from 1.4
+                    height: 1.3,
                   ),
                 ),
               ],
@@ -589,11 +614,18 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     _isCheckingPermissions = true;
 
     try {
-      if (_currentPage == 3 && _userAcceptedLocationDisclosure) {
-        await _permissionUtils!.checkLocationPermission();
+      // Platform-specific permission handling
+      if (Platform.isAndroid) {
+        // Android: Check location permission only if user accepted disclosure
+        if (_currentPage == 3 && _userAcceptedLocationDisclosure) {
+          await _permissionUtils!.checkLocationPermission();
+        }
       }
-      if (_currentPage >= 4) {
-        await _permissionUtils!.checkNotificationPermission();
+
+      // Check notification permission for both platforms
+      final notificationPageIndex = Platform.isAndroid ? 4 : 3;
+      if (_currentPage >= notificationPageIndex && !_notificationDialogShown) {
+        await _showNotificationPermissionDialog();
       }
     } finally {
       _isCheckingPermissions = false;
@@ -669,18 +701,20 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     );
   }
 
+  // Android-only location permission dialog
   Future<void> _showLocationPermissionDialog() async {
+    if (!Platform.isAndroid || _permissionUtils == null) return;
+
     // Check if already showing or permission already granted
-    if (_locationDialogShown || _permissionUtils == null) return;
+    if (_locationDialogShown) return;
 
     // Also check if permission is already granted
     bool granted = await _permissionUtils!.isLocationPermissionGranted();
     if (granted) {
       // Already have permission, skip dialog AND GO TO NEXT PAGE
       _isRequestingLocation = false; // Reset button
-      debugPrint('DEBUG: Permission already granted, going to next page');
       if (mounted) {
-        _nextPage(); // ADD THIS LINE
+        _nextPage();
       }
       return;
     }
@@ -692,8 +726,6 @@ class _OnboardingScreenState extends State<StatefulWidget> {
         context: navigatorKey.currentContext!,
         barrierDismissible: false,
         builder: (context) {
-          final isAndroid = Platform.isAndroid;
-
           return Dialog(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
@@ -706,20 +738,18 @@ class _OnboardingScreenState extends State<StatefulWidget> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Platform-specific icon
+                  // Icon
                   Icon(
-                    isAndroid ? Icons.location_on : Icons.location_on_outlined,
+                    Icons.location_on,
                     size: 60,
                     color: AppColorScheme.primaryColor,
                   ),
                   const SizedBox(height: 20),
 
-                  // Platform-specific title
-                  Text(
-                    isAndroid
-                        ? 'Location Access Required'
-                        : 'Allow "Manong" to access your location?',
-                    style: const TextStyle(
+                  // Title
+                  const Text(
+                    'Location Access Required',
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: AppColorScheme.deepTeal,
@@ -728,14 +758,12 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Platform-specific description
+                  // Description
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Text(
-                      isAndroid
-                          ? 'Manong collects location data in the background to enable real-time service tracking when the app is closed or not in use.'
-                          : 'This allows Manong to show nearby service professionals and enable real-time tracking during service delivery.',
-                      style: const TextStyle(
+                    child: const Text(
+                      'Manong collects location data in the background to enable real-time service tracking when the app is closed or not in use.',
+                      style: TextStyle(
                         fontSize: 16,
                         color: AppColorScheme.tealDark,
                       ),
@@ -744,25 +772,6 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                   ),
 
                   const SizedBox(height: 20),
-
-                  // Platform-specific iOS note
-                  if (!isAndroid) ...[
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue[100]!),
-                      ),
-                      child: const Text(
-                        'On iOS, you can choose:\n• "Allow While Using App" (recommended)\n• "Allow Once"\n• "Don\'t Allow"',
-                        style: TextStyle(fontSize: 13, color: Colors.blue),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
 
                   // FIXED BOTTOM BUTTONS
                   Container(
@@ -775,7 +784,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                               child: TextButton(
                                 onPressed: () {
                                   Navigator.of(context).pop();
-                                  // CRITICAL: Reset flags when user says "Not Now"
+                                  // Reset flags when user says "Not Now"
                                   _locationDialogShown = false;
                                   _isRequestingLocation = false;
 
@@ -795,8 +804,8 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                                     ),
                                   ),
                                 ),
-                                child: Text(
-                                  isAndroid ? 'Not Now' : 'Don\'t Allow',
+                                child: const Text(
+                                  'Not Now',
                                   style: TextStyle(
                                     fontSize: 16,
                                     color: AppColorScheme.primaryColor,
@@ -831,9 +840,9 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                                     _nextPage();
                                   }
                                 },
-                                child: Text(
-                                  isAndroid ? 'Continue' : 'Allow',
-                                  style: const TextStyle(
+                                child: const Text(
+                                  'Continue',
+                                  style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -858,35 +867,31 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     }
   }
 
-  // Reset dialog flags when going back to previous pages
   void _onPageChanged(int index) {
     setState(() {
       _currentPage = index;
     });
 
-    // Permission is now requested ON THE DISCLOSURE PAGE ITSELF
-
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
       // Only show notification permission on its page
-      if (index == 4 && !_notificationDialogShown) {
+      final notificationPageIndex = Platform.isAndroid ? 4 : 3;
+      if (index == notificationPageIndex && !_notificationDialogShown) {
         await _showNotificationPermissionDialog();
       }
     });
   }
 
-  Future<void> requestLocationForActiveService() async {
-    // STEP 1: Foreground first
-    if (await Permission.locationWhenInUse.isDenied) {
-      await Permission.locationWhenInUse.request();
+  // This function should be called from ProblemDetailsScreen or where location is actually needed
+  Future<void> requestLocationWhenNeeded() async {
+    if (Platform.isAndroid) {
+      // For Android, we already requested during onboarding
       return;
     }
 
-    // STEP 2: Background ONLY when service is active
-    if (await Permission.locationAlways.isDenied) {
-      await Permission.locationAlways.request();
-    }
+    // For iOS, request when actually needed in the app
+    // This should be in ProblemDetailsScreen or similar
   }
 
   Widget _buildPageIndicator() {
@@ -911,14 +916,14 @@ class _OnboardingScreenState extends State<StatefulWidget> {
 
   Widget _buildNextButton() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20), // Reduced
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       child: SizedBox(
         width: double.infinity,
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColorScheme.primaryColor,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16), // Reduced
+            padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -936,7 +941,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     );
   }
 
-  // Privacy policy page
+  // Privacy policy page with platform-specific content
   Widget _buildPrivacyPolicyPage() {
     return Scaffold(
       backgroundColor: Colors.white,
@@ -1080,6 +1085,8 @@ class _OnboardingScreenState extends State<StatefulWidget> {
     required String content,
     List<String>? points,
   }) {
+    final isAndroid = Platform.isAndroid;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1100,8 +1107,8 @@ class _OnboardingScreenState extends State<StatefulWidget> {
             color: Colors.black87,
           ),
         ),
-        if (title == 'Location Data') const SizedBox(height: 16),
-        if (title == 'Location Data')
+        if (title == 'Location Data' && isAndroid) const SizedBox(height: 16),
+        if (title == 'Location Data' && isAndroid)
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -1110,7 +1117,7 @@ class _OnboardingScreenState extends State<StatefulWidget> {
               border: Border.all(color: Colors.orange),
             ),
             child: Text(
-              Platform.isAndroid
+              isAndroid
                   ? 'Google Play Prominent Disclosure: "Manong collects location data in the background to enable real-time service tracking when the app is closed or not in use."'
                   : 'iOS Location Disclosure: "Manong uses location data during active services to show nearby professionals and provide real-time tracking, depending on your permission settings."',
               style: TextStyle(
@@ -1416,21 +1423,21 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                   } else {
                     return Center(
                       child: Padding(
-                        padding: const EdgeInsets.all(20), // Reduced from 24
+                        padding: const EdgeInsets.all(20),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Image.asset(
                               item['image']!,
-                              width: 220, // Reduced from 250
-                              height: 220, // Reduced from 250
+                              width: 220,
+                              height: 220,
                             ),
-                            const SizedBox(height: 32), // Reduced from 40
+                            const SizedBox(height: 32),
                             Text(
                               item['text']!,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
-                                fontSize: 18, // Reduced from 20
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
                                 height: 1.4,
                               ),
@@ -1443,9 +1450,9 @@ class _OnboardingScreenState extends State<StatefulWidget> {
                 },
               ),
             ),
-            const SizedBox(height: 24), // Reduced from 40
+            const SizedBox(height: 24),
             _buildPageIndicator(),
-            const SizedBox(height: 16), // Reduced from 20
+            const SizedBox(height: 16),
             _buildNextButton(),
           ],
         ),
