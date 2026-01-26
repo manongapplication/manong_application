@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
+import 'package:manong_application/widgets/selectable_item_widget.dart';
 
 class CashInScreen extends StatefulWidget {
   const CashInScreen({super.key});
@@ -15,11 +16,13 @@ class _CashInScreenState extends State<CashInScreen> {
   double _selectedAmount = 0.0;
   String _selectedPaymentMethod = '';
   bool _isProcessing = false;
+  bool _toggledPaymentMethodContainer = false;
+  final GlobalKey _paymentMethodCardKey = GlobalKey();
 
   // Preset amounts
   final List<double> _presetAmounts = [300, 500, 1000, 2000];
 
-  // Payment methods (you can fetch these from your API)
+  // Payment methods - Just GCash and Maya
   final List<Map<String, dynamic>> _paymentMethods = [
     {
       'id': 'gcash',
@@ -29,25 +32,11 @@ class _CashInScreenState extends State<CashInScreen> {
       'description': 'Philippines\' leading mobile wallet',
     },
     {
-      'id': 'paymaya',
-      'name': 'PayMaya',
+      'id': 'maya',
+      'name': 'Maya',
       'icon': Icons.credit_card,
       'color': const Color(0xFF00B5B0),
       'description': 'Fast and secure payments',
-    },
-    {
-      'id': 'card',
-      'name': 'Credit/Debit Card',
-      'icon': Icons.credit_card,
-      'color': const Color(0xFF3A3A3A),
-      'description': 'Visa, Mastercard, etc.',
-    },
-    {
-      'id': 'bank',
-      'name': 'Bank Transfer',
-      'icon': Icons.account_balance,
-      'color': const Color(0xFF1A5FB4),
-      'description': 'Direct bank transfer',
     },
   ];
 
@@ -279,6 +268,28 @@ class _CashInScreenState extends State<CashInScreen> {
     );
   }
 
+  void togglePaymentMethodCard() {
+    setState(() {
+      _toggledPaymentMethodContainer = true;
+    });
+
+    final context = _paymentMethodCardKey.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeOut,
+      );
+    }
+
+    Future.delayed(const Duration(seconds: 1), () {
+      if (!mounted) return;
+      setState(() {
+        _toggledPaymentMethodContainer = false;
+      });
+    });
+  }
+
   Widget _buildAmountInput() {
     return Card(
       elevation: 0,
@@ -415,163 +426,133 @@ class _CashInScreenState extends State<CashInScreen> {
     );
   }
 
-  Widget _buildPaymentMethods() {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey[200]!, width: 1),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Select Payment Method',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppColorScheme.primaryDark,
-              ),
+  Widget _buildPaymentMethod() {
+    return AnimatedContainer(
+      key: _paymentMethodCardKey,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        color: _toggledPaymentMethodContainer
+            ? AppColorScheme.primaryLight
+            : Colors.white,
+        borderRadius: BorderRadius.circular(4),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            offset: const Offset(0, 4),
+            blurRadius: 4,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'Select Payment Method',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          SizedBox(
+            width: MediaQuery.of(context).size.width * 0.8,
+            child: const Text(
+              'Choose how you want to add funds to your wallet',
+              style: TextStyle(fontSize: 14, color: Colors.black54),
             ),
-            const SizedBox(height: 16),
+          ),
+          const SizedBox(height: 16),
 
-            // Payment Methods List
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _paymentMethods.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final method = _paymentMethods[index];
-                final isSelected = _selectedPaymentMethod == method['id'];
+          // Payment Method Options - Just GCash and Maya
+          Column(
+            children: _paymentMethods.map((method) {
+              final isSelected = _selectedPaymentMethod == method['id'];
 
-                return GestureDetector(
-                  onTap: () => _selectPaymentMethod(method['id']),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
+              return GestureDetector(
+                onTap: () => _selectPaymentMethod(method['id']),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColorScheme.primaryColor.withOpacity(0.05)
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
                       color: isSelected
-                          ? AppColorScheme.primaryColor.withOpacity(0.05)
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColorScheme.primaryColor
-                            : Colors.grey[200]!,
-                        width: isSelected ? 2 : 1,
+                          ? AppColorScheme.primaryColor
+                          : Colors.grey[200]!,
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      // Icon
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: (method['color'] as Color).withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          method['icon'] as IconData,
+                          color: method['color'] as Color,
+                          size: 24,
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        // Icon
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: (method['color'] as Color).withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            method['icon'] as IconData,
-                            color: method['color'] as Color,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
+                      const SizedBox(width: 16),
 
-                        // Details
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                method['name'],
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColorScheme.primaryDark,
-                                ),
+                      // Details
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              method['name'],
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: AppColorScheme.primaryDark,
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                method['description'],
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Radio/Check
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected
-                                  ? AppColorScheme.primaryColor
-                                  : Colors.grey[400]!,
-                              width: 2,
                             ),
-                          ),
-                          child: isSelected
-                              ? Center(
-                                  child: Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: AppColorScheme.primaryColor,
-                                    ),
-                                  ),
-                                )
-                              : null,
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+
+                      // Selection indicator
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColorScheme.primaryColor
+                                : Colors.grey[400]!,
+                            width: 2,
+                          ),
+                        ),
+                        child: isSelected
+                            ? Center(
+                                child: Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: AppColorScheme.primaryColor,
+                                  ),
+                                ),
+                              )
+                            : null,
+                      ),
+                    ],
                   ),
-                );
-              },
-            ),
-
-            const SizedBox(height: 8),
-
-            // Add New Payment Method Button
-            OutlinedButton(
-              onPressed: () {
-                // Navigate to add payment method screen
-              },
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 48),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
                 ),
-                side: BorderSide(color: AppColorScheme.primaryColor),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.add, color: AppColorScheme.primaryColor, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Add New Payment Method',
-                    style: TextStyle(
-                      color: AppColorScheme.primaryColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+              );
+            }).toList(),
+          ),
+
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }
@@ -625,11 +606,11 @@ class _CashInScreenState extends State<CashInScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Service fee:',
+                  'Service tax per request:',
                   style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                 ),
                 Text(
-                  '₱0.00',
+                  '15%',
                   style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
               ],
@@ -723,8 +704,8 @@ class _CashInScreenState extends State<CashInScreen> {
 
               const SizedBox(height: 24),
 
-              // Payment Methods
-              _buildPaymentMethods(),
+              // Payment Methods (Just GCash and Maya)
+              _buildPaymentMethod(),
 
               const SizedBox(height: 24),
 
