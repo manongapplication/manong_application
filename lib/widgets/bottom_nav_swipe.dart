@@ -3,9 +3,9 @@ import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/account_status.dart';
 import 'package:manong_application/models/app_user.dart';
-import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/models/service_request_status.dart';
+import 'package:manong_application/models/user_role.dart';
 import 'package:manong_application/providers/bottom_nav_provider.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/color_utils.dart';
@@ -635,6 +635,8 @@ class _BottomNavSwipeState extends State<BottomNavSwipe> {
           _buildNavItem(Icons.home, 'Home', 0),
           _buildNavItem(Icons.assignment, 'My Requests', 1),
           _buildNavItem(Icons.person, 'Settings', 2),
+          if (widget.user?.role == UserRole.manong)
+            _buildNavItem(Icons.wallet, 'Wallet', 3),
         ],
       ),
     );

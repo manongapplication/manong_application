@@ -3,10 +3,12 @@ import 'package:logging/logging.dart';
 import 'package:manong_application/api/tracking_api_service.dart';
 import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/models/service_request_status.dart';
+import 'package:manong_application/models/user_role.dart';
 import 'package:manong_application/providers/bottom_nav_provider.dart';
 import 'package:manong_application/screens/home/home_screen.dart';
 import 'package:manong_application/screens/profile/profile_screen.dart';
 import 'package:manong_application/screens/service_requests/service_requests_screen.dart';
+import 'package:manong_application/screens/wallet/wallet_screen.dart';
 import 'package:manong_application/services/update_checker.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/api/auth_service.dart';
@@ -210,8 +212,26 @@ class _MainScreenState extends State<MainScreen> {
       body: _token != null
           ? Consumer<BottomNavProvider>(
               builder: (context, navProvider, _) {
+                // Get isManong from navProvider OR from user role
+                final bool isManong =
+                    navProvider.isManong ?? (_user?.role == UserRole.manong);
+
+                // Create pages list based on isManong status
+                final List<Widget> pages = [
+                  HomeScreen(),
+                  ServiceRequestsScreen(),
+                  ProfileScreen(),
+                ];
+
+                // Add WalletScreen if user is Manong
+                if (isManong) {
+                  pages.add(
+                    WalletScreen(),
+                  ); // Make sure you have a WalletScreen widget
+                }
+
                 return BottomNavSwipe(
-                  pages: _pages,
+                  pages: pages, // Pass the dynamic pages list
                   pageController: _pageController,
                   currentIndex: navProvider.selectedindex,
                   onPageChanged: (index) => navProvider.setIndex(index),
@@ -225,7 +245,8 @@ class _MainScreenState extends State<MainScreen> {
                   },
                   serviceRequest: navProvider.ongoingServiceRequest,
                   serviceRequestMessage: navProvider.serviceRequestMessage,
-                  isManong: navProvider.isManong,
+                  // Pass isManong correctly
+                  isManong: isManong,
                   serviceRequestStatus: navProvider.serviceRequestStatus,
                   onTapContainer: () {
                     Navigator.pushNamed(
@@ -233,7 +254,7 @@ class _MainScreenState extends State<MainScreen> {
                       '/service-request-details',
                       arguments: {
                         'serviceRequest': navProvider.ongoingServiceRequest,
-                        'isManong': navProvider.isManong,
+                        'isManong': isManong,
                         'manongLatLng':
                             _trackingApiService.manongLatLngNotifier.value,
                       },
@@ -245,7 +266,7 @@ class _MainScreenState extends State<MainScreen> {
                   hasNoFeedback: navProvider.hasNoFeedback,
                   onTapCompleteProfile: () async {
                     final result = await Navigator.pushNamed(
-                      context, // Use current context
+                      context,
                       '/complete-profile',
                     );
 
