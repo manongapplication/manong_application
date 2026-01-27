@@ -13,7 +13,6 @@ import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/widgets/error_state_widget.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
-import 'package:manong_application/widgets/selectable_icon_list.dart';
 
 class PaymentMethodsScreen extends StatefulWidget {
   final int? selectedIndex;
@@ -38,7 +37,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   late UserPaymentMethodApiService userPaymentMethodApiService;
   List<PaymentMethod>? _paymentMethods;
   bool _isLoading = true;
-  bool _isButtonLoading = true;
+  bool _isButtonLoading = false;
   String? _error;
   int? _selectedIndex;
   String? _selectedPaymentName;
@@ -67,7 +66,6 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   Future<void> _fetchPaymentMethods() async {
     setState(() {
       _isLoading = true;
-      _isButtonLoading = true;
       _error = null;
     });
 
@@ -87,55 +85,22 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       logger.severe('An error occured $_error');
     } finally {
       if (mounted) {
-        _isLoading = false;
-        _isButtonLoading = false;
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
 
-  // Future<void> _getProfile() async {
-  //   setState(() {
-  //     _isButtonLoading = true;
-  //   });
-  //   try {
-  //     final response = await AuthService().getMyProfile();
-
-  //     if (!mounted) return;
-
-  //     setState(() {
-  //       _user = response;
-  //     });
-  //   } catch (e) {
-  //     if (!mounted) return;
-  //     setState(() {
-  //       _error = e.toString();
-  //     });
-  //     logger.severe('Error getting profile $_error');
-  //   } finally {
-  //     if (mounted) {
-  //       setState(() {
-  //         _isButtonLoading = false;
-  //       });
-  //     }
-  //   }
-  // }
-
   Future<void> _getDefaultPaymentMethod() async {
     setState(() {
       _isLoading = true;
-      _isButtonLoading = true;
       _error = null;
     });
 
     try {
       final response = await userPaymentMethodApiService
           .fetchDefaultUserPaymentMethod();
-
-      setState(() {
-        _isLoading = false;
-        _isButtonLoading = false;
-        _error = null;
-      });
 
       if (response != null) {
         if (response['data']?['paymentMethod'] == null ||
@@ -171,7 +136,6 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _isButtonLoading = false;
         });
       }
     }
@@ -180,6 +144,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   void _onPaymentMethodSelected(int index) {
     setState(() {
       _selectedIndex = index;
+      _selectedPaymentName = _paymentMethods?[index].name;
     });
   }
 
@@ -220,19 +185,13 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       });
 
       if (response != null) {
-        SnackBarUtils.showInfo(
-          navigatorKey.currentContext!,
-          response['message'] ?? '',
-        );
-        Navigator.pop(navigatorKey.currentContext!, {
+        SnackBarUtils.showInfo(context, response['message'] ?? '');
+        Navigator.pop(context, {
           'id': _selectedIndex,
           'name': _selectedPaymentName,
         });
       } else {
-        SnackBarUtils.showWarning(
-          navigatorKey.currentContext!,
-          'Failed to save payment method!',
-        );
+        SnackBarUtils.showWarning(context, 'Failed to save payment method!');
       }
     } catch (e) {
       if (!mounted) return;
@@ -243,36 +202,9 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     }
   }
 
-  bool _checkProfileIfComplete() {
-    logger.info('Checking profile started');
-    if (_user == null) return false;
-    logger.info('Checking profile');
-
-    if (_user?.firstName == null ||
-        _user?.lastName == null ||
-        _user?.email == null) {
-      SnackBarUtils.showWarning(
-        navigatorKey.currentContext!,
-        'Please setup your profile first',
-      );
-      Navigator.pushNamed(
-        navigatorKey.currentContext!,
-        '/edit-profile',
-        arguments: {'destination': '/add-card'},
-      );
-      return false;
-    }
-
-    return true;
-  }
-
   Future<void> _onConfirm() async {
     if (_selectedIndex == null) {
-      SnackBarUtils.showWarning(
-        navigatorKey.currentContext!,
-        'Please select a payment method',
-      );
-
+      SnackBarUtils.showWarning(context, 'Please select a payment method');
       return;
     }
 
@@ -280,130 +212,271 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
 
     switch (selectedMethod.code.toLowerCase()) {
       case 'card':
-        // await _getProfile();
-        // await _getDefaultPaymentMethod();
-        // if (!(_checkProfileIfComplete())) return;
-
-        // logger.info('Card: $_userPaymentMethodLast4');
-        // if (_userPaymentMethodLast4 == null) {
-        //   SnackBarUtils.showWarning(
-        //     navigatorKey.currentContext!,
-        //     'Please add or select your payment card at the payment details.',
-        //   );
-        //   return;
-        // }
-        _saveUserPaymentMethod();
-        break;
       case 'gcash':
-        _saveUserPaymentMethod();
-        break;
       case 'cash':
-        _saveUserPaymentMethod();
-        break;
       case 'paymaya':
         _saveUserPaymentMethod();
         break;
       default:
-        SnackBarUtils.showWarning(
-          navigatorKey.currentContext!,
-          'Payment method not supported.',
-        );
+        SnackBarUtils.showWarning(context, 'Payment method not supported.');
     }
   }
 
-  Widget _buildPaymentMethodItems() {
-    if (_paymentMethods == null) return const SizedBox.shrink();
-    return SelectableIconList(
-      selectedIndex: _selectedIndex,
-      options: _paymentMethods != null
-          ? _paymentMethods!
-                .map(
-                  (pm) => {
-                    'name': pm.name,
-                    'code': pm.code,
-                    'icon': pm.code,
-                    'onTap': () async {
-                      _onPaymentMethodSelected(_paymentMethods!.indexOf(pm));
-                      setState(() {
-                        _selectedPaymentName = pm.name;
-                      });
+  Widget _buildPaymentMethodItem({
+    required PaymentMethod method,
+    required int index,
+    required bool isSelected,
+  }) {
+    // Get icon and color based on payment method code
+    IconData icon;
+    Color color;
 
-                      // if (pm.code == 'card') {
-                      //   await _getProfile();
-                      //   if (!(_checkProfileIfComplete())) return;
-                      //   logger.info('Profile user $_user');
-                      //   Navigator.pushNamed(
-                      //     navigatorKey.currentContext!,
-                      //     '/card-add-payment-method',
-                      //   );
-                      // }
-                    },
-                  },
-                )
-                .toList()
-          : [],
-      onRefresh: _fetchPaymentMethods,
+    switch (method.code.toLowerCase()) {
+      case 'gcash':
+        icon = Icons.phone_android;
+        color = const Color(0xFF0066B3);
+        break;
+      case 'paymaya':
+        icon = Icons.credit_card;
+        color = const Color(0xFF00B5B0);
+        break;
+      case 'card':
+        icon = Icons.credit_card;
+        color = const Color(0xFF3A3A3A);
+        break;
+      case 'cash':
+        icon = Icons.money;
+        color = Colors.green;
+        break;
+      default:
+        icon = Icons.payment;
+        color = AppColorScheme.primaryColor;
+    }
+
+    return GestureDetector(
+      onTap: () => _onPaymentMethodSelected(index),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColorScheme.primaryColor.withOpacity(0.05)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? AppColorScheme.primaryColor : Colors.grey[200]!,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            // Icon
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 16),
+
+            // Details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    method.name,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColorScheme.primaryDark,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Selection indicator
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected
+                      ? AppColorScheme.primaryColor
+                      : Colors.grey[400]!,
+                  width: 2,
+                ),
+              ),
+              child: isSelected
+                  ? Center(
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColorScheme.primaryColor,
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentMethodItems() {
+    if (_paymentMethods == null || _paymentMethods!.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.payment, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No payment methods available',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _paymentMethods!.length,
+      itemBuilder: (context, index) {
+        final method = _paymentMethods![index];
+        final isSelected = _selectedIndex == index;
+
+        return _buildPaymentMethodItem(
+          method: method,
+          index: index,
+          isSelected: isSelected,
+        );
+      },
     );
   }
 
   Widget _buildState() {
     if (_error != null) {
       return ErrorStateWidget(
-        errorText: 'Error fetchig Payment methods. Please Try again.',
+        errorText: 'Error fetching payment methods. Please try again.',
         onPressed: _fetchPaymentMethods,
       );
     }
 
-    if (_isLoading == true) {
-      return Center(
+    if (_isLoading) {
+      return const Center(
         child: CircularProgressIndicator(color: AppColorScheme.primaryColor),
       );
     }
 
-    return _buildPaymentMethodItems();
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Info Section
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColorScheme.primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.payment,
+                  color: AppColorScheme.primaryColor,
+                  size: 40,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Select Payment Method',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColorScheme.primaryDark,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Choose how you want to pay for services',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Payment Methods List
+          _buildPaymentMethodItems(),
+
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
   }
 
   Widget _buildConfirmButton() {
     return SafeArea(
       child: Container(
-        padding: EdgeInsets.only(left: 12, right: 12, bottom: 12, top: 20),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
           color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.4),
-              offset: Offset(0, -4),
-              blurRadius: 10,
-            ),
-          ],
+          border: Border(top: BorderSide(color: Colors.grey[200]!)),
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColorScheme.primaryColor,
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                ),
-                onPressed: !_isButtonLoading ? _onConfirm : null,
-                child: _isButtonLoading
-                    ? SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: AppColorScheme.primaryColor,
-                          ),
-                        ),
-                      )
-                    : const Text(
-                        "Confirm",
-                        style: TextStyle(fontSize: 16, color: Colors.white),
-                      ),
-              ),
+        child: ElevatedButton(
+          onPressed: _isButtonLoading || _selectedIndex == null
+              ? null
+              : _onConfirm,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColorScheme.primaryColor,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(double.infinity, 56),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-          ],
+            elevation: 2,
+          ),
+          child: _isButtonLoading
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+              : const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle_outline, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Confirm Payment Method',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ),
     );
@@ -413,21 +486,10 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColorScheme.backgroundGrey,
-      appBar: myAppBar(title: 'Select a payment method'),
-      body: Padding(
-        padding: EdgeInsets.all(12),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight:
-                MediaQuery.of(navigatorKey.currentContext!).size.height -
-                kToolbarHeight -
-                MediaQuery.of(navigatorKey.currentContext!).padding.top -
-                100,
-          ),
-          child: _buildState(),
-        ),
+      appBar: myAppBar(title: 'Payment Methods'),
+      body: SafeArea(
+        child: Padding(padding: const EdgeInsets.all(16), child: _buildState()),
       ),
-
       bottomNavigationBar: _buildConfirmButton(),
     );
   }

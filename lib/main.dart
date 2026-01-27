@@ -46,6 +46,7 @@ import 'package:manong_application/screens/service_requests/chat_manong_screen.d
 import 'package:manong_application/screens/service_requests/route_tracking_screen.dart';
 import 'package:manong_application/screens/service_requests/service_requests_details_screen.dart';
 import 'package:manong_application/screens/service_requests/transaction_screen.dart';
+import 'package:manong_application/screens/wallet/cash_in_screen.dart';
 import 'package:manong_application/services/notification_service.dart';
 import 'package:manong_application/utils/onboarding_storage.dart';
 import 'package:manong_application/widgets/authenticated_screen.dart';
@@ -540,6 +541,8 @@ class MyApp extends StatelessWidget {
             return MaterialPageRoute(builder: (_) => CreatePasswordScreen());
           case '/profile':
             return MaterialPageRoute(builder: (_) => ProfileScreen());
+          case '/wallet-cash-in':
+            return MaterialPageRoute(builder: (_) => CashInScreen());
         }
         return null;
       },
