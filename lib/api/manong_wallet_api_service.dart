@@ -70,4 +70,39 @@ class ManongWalletApiService {
 
     return null;
   }
+
+  Future<Map<String, dynamic>?> cashInManongWallet({
+    required double amount,
+    required String provider,
+  }) async {
+    try {
+      final token = await AuthService().getNodeToken();
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/manong-wallet/cash-in'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'amount': amount, 'provider': provider}),
+      );
+
+      final responseBody = response.body;
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonData;
+      } else {
+        logger.warning(
+          'Failed to cash in manong wallet: ${response.statusCode} $responseBody',
+        );
+        return jsonData;
+      }
+    } catch (e, stacktrace) {
+      logger.severe('Error cash in manong wallet', e, stacktrace);
+    }
+
+    return null;
+  }
 }

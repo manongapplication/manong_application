@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:manong_application/api/manong_wallet_api_service.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
 import 'package:manong_application/widgets/selectable_item_widget.dart';
@@ -15,7 +16,8 @@ class _CashInScreenState extends State<CashInScreen> {
   final FocusNode _amountFocusNode = FocusNode();
   double _selectedAmount = 0.0;
   String _selectedPaymentMethod = '';
-  bool _isProcessing = false;
+  bool _isButtonLoading = false;
+  String? _error;
   bool _toggledPaymentMethodContainer = false;
   final GlobalKey _paymentMethodCardKey = GlobalKey();
 
@@ -32,7 +34,7 @@ class _CashInScreenState extends State<CashInScreen> {
       'description': 'Philippines\' leading mobile wallet',
     },
     {
-      'id': 'maya',
+      'id': 'paymaya',
       'name': 'Maya',
       'icon': Icons.credit_card,
       'color': const Color(0xFF00B5B0),
@@ -51,6 +53,29 @@ class _CashInScreenState extends State<CashInScreen> {
     _amountController.dispose();
     _amountFocusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _submitCashIn() async {
+    setState(() {
+      _isButtonLoading = true;
+      _error = null;
+    });
+
+    try {
+      final response = await ManongWalletApiService().cashInManongWallet(
+        amount: _selectedAmount,
+        provider: _selectedPaymentMethod,
+      );
+
+      if (response != null) {}
+    } catch (e) {
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isButtonLoading = false;
+        });
+      }
+    }
   }
 
   void _onAmountChanged() {
@@ -87,14 +112,14 @@ class _CashInScreenState extends State<CashInScreen> {
     }
 
     setState(() {
-      _isProcessing = true;
+      _isButtonLoading = true;
     });
 
     // Simulate API call
     await Future.delayed(const Duration(seconds: 2));
 
     setState(() {
-      _isProcessing = false;
+      _isButtonLoading = false;
     });
 
     // Show success dialog
@@ -727,7 +752,7 @@ class _CashInScreenState extends State<CashInScreen> {
             border: Border(top: BorderSide(color: Colors.grey[200]!)),
           ),
           child: ElevatedButton(
-            onPressed: _isProcessing ? null : _processCashIn,
+            onPressed: _isButtonLoading ? null : _processCashIn,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColorScheme.primaryColor,
               foregroundColor: Colors.white,
@@ -737,7 +762,7 @@ class _CashInScreenState extends State<CashInScreen> {
               ),
               elevation: 2,
             ),
-            child: _isProcessing
+            child: _isButtonLoading
                 ? const SizedBox(
                     width: 24,
                     height: 24,
