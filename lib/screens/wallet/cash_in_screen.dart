@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:manong_application/api/manong_wallet_api_service.dart';
+import 'package:manong_application/main.dart';
+import 'package:manong_application/models/manong_wallet_transaction.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
-import 'package:manong_application/widgets/selectable_item_widget.dart';
 
 class CashInScreen extends StatefulWidget {
   const CashInScreen({super.key});
@@ -67,8 +68,40 @@ class _CashInScreenState extends State<CashInScreen> {
         provider: _selectedPaymentMethod,
       );
 
-      if (response != null) {}
+      if (response != null && response['data'] != null) {
+        final data = ManongWalletTransaction.fromJson(response['data']);
+
+        // Check if paymentRedirectUrl exists and is not empty
+        if (data.metadata != null &&
+            data.metadata?['paymentRedirectUrl'] != null &&
+            data.metadata!['paymentRedirectUrl']!.isNotEmpty) {
+          Navigator.pushReplacementNamed(
+            navigatorKey.currentContext!,
+            '/wallet-payment-redirect',
+            arguments: {'manongWalletTransaction': data},
+          );
+        } else {
+          // Handle case where paymentRedirectUrl is empty or null
+          if (!mounted) return;
+
+          _showError(
+            'Unable to initiate payment. Please try again.',
+            showTryAgain: true,
+          );
+        }
+      } else {
+        // Handle null response
+        if (!mounted) return;
+
+        _showError(
+          'No response received from server. Please try again.',
+          showTryAgain: true,
+        );
+      }
     } catch (e) {
+      if (!mounted) return;
+
+      _showError('An error occurred: ${e.toString()}', showTryAgain: true);
     } finally {
       if (mounted) {
         setState(() {
@@ -102,37 +135,67 @@ class _CashInScreenState extends State<CashInScreen> {
 
   Future<void> _processCashIn() async {
     if (_selectedAmount <= 0) {
-      _showError('Please enter an amount');
+      _showError('Please enter an amount', showTryAgain: false);
       return;
     }
 
     if (_selectedPaymentMethod.isEmpty) {
-      _showError('Please select a payment method');
+      _showError('Please select a payment method', showTryAgain: false);
       return;
     }
 
-    setState(() {
-      _isButtonLoading = true;
-    });
-
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
-
-    setState(() {
-      _isButtonLoading = false;
-    });
-
-    // Show success dialog
-    _showSuccessDialog();
+    await _submitCashIn();
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  void _showError(String message, {bool showTryAgain = false}) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red),
+            SizedBox(width: 8),
+            Text(
+              'Payment Error',
+              style: TextStyle(
+                color: AppColorScheme.primaryDark,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message),
+            SizedBox(height: 16),
+            if (showTryAgain)
+              Text(
+                'Please check your internet connection and try again.',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK'),
+          ),
+          if (showTryAgain)
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColorScheme.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                _processCashIn();
+              },
+              child: Text('Try Again'),
+            ),
+        ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
   }

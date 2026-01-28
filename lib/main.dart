@@ -13,6 +13,7 @@ import 'package:logging/logging.dart';
 import 'package:manong_application/api/firebase_api_token.dart';
 import 'package:manong_application/api/socket_api_service.dart';
 import 'package:manong_application/models/manong.dart';
+import 'package:manong_application/models/manong_wallet_transaction.dart';
 import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/providers/app_maintenance_provider.dart';
 import 'package:manong_application/providers/bottom_nav_provider.dart';
@@ -33,6 +34,7 @@ import 'package:manong_application/screens/booking/payment_processing_screen.dar
 import 'package:manong_application/screens/booking/payment_redirect_screen.dart';
 import 'package:manong_application/screens/booking/problem_details_screen.dart';
 import 'package:manong_application/screens/booking/sub_service_list_screen.dart';
+import 'package:manong_application/screens/booking/wallet_payment_redirect_screen.dart';
 import 'package:manong_application/screens/home/user_notification_screen.dart';
 import 'package:manong_application/screens/main_screen.dart';
 import 'package:manong_application/screens/onboarding_screen.dart';
@@ -527,6 +529,15 @@ class MyApp extends StatelessWidget {
             return MaterialPageRoute(
               builder: (_) => PaymentRedirectScreen(
                 serviceRequest: args?['serviceRequest'] as ServiceRequest?,
+              ),
+            );
+          case '/wallet-payment-redirect':
+            final args = settings.arguments as Map<String, dynamic>?;
+            return MaterialPageRoute(
+              builder: (_) => WalletPaymentRedirectScreen(
+                manongWalletTransaction:
+                    args?['manongWalletTransaction']
+                        as ManongWalletTransaction?,
               ),
             );
           case '/transactions':
