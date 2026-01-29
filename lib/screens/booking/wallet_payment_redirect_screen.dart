@@ -107,11 +107,7 @@ class _WalletPaymentRedirectScreenState
                 now.difference(createdAt.toUtc()) >= const Duration(hours: 4);
 
             if (isExpired) {
-              Navigator.pushNamedAndRemoveUntil(
-                navigatorKey.currentContext!,
-                '/',
-                (route) => false,
-              );
+              Navigator.of(navigatorKey.currentContext!).pop();
               return;
             }
           }
@@ -127,15 +123,21 @@ class _WalletPaymentRedirectScreenState
           });
 
           if (_walletTransactionStatus == WalletTransactionStatus.completed) {
-            Navigator.pushNamedAndRemoveUntil(
-              navigatorKey.currentContext!,
-              '/',
-              (route) => false,
-              arguments: {
-                'index': 3,
-                'transactionStatus': _walletTransactionStatus,
-              },
+            // Show success message FIRST
+            ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Payment completed successfully! ₱${_manongWalletTransaction?.amount.toStringAsFixed(2)} has been added to your wallet.',
+                ),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 3),
+              ),
             );
+
+            // Then navigate home after a short delay
+            Future.delayed(Duration(seconds: 2), () {
+              Navigator.of(navigatorKey.currentContext!).pop();
+            });
           }
         }
       }
@@ -168,7 +170,7 @@ class _WalletPaymentRedirectScreenState
         const SizedBox(height: 12),
         ElevatedButton(
           onPressed: () {
-            Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+            Navigator.of(navigatorKey.currentContext!).pop();
           },
           child: const Text('Go to Home'),
         ),
@@ -281,12 +283,13 @@ class _WalletPaymentRedirectScreenState
         _manongWalletTransaction?.metadata?['paymentRedirectUrl'],
       );
     } else {
-      Navigator.pushNamedAndRemoveUntil(
-        navigatorKey.currentContext!,
-        '/',
-        (route) => false,
-        arguments: {'index': 3, 'transactionStatus': _walletTransactionStatus},
-      );
+      // REMOVE THIS DUPLICATE NAVIGATION - already handled in _getManongWalletTransaction
+      // Navigator.pushNamedAndRemoveUntil(
+      //   navigatorKey.currentContext!,
+      //   '/',
+      //   (route) => false,
+      //   arguments: {'index': 3, 'transactionStatus': _walletTransactionStatus},
+      // );
     }
   }
 

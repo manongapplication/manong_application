@@ -131,7 +131,6 @@ class _MainScreenState extends State<MainScreen> {
         }
         if (_serviceRequestId != null && _navProvider != null) {
           _navProvider?.setServiceRequestId(_serviceRequestId!);
-          logger.info('setServiceRequestId $_serviceRequestId');
         }
         _pageController.animateToPage(
           _index!,

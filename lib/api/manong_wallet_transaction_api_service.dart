@@ -41,14 +41,22 @@ class ManongWalletTransactionApiService {
     return null;
   }
 
-  Future<Map<String, dynamic>?> fetchWalletTransactionsByWalletId(
-    int walletId,
-  ) async {
+  Future<Map<String, dynamic>?> fetchWalletTransactionsByWalletId({
+    required int walletId,
+    int page = 1,
+    int limit = 10,
+  }) async {
     try {
       final token = await AuthService().getNodeToken();
 
+      final queryParams = {'page': page.toString(), 'limit': limit.toString()};
+
+      final uri = Uri.parse(
+        '$baseUrl/manong-wallet-transaction/all/$walletId',
+      ).replace(queryParameters: queryParams);
+
       final response = await http.post(
-        Uri.parse('$baseUrl/manong-wallet-transaction/all/$walletId'),
+        uri,
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -72,5 +80,27 @@ class ManongWalletTransactionApiService {
     }
 
     return null;
+  }
+
+  // Helper method to extract just the transactions
+  Future<List<ManongWalletTransaction>> fetchTransactionsList({
+    required int walletId,
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final response = await fetchWalletTransactionsByWalletId(
+      walletId: walletId,
+      page: page,
+      limit: limit,
+    );
+
+    if (response != null && response['data'] != null) {
+      final List<dynamic> transactionData = response['data'];
+      return transactionData
+          .map((json) => ManongWalletTransaction.fromJson(json))
+          .toList();
+    }
+
+    return [];
   }
 }

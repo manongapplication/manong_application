@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'dart:ui'; // For BackdropFilter
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/manong_wallet_api_service.dart';
+import 'package:manong_application/api/manong_wallet_transaction_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/manong_wallet.dart';
+import 'package:manong_application/models/manong_wallet_transaction.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/widgets/error_state_widget.dart';
 import 'package:manong_application/widgets/manong_wallet_card.dart';
+import 'package:manong_application/widgets/manong_wallet_transaction_list.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
 
 class WalletScreen extends StatefulWidget {
@@ -27,6 +30,11 @@ class _WalletScreenState extends State<WalletScreen>
   final String _selectedCurrency = "PHP";
   ManongWallet? _wallet;
   bool _noManongWallet = false;
+
+  // Variables for transactions
+  List<ManongWalletTransaction> _walletTransactions = [];
+  bool _isLoadingTransactions = false;
+  bool _hasLoadedTransactions = false;
 
   // Animation controllers
   late AnimationController _overlayController;
@@ -51,6 +59,29 @@ class _WalletScreenState extends State<WalletScreen>
   void dispose() {
     _overlayController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Check if we just returned to this screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ModalRoute? route = ModalRoute.of(context);
+      if (route != null && route.isCurrent) {
+        // We're the current screen - check if we need to refresh
+        _checkAndRefresh();
+      }
+    });
+  }
+
+  Future<void> _checkAndRefresh() async {
+    // You could check if a certain amount of time has passed
+    // Or use a flag to know when to refresh
+    await _fetchManongWallet();
+    if (_wallet != null) {
+      await _loadWalletTransactions();
+    }
   }
 
   void _showCreateManongWalletOverlay() {
@@ -205,6 +236,106 @@ class _WalletScreenState extends State<WalletScreen>
     }
   }
 
+  Future<void> _loadWalletTransactions() async {
+    if (_wallet == null || _isLoadingTransactions) return;
+
+    setState(() {
+      _isLoadingTransactions = true;
+    });
+
+    try {
+      final response = await ManongWalletTransactionApiService()
+          .fetchWalletTransactionsByWalletId(walletId: _wallet!.id);
+
+      if (response != null && response['data'] != null) {
+        final List<dynamic> transactionData = response['data'];
+        setState(() {
+          _walletTransactions = transactionData
+              .map((json) => ManongWalletTransaction.fromJson(json))
+              .toList();
+          _hasLoadedTransactions = true;
+        });
+      }
+    } catch (e) {
+      logger.severe('Error loading wallet transactions: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingTransactions = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchManongWallet() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _noManongWallet = false;
+    });
+
+    logger.info('_fetchManongWallet started');
+
+    try {
+      final response = await ManongWalletApiService()
+          .fetchManongWalletService();
+
+      logger.info('_fetchManongWallet $response');
+
+      if (response != null) {
+        if (response['data'] != null) {
+          final data = ManongWallet.fromJson(response['data']);
+          logger.info('_fetchManongWallet $data');
+          setState(() {
+            _wallet = data;
+            _noManongWallet = false;
+          });
+
+          // Load transactions after wallet is fetched
+          if (!_hasLoadedTransactions) {
+            _loadWalletTransactions();
+          }
+        } else {
+          if (response['message'].toString().contains('Wallet not found')) {
+            // Show overlay instead of dialog
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _showCreateManongWalletOverlay();
+            });
+
+            setState(() {
+              _noManongWallet = true;
+              _walletTransactions.clear();
+              _hasLoadedTransactions = false;
+            });
+          } else {
+            SnackBarUtils.showWarning(
+              navigatorKey.currentContext!,
+              response['message'],
+            );
+          }
+        }
+      } else {
+        SnackBarUtils.showWarning(
+          navigatorKey.currentContext!,
+          response?['message'] ?? 'No wallet',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+
+      logger.severe('Error to fetch manong wallet $_error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   Widget _buildCreateManongWalletOverlay() {
     return Positioned.fill(
       child: GestureDetector(
@@ -340,68 +471,6 @@ class _WalletScreenState extends State<WalletScreen>
         ),
       ),
     );
-  }
-
-  Future<void> _fetchManongWallet() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-      _noManongWallet = false;
-    });
-
-    logger.info('_fetchManongWallet started');
-
-    try {
-      final response = await ManongWalletApiService()
-          .fetchManongWalletService();
-
-      logger.info('_fetchManongWallet $response');
-
-      if (response != null) {
-        if (response['data'] != null) {
-          final data = ManongWallet.fromJson(response['data']);
-          logger.info('_fetchManongWallet $data');
-          setState(() {
-            _wallet = data;
-            _noManongWallet = false;
-          });
-        } else {
-          if (response['message'].toString().contains('Wallet not found')) {
-            // Show overlay instead of dialog
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _showCreateManongWalletOverlay();
-            });
-
-            setState(() {
-              _noManongWallet = true;
-            });
-          } else {
-            SnackBarUtils.showWarning(
-              navigatorKey.currentContext!,
-              response['message'],
-            );
-          }
-        }
-      } else {
-        SnackBarUtils.showWarning(
-          navigatorKey.currentContext!,
-          response?['message'] ?? 'No wallet',
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-      });
-
-      logger.severe('Error to fetch manong wallet $_error');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
   }
 
   Widget _buildCard() {
@@ -550,7 +619,114 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
-  Widget _buildWallet() {
+  Widget _buildRecentTransactions() {
+    if (_noManongWallet || _wallet == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Recent Transactions',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColorScheme.primaryDark,
+                ),
+              ),
+              if (_walletTransactions.isNotEmpty)
+                IconButton(
+                  onPressed: () {
+                    // Refresh transactions
+                    _loadWalletTransactions();
+                  },
+                  icon: Icon(
+                    Icons.refresh,
+                    color: AppColorScheme.primaryColor,
+                    size: 20,
+                  ),
+                  tooltip: 'Refresh transactions',
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        if (_isLoadingTransactions)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(
+              child: CircularProgressIndicator(
+                color: AppColorScheme.primaryColor,
+              ),
+            ),
+          )
+        else if (_walletTransactions.isEmpty)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.receipt_outlined,
+                  size: 48,
+                  color: Colors.grey.shade400,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'No transactions yet',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Your wallet transactions will appear here',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/wallet-cash-in');
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: AppColorScheme.primaryColor),
+                  ),
+                  child: Text(
+                    'Make your first cash in',
+                    style: TextStyle(color: AppColorScheme.primaryColor),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ManongWalletTransactionList(
+            transactions: _walletTransactions,
+            title: 'Recent Transactions',
+            showHeader: false, // We're already showing the header above
+            maxItems: 3,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildWalletContent() {
     return Column(
       children: [
         _buildCard(),
@@ -560,6 +736,11 @@ class _WalletScreenState extends State<WalletScreen>
         if (_noManongWallet) _buildCreateWalletButton(),
 
         _buildCashActionButtons(),
+
+        // Add recent transactions section
+        _buildRecentTransactions(),
+
+        const SizedBox(height: 24), // Add some bottom padding
       ],
     );
   }
@@ -581,7 +762,10 @@ class _WalletScreenState extends State<WalletScreen>
       );
     }
 
-    return Padding(padding: const EdgeInsets.all(12), child: _buildWallet());
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: _buildWalletContent(),
+    );
   }
 
   @override
@@ -595,7 +779,12 @@ class _WalletScreenState extends State<WalletScreen>
             child: RefreshIndicator(
               color: AppColorScheme.primaryColor,
               backgroundColor: AppColorScheme.backgroundGrey,
-              onRefresh: _fetchManongWallet,
+              onRefresh: () async {
+                await _fetchManongWallet();
+                if (_wallet != null) {
+                  await _loadWalletTransactions();
+                }
+              },
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: ConstrainedBox(
