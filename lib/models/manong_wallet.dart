@@ -30,3 +30,51 @@ class ManongWallet {
     );
   }
 }
+
+enum BookingReadinessStatus { empty, low, ready }
+
+extension BookingReadinessStatusExtension on BookingReadinessStatus {
+  String get value => toString().split('.').last;
+
+  int get indexValue => index;
+}
+
+class BookingReadiness {
+  final double balance;
+  final double minimumRequired;
+  final int progressPercent;
+  final double shortfall;
+  final BookingReadinessStatus status;
+  final String message;
+
+  BookingReadiness({
+    required this.balance,
+    required this.minimumRequired,
+    required this.progressPercent,
+    required this.shortfall,
+    required this.status,
+    required this.message,
+  });
+
+  factory BookingReadiness.fromJson(Map<String, dynamic> json) {
+    return BookingReadiness(
+      balance: json['balance'] != null
+          ? double.tryParse(json['balance'].toString()) ?? 0.0
+          : 0.0,
+      minimumRequired: json['minimumRequired'] != null
+          ? double.tryParse(json['minimumRequired'].toString()) ?? 0.0
+          : 0.0,
+      progressPercent: json['progressPercent'] != null
+          ? int.tryParse(json['progressPercent'].toString()) ?? 0
+          : 0,
+      shortfall: json['shortfall'] != null
+          ? double.tryParse(json['shortfall'].toString()) ?? 0.0
+          : 0.0,
+      status: BookingReadinessStatus.values.firstWhere(
+        (e) => e.value == json['status'].toString(),
+        orElse: () => BookingReadinessStatus.empty,
+      ),
+      message: json['message']?.toString() ?? '',
+    );
+  }
+}

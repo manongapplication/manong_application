@@ -149,6 +149,12 @@ class _PaymentProcessingScreenState extends State<PaymentProcessingScreen> {
                     : null,
               },
             );
+          } else if (response!['message'].toString().contains(
+            'temporarily unavailable for cash payments',
+          )) {
+            Navigator.pop(navigatorKey.currentContext!, {
+              'highlightPaymentMethod': true,
+            });
           }
         }
 

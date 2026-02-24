@@ -1748,8 +1748,7 @@ class _ServiceRequestsDetailsScreenState
               _buildStartJobBtn(),
 
               // -- Complete Button
-              if (_serviceRequest?.arrivedAt != null &&
-                  _serviceRequest?.status == ServiceRequestStatus.inProgress &&
+              if (_serviceRequest?.status == ServiceRequestStatus.inProgress &&
                   !(_isServiceCompleted)) ...[
                 if (_isManong == true) ...[
                   Row(
@@ -2095,6 +2094,14 @@ class _ServiceRequestsDetailsScreenState
       );
     }
 
+    final int messagesCount = _serviceRequest?.messages != null
+        ? _serviceRequest!.messages!
+              .where((message) => message.seenAt == null)
+              .take(10)
+              .length
+        : 0;
+    0;
+
     final meters = DistanceMatrix().calculateDistance(
       startLat: widget.serviceRequest?.customerLat,
       startLng: widget.serviceRequest?.customerLng,
@@ -2107,11 +2114,43 @@ class _ServiceRequestsDetailsScreenState
       child: Material(
         child: Scaffold(
           body: meters != null ? _buildState(meters) : null,
-          floatingActionButton: FloatingActionButton(
-            onPressed: _goToChatFunction,
-            tooltip: 'Message Manong',
-            backgroundColor: AppColorScheme.primaryLight,
-            child: Icon(Icons.message, color: AppColorScheme.primaryDark),
+          floatingActionButton: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              FloatingActionButton(
+                onPressed: _goToChatFunction,
+                tooltip: 'Message Manong',
+                backgroundColor: AppColorScheme.primaryLight,
+                child: Icon(Icons.message, color: AppColorScheme.primaryDark),
+              ),
+              if (messagesCount > 0)
+                Positioned(
+                  top: -8,
+                  right: -8,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    constraints: const BoxConstraints(
+                      minWidth: 20,
+                      minHeight: 20,
+                    ),
+                    decoration: const BoxDecoration(
+                      color: Colors.redAccent,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      messagesCount > 9 ? '9+' : messagesCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),

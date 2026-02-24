@@ -7,6 +7,7 @@ import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/api/service_request_api_service.dart';
 import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/models/manong.dart';
+import 'package:manong_application/models/manong_wallet.dart';
 import 'package:manong_application/models/service_request.dart';
 
 class BottomNavProvider with ChangeNotifier {
@@ -18,6 +19,7 @@ class BottomNavProvider with ChangeNotifier {
   ServiceRequest? _ongoingServiceRequest;
   bool? _manongArrived;
   ManongDailyLimit? _manongDailyLimit;
+  BookingReadiness? _bookingReadiness;
   dynamic _serviceRequestStatus;
   bool? _serviceRequestIsExpired;
   bool? _hasNoFeedback;
@@ -34,6 +36,7 @@ class BottomNavProvider with ChangeNotifier {
   PageController? get controller => _controller;
   bool? get manongArrived => _manongArrived;
   ManongDailyLimit? get manongDailyLimit => _manongDailyLimit;
+  BookingReadiness? get bookingReadiness => _bookingReadiness;
   dynamic get serviceRequestStatus => _serviceRequestStatus;
   bool? get serviceRequestIsExpired => _serviceRequestIsExpired;
   bool? get hasNoFeedback => _hasNoFeedback;
@@ -101,6 +104,17 @@ class BottomNavProvider with ChangeNotifier {
 
   void unsetManongDailyLimit() {
     _manongDailyLimit = null;
+  }
+
+  void setBookingReadiness(BookingReadiness value) {
+    if (_bookingReadiness != value) {
+      _bookingReadiness = value;
+      _safeNotifyListeners();
+    }
+  }
+
+  void unsetBookingReadiness() {
+    _bookingReadiness = null;
   }
 
   void changeIndex(int newIndex) {
@@ -187,7 +201,7 @@ class BottomNavProvider with ChangeNotifier {
           if (sr.createdAt != null) {
             final now = DateTime.now();
             Duration diff = now.difference(sr.createdAt!);
-            if (diff.inHours >= 4) {
+            if (diff.inHours >= 24) {
               final updated = await ServiceRequestApiService()
                   .expiredServiceRequest(sr.id!);
 

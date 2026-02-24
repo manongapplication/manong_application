@@ -27,6 +27,14 @@ class ManongListScreen extends StatefulWidget {
   State<ManongListScreen> createState() => _ManongListScreenState();
 }
 
+enum FilterOption {
+  nearestDistance,
+  highestRating,
+  mostReviews,
+  highestExperience,
+  bookmarkedFirst,
+}
+
 class _ManongListScreenState extends State<ManongListScreen> {
   final Logger logger = Logger('ManongListScreen');
   late ManongApiService manongApiService;
@@ -55,6 +63,17 @@ class _ManongListScreenState extends State<ManongListScreen> {
 
   // Sorting options
   bool _sortByAvailableFirst = true; // Sort available manongs first
+
+  // Filter options
+
+  FilterOption _selectedFilter = FilterOption.nearestDistance;
+  final Map<FilterOption, String> _filterLabels = {
+    FilterOption.nearestDistance: 'Nearest distance',
+    FilterOption.highestRating: 'Highest ratings',
+    FilterOption.mostReviews: 'Most reviews',
+    FilterOption.highestExperience: 'Highest experience',
+    FilterOption.bookmarkedFirst: 'Bookmarked first',
+  };
 
   @override
   void didChangeDependencies() {
@@ -226,56 +245,62 @@ class _ManongListScreenState extends State<ManongListScreen> {
     }
   }
 
+  Widget _buildFilterDropdown() {
+    return PopupMenuButton<FilterOption>(
+      color: Colors.white,
+      onSelected: (FilterOption filterOption) {
+        setState(() {
+          _selectedFilter = filterOption;
+        });
+      },
+      itemBuilder: (BuildContext context) {
+        return FilterOption.values.map((filterOption) {
+          return PopupMenuItem<FilterOption>(
+            value: filterOption,
+            child: Row(
+              children: [
+                Text(_filterLabels[filterOption] ?? filterOption.toString()),
+                if (_selectedFilter == filterOption)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8),
+                    child: Icon(Icons.check, size: 16),
+                  ),
+              ],
+            ),
+          );
+        }).toList();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.sort, size: 18, color: Colors.grey),
+            const SizedBox(width: 4),
+            Text(
+              _filterLabels[_selectedFilter] ?? 'Filter',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildResultsInfo(int count) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Sorting toggle button
-          GestureDetector(
-            onTap: () {
-              setState(() {
-                _sortByAvailableFirst = !_sortByAvailableFirst;
-              });
-            },
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: _sortByAvailableFirst
-                    ? AppColorScheme.primaryColor.withOpacity(0.1)
-                    : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: _sortByAvailableFirst
-                      ? AppColorScheme.primaryColor
-                      : Colors.grey.shade300,
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.sort,
-                    size: 16,
-                    color: _sortByAvailableFirst
-                        ? AppColorScheme.primaryColor
-                        : Colors.grey.shade600,
-                  ),
-                  SizedBox(width: 4),
-                  Text(
-                    _sortByAvailableFirst ? 'Available first' : 'Show all',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _sortByAvailableFirst
-                          ? AppColorScheme.primaryColor
-                          : Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          // Filter dropdown
+          _buildFilterDropdown(),
+
           Text(
             '($count result${count != 1 ? 's' : ''})',
             style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
@@ -306,7 +331,7 @@ class _ManongListScreenState extends State<ManongListScreen> {
       }).toList();
     }
 
-    // Sort by availability first, then bookmarks, then distance
+    // Apply selected filter
     filtered.sort((a, b) {
       // First, sort by availability if enabled
       if (_sortByAvailableFirst) {
@@ -318,21 +343,49 @@ class _ManongListScreenState extends State<ManongListScreen> {
         if (aIsBusy && !bIsBusy) return 1;
       }
 
-      // Then sort by bookmarked
-      final aBookmarked = _bookmarkStatus[a.appUser.id] ?? false;
-      final bBookmarked = _bookmarkStatus[b.appUser.id] ?? false;
+      // Then apply the selected filter
+      switch (_selectedFilter) {
+        case FilterOption.nearestDistance:
+          final distA = _calculateDistance(a);
+          final distB = _calculateDistance(b);
+          if (distA == null && distB == null) return 0;
+          if (distA == null) return 1;
+          if (distB == null) return -1;
+          return distA.compareTo(distB);
 
-      if (aBookmarked && !bBookmarked) return -1;
-      if (!aBookmarked && bBookmarked) return 1;
+        case FilterOption.highestRating:
+          // Use stats?.averageRating for average rating
+          final ratingA = a.stats?.averageRating ?? 0;
+          final ratingB = b.stats?.averageRating ?? 0;
+          return ratingB.compareTo(ratingA); // Descending
 
-      // Then sort by distance
-      final distA = _calculateDistance(a);
-      final distB = _calculateDistance(b);
+        case FilterOption.mostReviews:
+          // Use stats?.ratingCount for number of reviews
+          final reviewsA = a.stats?.ratingCount ?? 0;
+          final reviewsB = b.stats?.ratingCount ?? 0;
+          return reviewsB.compareTo(reviewsA); // Descending
 
-      if (distA == null && distB == null) return 0;
-      if (distA == null) return 1;
-      if (distB == null) return -1;
-      return distA.compareTo(distB);
+        case FilterOption.highestExperience:
+          final expA = a.profile?.yearsExperience ?? 0;
+          final expB = b.profile?.yearsExperience ?? 0;
+          return expB.compareTo(expA); // Descending
+
+        case FilterOption.bookmarkedFirst:
+          final aBookmarked = _bookmarkStatus[a.appUser.id] ?? false;
+          final bBookmarked = _bookmarkStatus[b.appUser.id] ?? false;
+          if (aBookmarked && !bBookmarked) return -1;
+          if (!aBookmarked && bBookmarked) return 1;
+
+          // If both bookmarked or both not bookmarked, sort by distance
+          final distA = _calculateDistance(a);
+          final distB = _calculateDistance(b);
+          if (distA == null && distB == null) return 0;
+          if (distA == null) return 1;
+          if (distB == null) return -1;
+          return distA.compareTo(distB);
+
+        // Removed FilterOption.lowestPrice since serviceRate doesn't exist
+      }
     });
 
     return filtered;
@@ -389,6 +442,54 @@ class _ManongListScreenState extends State<ManongListScreen> {
             child: SearchInput(
               controller: _searchController,
               onChanged: _onSearchChanged,
+            ),
+          ),
+          SizedBox(width: 8),
+          // Availability toggle button
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _sortByAvailableFirst = !_sortByAvailableFirst;
+              });
+            },
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: _sortByAvailableFirst
+                    ? AppColorScheme.primaryColor.withOpacity(0.1)
+                    : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _sortByAvailableFirst
+                      ? AppColorScheme.primaryColor
+                      : Colors.grey.shade300,
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _sortByAvailableFirst
+                        ? Icons.check_circle
+                        : Icons.circle_outlined,
+                    size: 16,
+                    color: _sortByAvailableFirst
+                        ? AppColorScheme.primaryColor
+                        : Colors.grey.shade600,
+                  ),
+                  SizedBox(width: 4),
+                  Text(
+                    'Available',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: _sortByAvailableFirst
+                          ? AppColorScheme.primaryColor
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -468,8 +569,6 @@ class _ManongListScreenState extends State<ManongListScreen> {
                 subServiceItem: _serviceRequest!.subServiceItem,
                 isBookmarked: _bookmarkStatus[manong.appUser.id] ?? false,
                 onBookmarkToggled: () => _onBookmarkToggled(manong.appUser.id),
-                // Optional: Pass busy status to the card if it supports it
-                // isBusy: isBusy,
               ),
             );
           },

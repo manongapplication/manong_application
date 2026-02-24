@@ -103,4 +103,132 @@ class ManongWalletTransactionApiService {
 
     return [];
   }
+
+  Future<Map<String, dynamic>?> fetchPendingJobFees({
+    required int walletId,
+    int page = 1,
+    int limit = 10,
+  }) async {
+    try {
+      final token = await AuthService().getNodeToken();
+
+      final queryParams = {'page': page.toString(), 'limit': limit.toString()};
+
+      final uri = Uri.parse(
+        '$baseUrl/manong-wallet-transaction/pending-job-fee/$walletId',
+      ).replace(queryParameters: queryParams);
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+          'ngrok-skip-browser-warning': 'true',
+        },
+      );
+
+      final responseBody = response.body;
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonData;
+      } else {
+        logger.warning(
+          'Failed to fetch manong wallet transactions: ${response.statusCode} $responseBody',
+        );
+        return jsonData;
+      }
+    } catch (e, stacktrace) {
+      logger.severe(
+        'Error fetching manong wallet transactions job fee',
+        e,
+        stacktrace,
+      );
+    }
+
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> payPendingJobFees({
+    required int walletId,
+    required List<int> ids,
+    required String provider,
+    int page = 1,
+    int limit = 10,
+  }) async {
+    try {
+      final token = await AuthService().getNodeToken();
+
+      final queryParams = {'page': page.toString(), 'limit': limit.toString()};
+
+      final uri = Uri.parse(
+        '$baseUrl/manong-wallet-transaction/pay-pending-job-fees/$walletId',
+      ).replace(queryParameters: queryParams);
+
+      final response = await http.post(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: jsonEncode({'ids': ids, 'provider': provider}),
+      );
+
+      final responseBody = response.body;
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonData;
+      } else {
+        logger.warning(
+          'Failed to pay manong job fees: ${response.statusCode} $responseBody',
+        );
+        return jsonData;
+      }
+    } catch (e, stacktrace) {
+      logger.severe('Error paying manong job fees', e, stacktrace);
+    }
+
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> getJobFeesPaymentStatus(List<int> ids) async {
+    try {
+      final token = await AuthService().getNodeToken();
+
+      final uri = Uri.parse(
+        '$baseUrl/manong-wallet-transaction/job-fees/payment-status',
+      );
+
+      // CHANGE THIS TO POST
+      final response = await http.post(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: jsonEncode({'ids': ids}), // Send IDs in the body
+      );
+
+      final responseBody = response.body;
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonData;
+      } else {
+        logger.warning(
+          'Failed to get job fees payment status: ${response.statusCode} $responseBody',
+        );
+        return jsonData;
+      }
+    } catch (e, stacktrace) {
+      logger.severe('Error getting job fees payment status', e, stacktrace);
+      return null;
+    }
+  }
 }

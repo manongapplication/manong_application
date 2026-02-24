@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:iconify_design/iconify_design.dart';
+import 'package:logging/logging.dart';
 import 'package:manong_application/api/manong_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/bookmark_item_type.dart';
@@ -17,7 +18,7 @@ import 'package:manong_application/utils/distance_matrix.dart';
 import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/widgets/instruction_steps.dart';
 import 'package:manong_application/widgets/price_tag.dart';
-import 'package:manong_application/api/bookmark_item_api_service.dart'; // Add this import
+import 'package:manong_application/api/bookmark_item_api_service.dart';
 
 class ManongDetailsScreen extends StatefulWidget {
   final Manong? manong;
@@ -42,12 +43,14 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
   String hideInstructionKey = 'hide_instruction_manong_details_screen';
   late ServiceRequest? _serviceRequest;
   late Manong? _manong;
+  final Logger logger = Logger('ManongDetailsScreen');
 
   // Bookmark state
   bool _isBookmarked = false;
   bool _isLoadingBookmark = false;
   bool _isButtonLoading = false;
   String? _error;
+  bool _hasShownDistanceWarning = false;
 
   @override
   void initState() {
@@ -55,11 +58,130 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
     _initializeComponents();
     showInstructionSheet(navigatorKey.currentContext!);
     _fetchBookmarkStatus();
+
+    // Show distance warning on init if too far
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showDistanceWarningIfNeeded();
+    });
   }
 
   void _initializeComponents() {
     _serviceRequest = widget.serviceRequest;
     _manong = widget.manong;
+  }
+
+  Future<void> _showDistanceWarningIfNeeded() async {
+    if (_hasShownDistanceWarning) return;
+
+    final meters = DistanceMatrix().calculateDistance(
+      startLat: _serviceRequest?.customerLat ?? 0,
+      startLng: _serviceRequest?.customerLng ?? 0,
+      endLat: _manong?.appUser.latitude,
+      endLng: _manong?.appUser.longitude,
+    );
+
+    // Show warning if distance is more than 50km
+    if (meters != null && meters > 50000) {
+      await _showDistanceWarningDialog(meters);
+      _hasShownDistanceWarning = true;
+    }
+  }
+
+  Future<bool> _showDistanceWarningDialog(double meters) async {
+    final bool isReallyTooFar =
+        meters > 100000; // 100km threshold for "really too far"
+
+    return await showDialog<bool>(
+          context: navigatorKey.currentContext!,
+          barrierDismissible: false,
+          builder: (BuildContext dialogContext) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: [
+                  Icon(
+                    isReallyTooFar
+                        ? Icons.error_outline
+                        : Icons.warning_amber_rounded,
+                    color: isReallyTooFar ? Colors.red : Colors.orange,
+                    size: 28,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    isReallyTooFar ? 'Very Far Distance' : 'Distance Warning',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'This manong is ${DistanceMatrix().formatDistance(meters)} away.',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.black54,
+                      height: 1.4,
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    isReallyTooFar
+                        ? 'This manong is very far from your location. Manongs may choose to cancel requests when the distance is this great due to travel time and costs. We recommend selecting a closer manong if possible.'
+                        : 'Travel time may be longer than expected. You can still proceed, but keep this in mind when making your booking.',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.black54,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                if (isReallyTooFar) ...[
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop(true);
+                      // Go back to find another manong
+                      Navigator.of(dialogContext).pop();
+                    },
+                    child: Text(
+                      'Find Closer Manong',
+                      style: TextStyle(
+                        color: AppColorScheme.primaryColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(true);
+                  },
+                  child: Text(
+                    isReallyTooFar ? 'Proceed Anyway' : 'OK, I Understand',
+                    style: TextStyle(
+                      color: isReallyTooFar
+                          ? Colors.grey.shade600
+                          : AppColorScheme.primaryColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ) ??
+        true;
   }
 
   Future<void> _fetchBookmarkStatus() async {
@@ -267,6 +389,53 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
     );
   }
 
+  Widget _buildDistanceWarning(double? meters) {
+    if (meters == null || meters < 50000)
+      return SizedBox.shrink(); // 50km threshold
+
+    final bool isReallyTooFar = meters > 100000; // 100km threshold
+
+    return Container(
+      padding: EdgeInsets.all(12),
+      margin: EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: isReallyTooFar
+            ? Colors.red.withOpacity(0.1)
+            : Colors.orange.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isReallyTooFar
+              ? Colors.red.withOpacity(0.3)
+              : Colors.orange.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isReallyTooFar ? Icons.error_outline : Icons.warning_amber_rounded,
+            color: isReallyTooFar ? Colors.red : Colors.orange,
+            size: 20,
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              isReallyTooFar
+                  ? 'This manong is very far away (${DistanceMatrix().formatDistance(meters)}). Manongs may cancel due to travel distance.'
+                  : 'This manong is quite far away (${DistanceMatrix().formatDistance(meters)}). Travel time may be longer than expected.',
+              style: TextStyle(
+                fontSize: 12,
+                color: isReallyTooFar
+                    ? Colors.red.shade800
+                    : Colors.orange.shade800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBottomNav(double? meters, ScrollController scrollController) {
     return Container(
       width: double.infinity,
@@ -331,6 +500,10 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
                   ],
                 ),
               ),
+
+              // --- Distance Warning
+              _buildDistanceWarning(meters),
+
               const SizedBox(height: 12),
 
               // --- Accept Button
@@ -526,12 +699,13 @@ class _ManongDetailsScreenState extends State<ManongDetailsScreen> {
     );
   }
 
-  // Updated _acceptManong method using AlertDialog
+  // Updated _acceptManong method
   Future<void> _acceptManong(double? meters, BuildContext sheetContext) async {
     setState(() {
       _isButtonLoading = true;
       _error = null;
     });
+
     try {
       if (_manong?.appUser == null) return;
       final response = await ManongApiService().fetchAManong(

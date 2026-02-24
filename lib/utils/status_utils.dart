@@ -74,6 +74,19 @@ String getStatusText(String status) {
 }
 
 final Map<String, List<dynamic>> tabStatuses = {
+  'All': [
+    PaymentStatus.unpaid,
+    PaymentStatus.pending,
+    ServiceRequestStatus.pending,
+    ServiceRequestStatus.awaitingAcceptance,
+    ServiceRequestStatus.accepted,
+    ServiceRequestStatus.refunding,
+    PaymentStatus.paid,
+    ServiceRequestStatus.inProgress,
+    ServiceRequestStatus.completed,
+    ServiceRequestStatus.cancelled,
+    ServiceRequestStatus.expired,
+  ],
   'To Pay': [
     PaymentStatus.unpaid,
     PaymentStatus.pending,

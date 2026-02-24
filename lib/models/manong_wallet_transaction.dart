@@ -34,7 +34,7 @@ class ManongWalletTransaction {
       id: json['id'],
       walletId: json['walletId'],
       type: WalletTransactionType.values.firstWhere(
-        (e) => e.name == json['status'].toString(),
+        (e) => e.name == json['type'].toString(),
         orElse: () => WalletTransactionType.topup,
       ),
       status: WalletTransactionStatus.values.firstWhere(

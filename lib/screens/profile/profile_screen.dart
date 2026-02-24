@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/auth_service.dart';
+import 'package:manong_application/api/user_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/app_user.dart';
 import 'package:manong_application/providers/bottom_nav_provider.dart';
@@ -29,10 +30,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoggedIn = false;
   bool _permissionsExpanded = false; // For dropdown state
 
+  final UserApiService userApiService = UserApiService();
+  bool _isLoadingStats = false;
+  Map<String, dynamic>? _userStats;
+  String _bookingsCount = '0';
+  String _completedCount = '0';
+  String _averageRating = '0.0';
+
   @override
   void initState() {
     super.initState();
     _checkLoginStatus();
+  }
+
+  Future<void> _fetchUserStats() async {
+    if (!_isLoggedIn) return;
+
+    setState(() {
+      _isLoadingStats = true;
+    });
+
+    try {
+      final stats = await userApiService.getStats();
+
+      if (mounted && stats != null) {
+        setState(() {
+          _userStats = stats;
+          _bookingsCount = stats['totalBookings']?.toString() ?? '0';
+          _completedCount = stats['completedCount']?.toString() ?? '0';
+          _averageRating = stats['averageRating']?.toStringAsFixed(1) ?? '0.0';
+        });
+      }
+    } catch (e) {
+      logger.severe('Error fetching stats: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingStats = false;
+        });
+      }
+    }
   }
 
   Future<void> _checkLoginStatus() async {
@@ -47,6 +84,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           isLoading = false;
         });
       }
+
+      _fetchUserStats();
     } catch (e) {
       // If error, user is not logged in
       if (mounted) {
@@ -77,6 +116,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _isLoggedIn = true;
           isLoading = false;
         });
+
+        // Refresh stats when profile refreshes
+        _fetchUserStats();
       }
     } catch (e) {
       if (mounted) {
@@ -285,81 +327,311 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ============ SHARED COMPONENTS ============
   Widget _buildProfileHeader() {
+    // Check if user is manong from stats or profile
+    bool isManong =
+        _userStats?['isManong'] == true || profile?.role == 'manong';
+
     return Container(
-      padding: const EdgeInsets.all(24),
       margin: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        children: [
+          // Profile Card with Gradient (unchanged)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColorScheme.primaryColor,
+                  AppColorScheme.primaryColor.withOpacity(0.8),
+                  AppColorScheme.primaryDark,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColorScheme.primaryColor.withOpacity(0.2),
+                  blurRadius: 15,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                // Simple Avatar with white background
+                GestureDetector(
+                  onTap: profile!.firstName == null || profile!.email == null
+                      ? () async {
+                          final result = await Navigator.pushNamed(
+                            context,
+                            '/complete-profile',
+                          );
+
+                          if (result != null && result is Map) {
+                            if (result['update'] == true) {
+                              _getProfile();
+                            }
+                          }
+                        }
+                      : null,
+                  child: Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        profile!.firstName != null
+                            ? profile!.firstName![0].toUpperCase()
+                            : profile!.phone[0].toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w600,
+                          color: AppColorScheme.primaryColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+
+                // User Info - White text on gradient
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        profile!.firstName != null
+                            ? 'Welcome back, ${profile!.firstName}!'
+                            : 'Welcome back!',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        profile!.firstName ?? 'Not Set Yet',
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          profile!.phone,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      if (profile!.email != null) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.email_outlined,
+                              size: 12,
+                              color: Colors.white70,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                profile!.email!,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white70,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                // Edit Icon
+                if (!(profile!.firstName == null || profile!.email == null))
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pushNamed(context, '/edit-profile').then((_) {
+                        _getProfile();
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.edit, size: 18, color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          // Stats Row with conditional rating label
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final gap = constraints.maxWidth < 360 ? 4 : 8;
+
+              return Row(
+                children: [
+                  Expanded(
+                    child: _isLoadingStats
+                        ? _buildLoadingStat()
+                        : _buildGradientStat(
+                            _bookingsCount,
+                            'Bookings',
+                            constraints.maxWidth,
+                          ),
+                  ),
+                  SizedBox(width: gap.toDouble()),
+                  Expanded(
+                    child: _isLoadingStats
+                        ? _buildLoadingStat()
+                        : _buildGradientStat(
+                            _completedCount,
+                            'Completed',
+                            constraints.maxWidth,
+                          ),
+                  ),
+                  SizedBox(width: gap.toDouble()),
+                  Expanded(
+                    child: _isLoadingStats
+                        ? _buildLoadingStat()
+                        : _buildGradientStat(
+                            _averageRating,
+                            isManong
+                                ? 'Rating'
+                                : 'Given Rating', // Conditional label
+                            constraints.maxWidth,
+                          ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingStat() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColorScheme.primaryColor,
-            AppColorScheme.primaryColor.withOpacity(0.8),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: AppColorScheme.primaryColor.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         children: [
-          // Profile Avatar
-          CircleAvatar(
-            radius: 50,
-            backgroundColor: Colors.white.withOpacity(0.2),
-            child: Icon(Icons.person, size: 60, color: Colors.white),
-          ),
-          const SizedBox(height: 16),
-
-          // Welcome Text
-          Text(
-            'Welcome,',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w300,
-              color: Colors.white.withOpacity(0.9),
+          Container(
+            width: 30,
+            height: 18,
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(4),
             ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 50,
+            height: 12,
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // New stat widget that complements the gradient header
+  Widget _buildGradientStat(String value, String label, double screenWidth) {
+    final valueFontSize = screenWidth < 360 ? 16 : 18;
+    final labelFontSize = screenWidth < 360 ? 11 : 12;
+    final verticalPadding = screenWidth < 360 ? 8 : 12;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        vertical: verticalPadding.toDouble(),
+        horizontal: 4,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppColorScheme.primaryColor.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: valueFontSize.toDouble(),
+              fontWeight: FontWeight.w700,
+              color: AppColorScheme.primaryColor,
+              letterSpacing: -0.5,
+            ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 4),
-
-          // Phone Number
           Text(
-            profile!.phone,
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+            label,
+            style: TextStyle(
+              fontSize: labelFontSize.toDouble(),
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
             ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-
-          // Name and Email if available
-          if (profile!.firstName != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              profile!.firstName!,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-                color: Colors.white.withOpacity(0.9),
-              ),
-            ),
-          ],
-
-          if (profile!.email != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              profile!.email!,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.white.withOpacity(0.8),
-              ),
-            ),
-          ],
         ],
       ),
     );

@@ -36,7 +36,11 @@ class GradientHeaderContainer extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [AppColorScheme.primaryColor, Colors.white],
+              colors: [
+                AppColorScheme.primaryColor,
+                AppColorScheme.primaryColor.withOpacity(0.8),
+                AppColorScheme.primaryDark,
+              ],
               stops: [0.4, 1],
             ),
             borderRadius: borderRadius ?? BorderRadius.zero,

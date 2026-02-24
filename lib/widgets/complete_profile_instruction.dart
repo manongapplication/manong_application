@@ -81,25 +81,28 @@ class CompleteProfileInstruction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Before You Complete Your Profile',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: Colors.black87,
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Before You Complete Your Profile',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Please follow these steps to complete your registration and get verified by the admin team.',
-          style: TextStyle(fontSize: 12.5, color: Colors.black54),
-        ),
-        const SizedBox(height: 16),
-        for (var step in instructions) _buildStep(context, step),
-      ],
+          const SizedBox(height: 8),
+          const Text(
+            'Please follow these steps to complete your registration and get verified by the admin team.',
+            style: TextStyle(fontSize: 12.5, color: Colors.black54),
+          ),
+          const SizedBox(height: 16),
+          for (var step in instructions) _buildStep(context, step),
+        ],
+      ),
     );
   }
 }

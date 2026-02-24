@@ -5,14 +5,20 @@ import 'package:manong_application/models/sub_service_item.dart';
 class Manong {
   final AppUser appUser;
   final ManongProfile? profile;
+  final ManongStats? stats; // Add stats property
+  final ManongWallet? manongWallet;
 
-  Manong({required this.appUser, this.profile});
+  Manong({required this.appUser, this.profile, this.stats, this.manongWallet});
 
   factory Manong.fromJson(Map<String, dynamic> json) {
     return Manong(
       appUser: AppUser.fromJson(json),
       profile: json['manongProfile'] != null
           ? ManongProfile.fromJson(json['manongProfile'])
+          : null,
+      stats: json['stats'] != null ? ManongStats.fromJson(json['stats']) : null,
+      manongWallet: json['manongWallet'] != null
+          ? ManongWallet.fromJson(json)
           : null,
     );
   }
@@ -114,6 +120,33 @@ class ManongProfile {
   }
 }
 
+class ManongStats {
+  final int ratingCount;
+  final double averageRating;
+
+  ManongStats({required this.ratingCount, required this.averageRating});
+
+  factory ManongStats.fromJson(Map<String, dynamic> json) {
+    return ManongStats(
+      ratingCount: json['ratingCount'] ?? 0,
+      averageRating: json['averageRating'] != null
+          ? double.tryParse(json['averageRating'].toString()) ?? 0.0
+          : 0.0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'ratingCount': ratingCount, 'averageRating': averageRating};
+  }
+
+  ManongStats copyWith({int? ratingCount, double? averageRating}) {
+    return ManongStats(
+      ratingCount: ratingCount ?? this.ratingCount,
+      averageRating: averageRating ?? this.averageRating,
+    );
+  }
+}
+
 class ManongAssistant {
   final int id;
   final int manongProfileId;
@@ -169,4 +202,44 @@ class ManongDailyLimit {
     this.count,
     this.limit,
   });
+}
+
+class ManongWallet {
+  final int id;
+  final int manongId;
+  final double balance;
+  final double pending;
+  final double locked;
+  final String? currency;
+
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  ManongWallet({
+    required this.id,
+    required this.manongId,
+    required this.balance,
+    required this.pending,
+    required this.locked,
+    this.currency,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  factory ManongWallet.fromJson(Map<String, dynamic> json) {
+    return ManongWallet(
+      id: json['id'],
+      manongId: json['manongId'],
+      balance: double.parse(json['balance']),
+      pending: double.parse(json['pending']),
+      locked: double.parse(json['locked']),
+      currency: json['currency'],
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'])
+          : null,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'])
+          : null,
+    );
+  }
 }

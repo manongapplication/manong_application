@@ -889,7 +889,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
       return;
     }
 
-    Navigator.pushNamed(
+    final result = await Navigator.pushNamed(
       navigatorKey.currentContext!,
       '/payment-processing',
       arguments: {
@@ -898,6 +898,12 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
         'meters': _meters,
       },
     );
+
+    if (result != null && result is Map) {
+      if (result['highlightPaymentMethod']) {
+        togglePaymentMethodCard();
+      }
+    }
   }
 
   Widget _buildConfirmButton() {

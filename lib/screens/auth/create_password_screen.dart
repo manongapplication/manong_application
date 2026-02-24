@@ -241,61 +241,91 @@ class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+
+          // Balanced header
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(24),
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
                   AppColorScheme.primaryColor,
                   AppColorScheme.primaryColor.withOpacity(0.8),
+                  AppColorScheme.primaryDark,
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(22),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
+                  color: AppColorScheme.primaryColor.withOpacity(0.2),
+                  blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
               ],
             ),
-            child: Column(
+            child: Row(
               children: [
-                // Logo and title
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    manongIcon(size: 32),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Create Password',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: AppColorScheme.primaryLight,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Create a strong password to secure your account',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColorScheme.primaryLight.withOpacity(0.9),
+                // Logo
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    shape: BoxShape.circle,
                   ),
-                  textAlign: TextAlign.center,
+                  child: manongIcon(size: 32),
+                ),
+                const SizedBox(width: 16),
+
+                // Text content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Welcome to Manong!',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Create your password to continue',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Small lock icon
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.lock_outline,
+                    size: 18,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
                 ),
               ],
             ),
           ),
 
           Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(20),
             child: Form(
               key: _formKey,
               autovalidateMode: AutovalidateMode.onUserInteraction,

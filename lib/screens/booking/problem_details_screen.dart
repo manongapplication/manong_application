@@ -523,13 +523,13 @@ class _ProblemDetailsScreenState extends State<ProblemDetailsScreen> {
                     ),
                     if (_customerLat != null && _customerLng != null) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        'Lat: ${_customerLat!.toStringAsFixed(6)}, Lng: ${_customerLng!.toStringAsFixed(6)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
+                      // Text(
+                      //   'Lat: ${_customerLat!.toStringAsFixed(6)}, Lng: ${_customerLng!.toStringAsFixed(6)}',
+                      //   style: TextStyle(
+                      //     fontSize: 12,
+                      //     color: Colors.grey.shade600,
+                      //   ),
+                      // ),
                     ],
                   ],
                 ),

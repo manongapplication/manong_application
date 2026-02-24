@@ -22,7 +22,10 @@ class _CashInScreenState extends State<CashInScreen> {
   bool _toggledPaymentMethodContainer = false;
   final GlobalKey _paymentMethodCardKey = GlobalKey();
 
-  // Preset amounts
+  // Minimum cash in amount
+  static const double _minimumCashInAmount = 100.0;
+
+  // Preset amounts (all above minimum)
   final List<double> _presetAmounts = [300, 500, 1000, 2000];
 
   // Payment methods - Just GCash and Maya
@@ -134,6 +137,15 @@ class _CashInScreenState extends State<CashInScreen> {
   }
 
   Future<void> _processCashIn() async {
+    // Validate minimum amount
+    if (_selectedAmount < _minimumCashInAmount) {
+      _showError(
+        'Minimum cash in amount is ₱${_minimumCashInAmount.toStringAsFixed(2)}',
+        showTryAgain: false,
+      );
+      return;
+    }
+
     if (_selectedAmount <= 0) {
       _showError('Please enter an amount', showTryAgain: false);
       return;
@@ -379,6 +391,9 @@ class _CashInScreenState extends State<CashInScreen> {
   }
 
   Widget _buildAmountInput() {
+    final isBelowMinimum =
+        _selectedAmount > 0 && _selectedAmount < _minimumCashInAmount;
+
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -392,13 +407,26 @@ class _CashInScreenState extends State<CashInScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Amount to Cash In',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppColorScheme.primaryDark,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Amount to Cash In',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColorScheme.primaryDark,
+                  ),
+                ),
+                Text(
+                  'Min: ₱${_minimumCashInAmount.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
 
@@ -406,9 +434,11 @@ class _CashInScreenState extends State<CashInScreen> {
             Container(
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: _amountFocusNode.hasFocus
-                      ? AppColorScheme.primaryColor
-                      : Colors.grey[300]!,
+                  color: isBelowMinimum
+                      ? Colors.orange
+                      : (_amountFocusNode.hasFocus
+                            ? AppColorScheme.primaryColor
+                            : Colors.grey[300]!),
                   width: 2,
                 ),
                 borderRadius: BorderRadius.circular(12),
@@ -447,6 +477,27 @@ class _CashInScreenState extends State<CashInScreen> {
                 ],
               ),
             ),
+
+            // Minimum amount warning
+            if (isBelowMinimum)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: Colors.orange),
+                    SizedBox(width: 4),
+                    Text(
+                      'Minimum amount is ₱${_minimumCashInAmount.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             const SizedBox(height: 8),
 
             // Preset Amounts
@@ -745,7 +796,7 @@ class _CashInScreenState extends State<CashInScreen> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // Hero/Info Section
+                // Hero/Info Section - Updated to show minimum cash in
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -774,7 +825,14 @@ class _CashInScreenState extends State<CashInScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Top up your ManongWallet to pay for services instantly',
+                              'Minimum cash in: ₱${_minimumCashInAmount.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            Text(
+                              'Top up your ManongWallet to accept cash jobs. More balance means more services you can accept. A 15% service fee applies per completed service.',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey[700],

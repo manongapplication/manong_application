@@ -134,10 +134,7 @@ class _WalletPaymentRedirectScreenState
               ),
             );
 
-            // Then navigate home after a short delay
-            Future.delayed(Duration(seconds: 2), () {
-              Navigator.of(navigatorKey.currentContext!).pop();
-            });
+            Navigator.of(navigatorKey.currentContext!).pop();
           }
         }
       }

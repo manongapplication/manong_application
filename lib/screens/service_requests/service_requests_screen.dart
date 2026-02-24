@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:manong_application/api/auth_service.dart';
 import 'package:manong_application/api/fcm_api_service.dart';
+import 'package:manong_application/api/manong_wallet_api_service.dart';
 import 'package:manong_application/api/payment_transaction_api_service.dart';
 import 'package:manong_application/api/service_request_api_service.dart';
 import 'package:manong_application/api/tracking_api_service.dart';
 import 'package:manong_application/main.dart';
 import 'package:manong_application/models/manong.dart';
 import 'package:manong_application/models/manong_status.dart';
+import 'package:manong_application/models/manong_wallet.dart';
 import 'package:manong_application/models/payment_status.dart';
 import 'package:manong_application/models/service_request_status.dart';
 import 'package:manong_application/models/service_request.dart';
@@ -89,6 +91,8 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   bool _isToggleLoading = false;
   ManongDailyLimit? _manongDailyLimit;
 
+  BookingReadiness? _bookingReadiness;
+
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -113,6 +117,26 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     });
 
     _countUnseenPaymentTransactions();
+  }
+
+  Future<void> _fetchCashBookingReadiness() async {
+    try {
+      final response = await ManongWalletApiService()
+          .fetchCashBookingReadiness();
+
+      if (response != null) {
+        final data = BookingReadiness.fromJson(response['data']);
+        logger.info('Readiness ${data.message}');
+        setState(() {
+          _bookingReadiness = data;
+        });
+
+        _navProvider.setBookingReadiness(data);
+      }
+    } catch (e) {
+      logger.severe('Error to fetch booking readiness ${e.toString()}');
+      _navProvider.unsetBookingReadiness();
+    }
   }
 
   void _fetchInitialStatus() {
@@ -148,6 +172,47 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
             fontWeight: FontWeight.bold,
             color: AppColorScheme.deepTeal,
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildManongBookingReadinessDraggableContainer() {
+    if (_isManong != true || _bookingReadiness == null) {
+      return const SizedBox.shrink();
+    }
+
+    return RoundedDraggableSheet(
+      initialChildSize: 0.18,
+      maxChildSize: 0.18,
+      minChildSize: 0,
+      snapSizes: const [0.05, 0.18],
+      color: const Color.fromARGB(255, 216, 229, 231).withOpacity(0.8),
+      children: [
+        Text(
+          _bookingReadiness!.message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        ),
+
+        const SizedBox(height: 8),
+
+        AnimatedStackProgressBar(
+          current: _bookingReadiness!.balance.round().clamp(
+            0,
+            _bookingReadiness!.minimumRequired.round(),
+          ),
+          total: _bookingReadiness!.minimumRequired.round(),
+          fillColor: _bookingReadiness!.status == BookingReadinessStatus.empty
+              ? Colors.redAccent
+              : AppColorScheme.primaryColor,
+          trackColor: AppColorScheme.primaryLight,
+          percentTextStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColorScheme.deepTeal,
+          ),
+          customLabel:
+              '${_bookingReadiness!.balance.round().toString()}/${_bookingReadiness!.minimumRequired.round()}',
         ),
       ],
     );
@@ -200,9 +265,10 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
           });
 
           logger.info('_currentManong: $_currentManong');
+          logger.info('wallet: ${response?.manongWallet != null}');
         }
 
-        await _fetchDailyLimit();
+        await _fetchCashBookingReadiness();
       }
     } catch (e) {
       logger.severe('Error fetching current manong: $e');
@@ -699,7 +765,7 @@ Is loading: $_isLoadingMore
         await Future.delayed(const Duration(milliseconds: 100));
         _fetchCurrentManong();
       } else {
-        _navProvider.unsetManongDailyLimit();
+        _navProvider.unsetBookingReadiness();
       }
 
       final requests = response['data'] as List<dynamic>?;
@@ -833,6 +899,11 @@ Is loading: $_isLoadingMore
     filtered = _serviceRequest.where((req) {
       final reqStatus = req.status ?? ServiceRequestStatus.pending;
       final paymentStatus = req.paymentStatus ?? PaymentStatus.pending;
+
+      // For "All" tab, show all requests without filtering
+      if (tab == 'All') {
+        return true;
+      }
 
       if (tab == 'To Pay' &&
           [
@@ -1555,7 +1626,7 @@ Is loading: $_isLoadingMore
               ),
             ],
           ),
-          _buildManongDailyLimitDraggableContainer(),
+          _buildManongBookingReadinessDraggableContainer(),
         ],
       ),
     );

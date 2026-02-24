@@ -50,6 +50,22 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
   final _formKey = GlobalKey<FormState>();
   final int _commentCount = 0;
 
+  // Payment method icons mapping
+  final Map<String, IconData> _paymentMethodIcons = {
+    'gcash': Icons.phone_android,
+    'paymaya': Icons.credit_card,
+    'cash': Icons.money,
+    'card': Icons.credit_card,
+  };
+
+  // Payment method colors mapping
+  final Map<String, Color> _paymentMethodColors = {
+    'gcash': const Color(0xFF0066B3),
+    'paymaya': const Color(0xFF00B5B0),
+    'cash': Colors.green,
+    'card': Colors.purple,
+  };
+
   @override
   void initState() {
     super.initState();
@@ -188,6 +204,45 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
     }
   }
 
+  // Helper method to get payment method display name
+  String _getPaymentMethodName() {
+    if (widget.serviceRequestItem.paymentMethod == null) return 'Unknown';
+
+    final methodName =
+        widget.serviceRequestItem.paymentMethod!.name?.toLowerCase() ?? '';
+
+    switch (methodName) {
+      case 'gcash':
+        return 'GCash';
+      case 'paymaya':
+        return 'Maya';
+      case 'cash':
+        return 'Cash';
+      default:
+        return widget.serviceRequestItem.paymentMethod!.name ?? 'Unknown';
+    }
+  }
+
+  // Helper method to get payment method icon
+  IconData _getPaymentMethodIcon() {
+    if (widget.serviceRequestItem.paymentMethod == null) return Icons.payment;
+
+    final methodName =
+        widget.serviceRequestItem.paymentMethod!.name?.toLowerCase() ?? '';
+    return _paymentMethodIcons[methodName] ?? Icons.payment;
+  }
+
+  // Helper method to get payment method color
+  Color _getPaymentMethodColor() {
+    if (widget.serviceRequestItem.paymentMethod == null) return Colors.grey;
+
+    final methodName =
+        widget.serviceRequestItem.paymentMethod!.name?.toLowerCase() ?? '';
+    return _paymentMethodColors[methodName] ?? AppColorScheme.primaryColor;
+  }
+
+  // ... (keep all imports and existing code above)
+
   @override
   Widget build(BuildContext context) {
     final serviceItem = widget.serviceRequestItem.serviceItem;
@@ -235,6 +290,55 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
     0;
     final bool hasReviewFeedback =
         widget.serviceRequestItem.feedback?.comment != null;
+
+    // Payment method helpers
+    String _getPaymentMethodName() {
+      if (widget.serviceRequestItem.paymentMethod == null) return 'Unknown';
+      final methodName =
+          widget.serviceRequestItem.paymentMethod!.name?.toLowerCase() ?? '';
+      switch (methodName) {
+        case 'gcash':
+          return 'GCash';
+        case 'paymaya':
+          return 'Maya';
+        case 'cash':
+          return 'Cash';
+        default:
+          return widget.serviceRequestItem.paymentMethod!.name ?? 'Unknown';
+      }
+    }
+
+    IconData _getPaymentMethodIcon() {
+      if (widget.serviceRequestItem.paymentMethod == null) return Icons.payment;
+      final methodName =
+          widget.serviceRequestItem.paymentMethod!.name?.toLowerCase() ?? '';
+      switch (methodName) {
+        case 'gcash':
+          return Icons.phone_android;
+        case 'paymaya':
+          return Icons.credit_card;
+        case 'cash':
+          return Icons.money;
+        default:
+          return Icons.payment;
+      }
+    }
+
+    Color _getPaymentMethodColor() {
+      if (widget.serviceRequestItem.paymentMethod == null) return Colors.grey;
+      final methodName =
+          widget.serviceRequestItem.paymentMethod!.name?.toLowerCase() ?? '';
+      switch (methodName) {
+        case 'gcash':
+          return const Color(0xFF0066B3);
+        case 'paymaya':
+          return const Color(0xFF00B5B0);
+        case 'cash':
+          return Colors.green;
+        default:
+          return AppColorScheme.primaryColor;
+      }
+    }
 
     return Card(
       color: status == 'inProgress'
@@ -295,32 +399,79 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
                           ),
                           const SizedBox(height: 4),
 
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColorScheme.primaryLight.withOpacity(
-                                0.5,
-                              ),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: AppColorScheme.primaryColor.withOpacity(
-                                  0.3,
+                          // Request Number and Payment Method (side by side)
+                          Row(
+                            children: [
+                              // Request Number
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
                                 ),
-                                width: 0.5,
+                                decoration: BoxDecoration(
+                                  color: AppColorScheme.primaryLight
+                                      .withOpacity(0.5),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: AppColorScheme.primaryColor
+                                        .withOpacity(0.3),
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: Text(
+                                  widget.serviceRequestItem.requestNumber ??
+                                      'N/A',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColorScheme.primaryDark,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
                               ),
-                            ),
-                            child: Text(
-                              widget.serviceRequestItem.requestNumber ?? 'N/A',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: AppColorScheme.primaryDark,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
+
+                              // Payment Method (NEW - beside request number)
+                              if (widget.serviceRequestItem.paymentMethod !=
+                                  null) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _getPaymentMethodColor().withOpacity(
+                                      0.1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: _getPaymentMethodColor()
+                                          .withOpacity(0.3),
+                                      width: 0.5,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _getPaymentMethodIcon(),
+                                        size: 10,
+                                        color: _getPaymentMethodColor(),
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        _getPaymentMethodName(),
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          color: _getPaymentMethodColor(),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                           const SizedBox(height: 4),
 

@@ -93,4 +93,32 @@ class UserApiService {
 
     return null;
   }
+
+  Future<Map<String, dynamic>?> getStats() async {
+    try {
+      final token = await AuthService().getNodeToken();
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/stats'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final responseBody = response.body;
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonData['data'];
+      } else {
+        logger.warning('Failed to fetch stats: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      logger.severe('Error fetching stats: $e');
+      return null;
+    }
+  }
 }

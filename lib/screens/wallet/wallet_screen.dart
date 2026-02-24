@@ -12,6 +12,7 @@ import 'package:manong_application/widgets/error_state_widget.dart';
 import 'package:manong_application/widgets/manong_wallet_card.dart';
 import 'package:manong_application/widgets/manong_wallet_transaction_list.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
+import 'package:manong_application/widgets/pending_job_fees_widget.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -30,6 +31,7 @@ class _WalletScreenState extends State<WalletScreen>
   final String _selectedCurrency = "PHP";
   ManongWallet? _wallet;
   bool _noManongWallet = false;
+  List<ManongWalletTransaction>? _pendingJobFees;
 
   // Variables for transactions
   List<ManongWalletTransaction> _walletTransactions = [];
@@ -380,7 +382,7 @@ class _WalletScreenState extends State<WalletScreen>
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Create your ManongWallet now to start taking requests!',
+                        'Create your ManongWallet to start accepting jobs and cash payments.',
                         style: TextStyle(fontSize: 16, color: Colors.grey[700]),
                       ),
                       const SizedBox(height: 24),
@@ -574,7 +576,10 @@ class _WalletScreenState extends State<WalletScreen>
             onPressed: _noManongWallet
                 ? null
                 : () {
-                    Navigator.pushNamed(context, '/wallet-cash-in');
+                    Navigator.pushNamed(
+                      navigatorKey.currentContext!,
+                      '/wallet-cash-in',
+                    );
                   },
           ),
           _buildButtonChip(
@@ -582,12 +587,195 @@ class _WalletScreenState extends State<WalletScreen>
             onPressed: _noManongWallet
                 ? null
                 : () {
-                    // open cash out dialog / page
+                    _handleCashOutPressed();
                   },
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _handleCashOutPressed() async {
+    // Show loading indicator
+    setState(() {
+      _isButtonLoading = true;
+    });
+
+    try {
+      // Fetch pending job fees
+      await _fetchPendingJobFees();
+
+      if (_pendingJobFees != null && _pendingJobFees!.isNotEmpty) {
+        // Show pending jobs dialog
+        _showPendingJobDialog();
+      } else {
+        // No pending jobs, proceed to cashout
+        Navigator.pushNamed(navigatorKey.currentContext!, '/wallet-cash-out');
+      }
+    } catch (e) {
+      logger.severe('Error checking pending job fees: $e');
+      // If there's an error checking, still allow cashout or show error
+      SnackBarUtils.showError(
+        navigatorKey.currentContext!,
+        'Unable to check pending job fees. Please try again.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isButtonLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _showPendingJobDialog() async {
+    if (_pendingJobFees == null || _pendingJobFees!.isEmpty) return;
+
+    final pendingCount = _pendingJobFees!.length;
+
+    // Calculate total amount
+    final totalAmount = _pendingJobFees!.fold<double>(
+      0,
+      (sum, tx) => sum + (tx.amount?.abs() ?? 0),
+    );
+
+    return showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Icon(Icons.pending_actions, color: Colors.orange, size: 24),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Pending Job Fees',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: AppColorScheme.primaryDark,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Divider
+              Divider(height: 1, color: Colors.grey.shade200),
+
+              // Content - Scrollable
+              PendingJobFeesWidget(
+                pendingCount: pendingCount,
+                totalAmount: totalAmount,
+                pendingJobFees: _pendingJobFees,
+              ),
+
+              // Divider
+              Divider(height: 1, color: Colors.grey.shade200),
+
+              // Actions
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColorScheme.primaryColor,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                      child: const Text('PAY LATER'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColorScheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () async {
+                        final result = await Navigator.pushNamed(
+                          navigatorKey.currentContext!,
+                          '/pay-job-fees',
+                        );
+
+                        if (result != null && result is Map) {
+                          final success = result['success'] as bool? ?? false;
+                          final navigateTo = result['navigateTo'] as String?;
+
+                          if (success && navigateTo == 'cash-out') {
+                            Navigator.of(context).pop();
+                            // Navigate to cash out screen
+                            Navigator.pushNamed(
+                              navigatorKey.currentContext!,
+                              '/wallet-cash-out',
+                            );
+                          }
+                        }
+                      },
+                      child: const Text('PAY NOW'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _fetchPendingJobFees() async {
+    if (_wallet == null) return;
+    try {
+      final response = await ManongWalletTransactionApiService()
+          .fetchPendingJobFees(walletId: _wallet!.id);
+
+      if (response != null && response['data'] != null) {
+        logger.info('The ${response['data']}');
+        final List<dynamic> data = response['data'];
+        setState(() {
+          _pendingJobFees = data
+              .map((json) => ManongWalletTransaction.fromJson(json))
+              .toList();
+        });
+      } else {
+        setState(() {
+          _pendingJobFees = [];
+        });
+      }
+    } catch (e) {
+      logger.severe('Error fetching pending job fees ${e.toString()}');
+      setState(() {
+        _pendingJobFees = [];
+      });
+      rethrow;
+    }
   }
 
   Widget _buildCreateWalletButton() {
@@ -670,6 +858,7 @@ class _WalletScreenState extends State<WalletScreen>
           )
         else if (_walletTransactions.isEmpty)
           Container(
+            width: double.infinity,
             margin: const EdgeInsets.symmetric(horizontal: 12),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -702,7 +891,10 @@ class _WalletScreenState extends State<WalletScreen>
                 const SizedBox(height: 16),
                 OutlinedButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/wallet-cash-in');
+                    Navigator.pushNamed(
+                      navigatorKey.currentContext!,
+                      '/wallet-cash-in',
+                    );
                   },
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: AppColorScheme.primaryColor),
@@ -772,7 +964,7 @@ class _WalletScreenState extends State<WalletScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColorScheme.backgroundGrey,
-      appBar: myAppBar(title: 'Wallet'),
+      appBar: myAppBar(leading: Icon(Icons.wallet), title: 'Wallet'),
       body: Stack(
         children: [
           SafeArea(
@@ -803,6 +995,26 @@ class _WalletScreenState extends State<WalletScreen>
             FadeTransition(
               opacity: _overlayAnimation,
               child: _buildCreateManongWalletOverlay(),
+            ),
+
+          // Loading overlay for button actions
+          if (_isButtonLoading)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.3),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: CircularProgressIndicator(
+                      color: AppColorScheme.primaryColor,
+                    ),
+                  ),
+                ),
+              ),
             ),
         ],
       ),

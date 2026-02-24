@@ -24,21 +24,23 @@ class ManongWalletCard extends StatelessWidget {
         );
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
             AppColorScheme.primaryColor,
             AppColorScheme.primaryColor.withOpacity(0.8),
+            AppColorScheme.primaryDark,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
+            color: AppColorScheme.primaryColor.withOpacity(0.3),
+            blurRadius: 8,
             offset: const Offset(0, 4),
           ),
         ],
@@ -46,15 +48,19 @@ class ManongWalletCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
+          // Header with ManongIcon
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
                 'ManongWallet',
-                style: TextStyle(color: Colors.white, fontSize: 20),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-              manongIcon(size: 40),
+              manongIcon(size: 36),
             ],
           ),
           const SizedBox(height: 16),
@@ -62,21 +68,101 @@ class ManongWalletCard extends StatelessWidget {
           // Balance
           PriceTag(
             price: w.balance,
-            textStyle: const TextStyle(fontSize: 24, color: Colors.white),
+            textStyle: const TextStyle(
+              fontSize: 36,
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 20),
 
           // Pending and Locked
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Pending: ${w.pending.toStringAsFixed(2)} ${w.currency}',
-                style: const TextStyle(color: Colors.white70),
+              // Pending
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.access_time,
+                        color: Colors.amber,
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Pending',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                          Text(
+                            '₱${w.pending.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              Text(
-                'Locked: ${w.locked.toStringAsFixed(2)} ${w.currency}',
-                style: const TextStyle(color: Colors.white70),
+
+              // Locked
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.lock_outline,
+                        color: Colors.blue,
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Locked',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                          Text(
+                            '₱${w.locked.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

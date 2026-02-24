@@ -27,6 +27,7 @@ import 'package:manong_application/screens/auth/verify_screen.dart';
 import 'package:manong_application/screens/booking/add_card_payment.dart';
 import 'package:manong_application/screens/booking/booking_summary_screen.dart';
 import 'package:manong_application/screens/booking/card_add_payment_method_screen.dart';
+import 'package:manong_application/screens/booking/job_fees_payment_redirect_screen.dart';
 import 'package:manong_application/screens/booking/manong_details_screen.dart';
 import 'package:manong_application/screens/booking/manong_list_screen.dart';
 import 'package:manong_application/screens/booking/payment_methods_screen.dart';
@@ -49,6 +50,8 @@ import 'package:manong_application/screens/service_requests/route_tracking_scree
 import 'package:manong_application/screens/service_requests/service_requests_details_screen.dart';
 import 'package:manong_application/screens/service_requests/transaction_screen.dart';
 import 'package:manong_application/screens/wallet/cash_in_screen.dart';
+import 'package:manong_application/screens/wallet/cash_out_screen.dart';
+import 'package:manong_application/screens/wallet/pay_job_fees_screen.dart';
 import 'package:manong_application/services/notification_service.dart';
 import 'package:manong_application/utils/onboarding_storage.dart';
 import 'package:manong_application/widgets/authenticated_screen.dart';
@@ -540,6 +543,15 @@ class MyApp extends StatelessWidget {
                         as ManongWalletTransaction?,
               ),
             );
+          case '/job-fees-payment-redirect':
+            final args = settings.arguments as Map<String, dynamic>?;
+            return MaterialPageRoute(
+              builder: (_) => JobFeesPaymentRedirectScreen(
+                jobFeeIds: args?['jobFeeIds'] as List<int>?,
+                redirectUrl: args?['redirectUrl'] as String?,
+                returnUrl: args?['returnUrl'] as String?,
+              ),
+            );
           case '/transactions':
             return MaterialPageRoute(builder: (_) => TransactionScreen());
           case '/notifications':
@@ -554,6 +566,10 @@ class MyApp extends StatelessWidget {
             return MaterialPageRoute(builder: (_) => ProfileScreen());
           case '/wallet-cash-in':
             return MaterialPageRoute(builder: (_) => CashInScreen());
+          case '/wallet-cash-out':
+            return MaterialPageRoute(builder: (_) => CashOutScreen());
+          case '/pay-job-fees':
+            return MaterialPageRoute(builder: (_) => PayJobFeesScreen());
         }
         return null;
       },

@@ -149,6 +149,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         validIdType: validIdType,
         validId: validId,
         password: password,
+        nickname: nickname,
       );
 
       if (response != null) {
@@ -678,59 +679,92 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+
+          // Balanced header
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(24),
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
                   AppColorScheme.primaryColor,
                   AppColorScheme.primaryColor.withOpacity(0.8),
+                  AppColorScheme.primaryDark,
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(22),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
+                  color: AppColorScheme.primaryColor.withOpacity(0.2),
+                  blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
               ],
             ),
-            child: Column(
+            child: Row(
               children: [
-                // Profile Avatar
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    manongIcon(size: 32),
-                    Text(
-                      'Welcome to Manong',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: AppColorScheme.primaryLight,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _hasPassword
-                      ? 'Complete your profile details'
-                      : 'Complete your profile and set a password',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColorScheme.primaryLight.withOpacity(0.9),
+                // Logo
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    shape: BoxShape.circle,
                   ),
-                  textAlign: TextAlign.center,
+                  child: manongIcon(size: 32),
+                ),
+                const SizedBox(width: 16),
+
+                // Text content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Welcome to Manong!',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _hasPassword
+                            ? 'Complete your profile details'
+                            : 'Complete your profile and set a password',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Profile icon
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.person_outline,
+                    size: 18,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
                 ),
               ],
             ),
           ),
+
+          // Rest of your form...
           Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -773,20 +807,37 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: AppColorScheme.primaryColor.withOpacity(0.8),
+                      color: Colors.black.withOpacity(0.5),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Center(
-                          child: Text(
-                            'Please Read The Instruction first',
-                            style: TextStyle(
-                              color: AppColorScheme.primaryLight,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          margin: const EdgeInsets.symmetric(horizontal: 40),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                color: AppColorScheme.primaryColor,
+                                size: 32,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Please read the instructions first',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColorScheme.primaryDark,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],

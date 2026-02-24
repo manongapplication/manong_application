@@ -246,6 +246,72 @@ class ManongListCard extends StatelessWidget {
     );
   }
 
+  Widget _buildRatingInfo() {
+    if (manong.stats == null || manong.stats!.ratingCount == 0) {
+      return Container(); // Return empty container if no ratings
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.amber.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.withOpacity(0.3), width: 1),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.star, size: 14, color: Colors.amber[700]),
+          const SizedBox(width: 4),
+          Text(
+            manong.stats!.averageRating.toStringAsFixed(1),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.amber[800],
+            ),
+          ),
+          const SizedBox(width: 2),
+          Text(
+            '(${manong.stats!.ratingCount})',
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExperienceInfo() {
+    if (manong.profile?.yearsExperience == null ||
+        manong.profile!.yearsExperience == 0) {
+      return Container(); // Return empty if no experience
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.work_outline, size: 14, color: Colors.blue[700]),
+          const SizedBox(width: 4),
+          Text(
+            '${manong.profile!.yearsExperience} yr${manong.profile!.yearsExperience != 1 ? 's' : ''}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.blue[800],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildManongInfo() {
     return Expanded(
       flex: 2,
@@ -274,28 +340,50 @@ class ManongListCard extends StatelessWidget {
 
           const SizedBox(height: 4),
 
-          // -- Status
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              color: getStatusColor(
-                manong.profile?.status.name,
-              ).withOpacity(0.1),
-              border: Border.all(
-                color: getStatusBorderColor(manong.profile?.status.name),
-                width: 1,
+          // Status, Rating, and Experience row
+          Row(
+            children: [
+              // -- Status
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: getStatusColor(
+                    manong.profile?.status.name,
+                  ).withOpacity(0.1),
+                  border: Border.all(
+                    color: getStatusBorderColor(manong.profile?.status.name),
+                    width: 1,
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                child: Text(
+                  manong.profile?.status.name ?? '',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: getStatusBorderColor(manong.profile?.status.name),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            child: Text(
-              manong.profile?.status.name ?? '',
-              style: TextStyle(
-                fontSize: 11,
-                color: getStatusBorderColor(manong.profile?.status.name),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+
+              const SizedBox(width: 8),
+
+              // -- Rating
+              if (manong.stats != null && manong.stats!.ratingCount > 0)
+                _buildRatingInfo(),
+
+              const SizedBox(width: 8),
+
+              // -- Experience
+              if (manong.profile?.yearsExperience != null &&
+                  (manong.profile!.yearsExperience ?? 0) > 0)
+                _buildExperienceInfo(),
+            ],
           ),
+
           const SizedBox(height: 12),
 
           // -- Specialities
@@ -366,7 +454,11 @@ class ManongListCard extends StatelessWidget {
               _buildManongInfo(),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
-                children: [_buildBookmarkButton(), _buildDistanceInfo()],
+                children: [
+                  _buildBookmarkButton(),
+                  const SizedBox(height: 8),
+                  _buildDistanceInfo(),
+                ],
               ),
             ],
           ),

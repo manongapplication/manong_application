@@ -19,10 +19,14 @@ import 'package:manong_application/theme/colors.dart';
 ///   height: 24,
 ///   duration: Duration(milliseconds: 800),
 /// )
-/// ```
 ///
-/// This widget shows a layered progress bar with a smooth fill animation
-/// and a stacked percentage badge on top.
+/// // Custom label
+/// AnimatedStackProgressBar(
+///   current: 450,
+///   total: 45,
+///   customLabel: '450/45',
+/// )
+/// ```
 class AnimatedStackProgressBar extends StatefulWidget {
   final double? percent; // 0.0 - 1.0 (optional if using current/total)
   final int? current; // numerator (optional if using percent)
@@ -34,7 +38,6 @@ class AnimatedStackProgressBar extends StatefulWidget {
   final Color trackColor;
   final Color fillColor;
   final TextStyle? percentTextStyle;
-  final bool showPercentageBadge;
   final String?
   customLabel; // Custom label to display instead of percentage/fraction
 
@@ -50,7 +53,6 @@ class AnimatedStackProgressBar extends StatefulWidget {
     this.trackColor = AppColorScheme.primaryLight,
     this.fillColor = AppColorScheme.primaryColor,
     this.percentTextStyle,
-    this.showPercentageBadge = true,
     this.customLabel,
   }) : assert(
          (percent != null && current == null && total == null) ||
@@ -103,8 +105,8 @@ class _AnimatedStackProgressBarState extends State<AnimatedStackProgressBar>
   }
 
   String _getLabelText(double currentPercent) {
-    if (widget.customLabel != null) {
-      return widget.customLabel!;
+    if (widget.customLabel != null && widget.customLabel!.isNotEmpty) {
+      return widget.customLabel!; // Use custom label if provided
     }
 
     if (widget.percent != null) {
@@ -114,16 +116,6 @@ class _AnimatedStackProgressBarState extends State<AnimatedStackProgressBar>
     }
 
     return '${(currentPercent * 100).round()}% Complete';
-  }
-
-  String _getBadgeText(double currentPercent) {
-    if (widget.percent != null) {
-      return '${(currentPercent * 100).round()}%';
-    } else if (widget.current != null && widget.total != null) {
-      return '${widget.current}/${widget.total}';
-    }
-
-    return '${(currentPercent * 100).round()}%';
   }
 
   @override
@@ -226,16 +218,6 @@ class _AnimatedStackProgressBarState extends State<AnimatedStackProgressBar>
                           ),
                         ],
                       ),
-                      child: ClipRRect(
-                        borderRadius: widget.borderRadius,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: FractionallySizedBox(
-                            widthFactor: 1.0,
-                            child: Container(),
-                          ),
-                        ),
-                      ),
                     );
                   },
                 ),
@@ -249,7 +231,6 @@ class _AnimatedStackProgressBarState extends State<AnimatedStackProgressBar>
                   child: AnimatedBuilder(
                     animation: _animation,
                     builder: (context, child) {
-                      // Decide text color depending on fill coverage.
                       final isOnFill = _animation.value >= 0.5;
                       final textColor = isOnFill
                           ? Colors.white
@@ -262,53 +243,6 @@ class _AnimatedStackProgressBarState extends State<AnimatedStackProgressBar>
                   ),
                 ),
               ),
-
-              // // Percentage badge stacked on top-right of the bar
-              // if (widget.showPercentageBadge)
-              //   Positioned(
-              //     right: 0,
-              //     top: 0,
-              //     child: AnimatedBuilder(
-              //       animation: _animation,
-              //       builder: (context, child) {
-              //         return Container(
-              //           padding: const EdgeInsets.symmetric(
-              //             horizontal: 10,
-              //             vertical: 6,
-              //           ),
-              //           decoration: BoxDecoration(
-              //             color: Colors.white,
-              //             borderRadius: BorderRadius.circular(20),
-              //             boxShadow: [
-              //               BoxShadow(
-              //                 color: Colors.black12,
-              //                 blurRadius: 6,
-              //                 offset: Offset(0, 2),
-              //               ),
-              //             ],
-              //           ),
-              //           child: Row(
-              //             mainAxisSize: MainAxisSize.min,
-              //             children: [
-              //               Text(
-              //                 _getBadgeText(_animation.value),
-              //                 style: TextStyle(
-              //                   fontWeight: FontWeight.bold,
-              //                   color: widget.fillColor,
-              //                 ),
-              //               ),
-              //               const SizedBox(width: 6),
-              //               Icon(
-              //                 Icons.check_circle,
-              //                 size: 16,
-              //                 color: widget.fillColor,
-              //               ),
-              //             ],
-              //           ),
-              //         );
-              //       },
-              //     ),
-              //   ),
             ],
           ),
         );
