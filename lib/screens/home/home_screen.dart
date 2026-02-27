@@ -630,8 +630,17 @@ class _HomeScreenState extends State<HomeScreen> {
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(30),
       child: GestureDetector(
-        onTap: () {
-          Navigator.pushNamed(navigatorKey.currentContext!, '/notifications');
+        onTap: () async {
+          // Navigate to notifications and wait for result
+          final result = await Navigator.pushNamed(
+            navigatorKey.currentContext!,
+            '/notifications',
+          );
+
+          // Refresh unread count when returning
+          if (result != null || mounted) {
+            _getUnreadCount();
+          }
         },
         behavior: HitTestBehavior.translucent,
         child: Container(
@@ -879,7 +888,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 if (_token != null) ...[
-                                  _buildNotificationBell(),
+                                  GestureDetector(
+                                    onTap: () async {
+                                      final result = await Navigator.pushNamed(
+                                        navigatorKey.currentContext!,
+                                        '/notifications',
+                                      );
+                                      if (result != null || mounted) {
+                                        _getUnreadCount();
+                                      }
+                                    },
+                                    child: _buildNotificationBell(),
+                                  ),
                                 ],
                               ],
                             ),

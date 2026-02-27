@@ -176,6 +176,7 @@ class ManongStatusToggle extends StatelessWidget {
 
   void _showStatusSelection(BuildContext context) {
     showModalBottomSheet(
+      backgroundColor: Colors.white,
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),

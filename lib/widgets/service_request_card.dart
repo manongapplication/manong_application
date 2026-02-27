@@ -241,8 +241,6 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
     return _paymentMethodColors[methodName] ?? AppColorScheme.primaryColor;
   }
 
-  // ... (keep all imports and existing code above)
-
   @override
   Widget build(BuildContext context) {
     final serviceItem = widget.serviceRequestItem.serviceItem;
@@ -256,7 +254,6 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
         widget.serviceRequestItem.refundRequests!.last.status !=
             RefundStatus.approved;
 
-    // final serviceItemDate = widget.serviceRequestItem.createdAt;
     final dateText = widget.serviceRequestItem.createdAt
         ?.toLocal()
         .toString()
@@ -284,171 +281,120 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
     final int messagesCount = widget.serviceRequestItem.messages != null
         ? widget.serviceRequestItem.messages!
               .where((message) => message.seenAt == null)
-              .take(10) // Limit to prevent UI issues
+              .take(10)
               .length
         : 0;
-    0;
+
     final bool hasReviewFeedback =
         widget.serviceRequestItem.feedback?.comment != null;
 
-    // Payment method helpers
-    String _getPaymentMethodName() {
-      if (widget.serviceRequestItem.paymentMethod == null) return 'Unknown';
-      final methodName =
-          widget.serviceRequestItem.paymentMethod!.name?.toLowerCase() ?? '';
-      switch (methodName) {
-        case 'gcash':
-          return 'GCash';
-        case 'paymaya':
-          return 'Maya';
-        case 'cash':
-          return 'Cash';
-        default:
-          return widget.serviceRequestItem.paymentMethod!.name ?? 'Unknown';
-      }
-    }
-
-    IconData _getPaymentMethodIcon() {
-      if (widget.serviceRequestItem.paymentMethod == null) return Icons.payment;
-      final methodName =
-          widget.serviceRequestItem.paymentMethod!.name?.toLowerCase() ?? '';
-      switch (methodName) {
-        case 'gcash':
-          return Icons.phone_android;
-        case 'paymaya':
-          return Icons.credit_card;
-        case 'cash':
-          return Icons.money;
-        default:
-          return Icons.payment;
-      }
-    }
-
-    Color _getPaymentMethodColor() {
-      if (widget.serviceRequestItem.paymentMethod == null) return Colors.grey;
-      final methodName =
-          widget.serviceRequestItem.paymentMethod!.name?.toLowerCase() ?? '';
-      switch (methodName) {
-        case 'gcash':
-          return const Color(0xFF0066B3);
-        case 'paymaya':
-          return const Color(0xFF00B5B0);
-        case 'cash':
-          return Colors.green;
-        default:
-          return AppColorScheme.primaryColor;
-      }
-    }
-
-    return Card(
-      color: status == 'inProgress'
-          ? AppColorScheme.primaryLight
-          : status == 'expired'
-          ? const Color.fromARGB(255, 240, 199, 199)
-          : AppColorScheme.backgroundGrey,
+    return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
+      decoration: BoxDecoration(
+        color: status == 'inProgress'
+            ? AppColorScheme.primaryLight
+            : status == 'expired'
+            ? const Color.fromARGB(255, 240, 199, 199)
+            : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
           color: status == 'inProgress'
               ? (widget.serviceRequestItem.refundRequests != null &&
                         widget.serviceRequestItem.refundRequests!.isNotEmpty)
-                    ? Colors.deepPurple
-                    : AppColorScheme.orangeAccent
+                    ? Colors.deepPurple.withOpacity(0.3)
+                    : AppColorScheme.orangeAccent.withOpacity(0.3)
               : status == 'expired'
-              ? Colors.redAccent
-              : AppColorScheme.backgroundGrey,
-          width: 1,
+              ? Colors.redAccent.withOpacity(0.3)
+              : Colors.grey.shade200,
+          width: 2,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: InkWell(
-        onTap: widget.onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Icon section
-                  iconCard(
-                    iconColor: colorFromHex(iconColorHex),
-                    iconName: iconName,
-                    iconTextColor: colorFromHex(iconTextColorHex),
-                  ),
-                  const SizedBox(width: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Icon section
+                    iconCard(
+                      iconColor: colorFromHex(iconColorHex),
+                      iconName: iconName,
+                      iconTextColor: colorFromHex(iconTextColorHex),
+                    ),
+                    const SizedBox(width: 12),
 
-                  // Content section
-                  Expanded(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: 110),
+                    // Content section
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Service Title
                           Text(
-                            '$serviceItemTitle -> $subServiceItemTitle',
+                            '$serviceItemTitle → $subServiceItemTitle',
                             style: const TextStyle(
                               fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                              fontSize: 15,
+                              letterSpacing: -0.2,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
 
-                          // Request Number and Payment Method (side by side)
-                          Row(
+                          // Request Number and Payment Method
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
                             children: [
                               // Request Number
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
-                                  vertical: 2,
+                                  vertical: 3,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: AppColorScheme.primaryLight
-                                      .withOpacity(0.5),
+                                  color: AppColorScheme.primaryColor
+                                      .withOpacity(0.08),
                                   borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: AppColorScheme.primaryColor
-                                        .withOpacity(0.3),
-                                    width: 0.5,
-                                  ),
                                 ),
                                 child: Text(
                                   widget.serviceRequestItem.requestNumber ??
                                       'N/A',
                                   style: TextStyle(
                                     fontSize: 10,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.w500,
                                     color: AppColorScheme.primaryDark,
-                                    letterSpacing: 0.5,
+                                    letterSpacing: 0.3,
                                   ),
                                 ),
                               ),
 
-                              // Payment Method (NEW - beside request number)
+                              // Payment Method
                               if (widget.serviceRequestItem.paymentMethod !=
-                                  null) ...[
-                                const SizedBox(width: 6),
+                                  null)
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 6,
-                                    vertical: 2,
+                                    vertical: 3,
                                   ),
                                   decoration: BoxDecoration(
                                     color: _getPaymentMethodColor().withOpacity(
-                                      0.1,
+                                      0.08,
                                     ),
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: _getPaymentMethodColor()
-                                          .withOpacity(0.3),
-                                      width: 0.5,
-                                    ),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -470,175 +416,156 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
                                     ],
                                   ),
                                 ),
-                              ],
                             ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
 
+                          // Date
                           Text(
-                            '$dateText',
+                            dateText ?? '',
                             style: TextStyle(
-                              fontWeight: FontWeight.w400,
                               fontSize: 12,
                               color: Colors.grey.shade600,
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 8),
 
-                          // Status chip
-                          if (widget.serviceRequestItem.status !=
-                              ServiceRequestStatus.completed) ...[
-                            Row(
-                              children: [
+                          // Status chips
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              if (widget.serviceRequestItem.status !=
+                                  ServiceRequestStatus.completed) ...[
+                                // Main status chip
                                 Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
-                                    color: getStatusColor(
-                                      finalStatus,
-                                    ).withOpacity(0.1),
-                                    border: Border.all(
-                                      color: getStatusBorderColor(finalStatus),
-                                      width: 1,
-                                    ),
-                                  ),
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 8,
                                     vertical: 4,
                                   ),
-                                  child: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    child: Text(
-                                      getStatusWithManongText(
-                                        widget
-                                                .serviceRequestItem
-                                                .manong
-                                                ?.appUser
-                                                .firstName ??
-                                            '',
-                                        (widget
-                                                    .serviceRequestItem
-                                                    .status
-                                                    ?.readable ??
-                                                ServiceRequestStatus
-                                                    .pending
-                                                    .value)
-                                            .toLowerCase(),
-                                      ),
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: getStatusBorderColor(
-                                          finalStatus,
-                                        ),
-                                        fontWeight: FontWeight.w500,
-                                        decoration: hasRefundRequest
-                                            ? TextDecoration.lineThrough
-                                            : TextDecoration.none,
-                                      ),
+                                  decoration: BoxDecoration(
+                                    color: getStatusColor(
+                                      finalStatus,
+                                    ).withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: getStatusColor(
+                                        finalStatus,
+                                      ).withOpacity(0.2),
+                                      width: 0.5,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    getStatusWithManongText(
+                                      widget
+                                              .serviceRequestItem
+                                              .manong
+                                              ?.appUser
+                                              .firstName ??
+                                          '',
+                                      (widget
+                                                  .serviceRequestItem
+                                                  .status
+                                                  ?.readable ??
+                                              ServiceRequestStatus
+                                                  .pending
+                                                  .value)
+                                          .toLowerCase(),
+                                    ),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: getStatusColor(finalStatus),
+                                      fontWeight: FontWeight.w500,
+                                      decoration: hasRefundRequest
+                                          ? TextDecoration.lineThrough
+                                          : TextDecoration.none,
                                     ),
                                   ),
                                 ),
 
-                                // if (widget.isManong == true) ...[
-                                //   const SizedBox(width: 4),
-                                //   Icon(Icons.edit, color: Colors.grey.shade700),
-                                // ],
-                              ],
-                            ),
-
-                            if (hasRefundRequest) ...[
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
+                                // Payment status chip
+                                if (widget.serviceRequestItem.paymentStatus !=
+                                    null)
                                   Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(16),
-                                      color: getStatusColor(
-                                        'refunding',
-                                      ).withOpacity(0.1),
-                                      border: Border.all(
-                                        color: getStatusBorderColor(
-                                          'refunding',
-                                        ),
-                                        width: 1,
-                                      ),
-                                    ),
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 8,
                                       vertical: 4,
                                     ),
-                                    child: FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Text(
-                                        'Refund Requested. 1-2 business day',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: getStatusBorderColor(
-                                            'refunding',
-                                          ),
-                                          fontWeight: FontWeight.w500,
+                                    decoration: BoxDecoration(
+                                      color: getStatusColor(
+                                        widget
+                                            .serviceRequestItem
+                                            .paymentStatus!
+                                            .name,
+                                      ).withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: getStatusColor(
+                                          widget
+                                              .serviceRequestItem
+                                              .paymentStatus!
+                                              .name,
+                                        ).withOpacity(0.2),
+                                        width: 0.5,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      widget
+                                          .serviceRequestItem
+                                          .paymentStatus!
+                                          .name
+                                          .split(' ')
+                                          .map(
+                                            (word) =>
+                                                word[0].toUpperCase() +
+                                                word.substring(1),
+                                          )
+                                          .join(' '),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: getStatusColor(
+                                          widget
+                                              .serviceRequestItem
+                                              .paymentStatus!
+                                              .name,
                                         ),
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ),
-
-                                  // if (widget.isManong == true) ...[
-                                  //   const SizedBox(width: 4),
-                                  //   Icon(Icons.edit, color: Colors.grey.shade700),
-                                  // ],
-                                ],
-                              ),
+                              ],
                             ],
+                          ),
 
-                            if (widget.serviceRequestItem.paymentStatus !=
-                                null) ...[
-                              const SizedBox(height: 6),
-                              Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
+                          // Refund request chip
+                          if (hasRefundRequest) ...[
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: getStatusColor(
+                                  'refunding',
+                                ).withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
                                   color: getStatusColor(
-                                    widget
-                                        .serviceRequestItem
-                                        .paymentStatus!
-                                        .name,
-                                  ).withOpacity(0.1),
-                                  border: Border.all(
-                                    color: getStatusBorderColor(
-                                      widget
-                                          .serviceRequestItem
-                                          .paymentStatus!
-                                          .name,
-                                    ),
-                                    width: 1,
-                                  ),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                child: Text(
-                                  widget.serviceRequestItem.paymentStatus!.name
-                                      .split(' ')
-                                      .map(
-                                        (word) =>
-                                            word[0].toUpperCase() +
-                                            word.substring(1),
-                                      )
-                                      .join(' '),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: getStatusBorderColor(
-                                      widget
-                                          .serviceRequestItem
-                                          .paymentStatus!
-                                          .name,
-                                    ),
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                                    'refunding',
+                                  ).withOpacity(0.2),
+                                  width: 0.5,
                                 ),
                               ),
-                            ],
+                              child: Text(
+                                'Refund Requested',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: getStatusColor('refunding'),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
                           ],
 
                           // Urgency info
@@ -646,7 +573,7 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
                                   null &&
                               widget.serviceRequestItem.urgencyLevel?.time !=
                                   null) ...[
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 8),
                             Text(
                               '$urgencyLevelText (${widget.serviceRequestItem.urgencyLevel!.time})',
                               style: TextStyle(
@@ -658,25 +585,20 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
 
                           // Total
                           if (widget.serviceRequestItem.total != null) ...[
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 8),
                             PriceTag(price: widget.serviceRequestItem.total!),
                           ],
                         ],
                       ),
                     ),
-                  ),
 
-                  // Distance
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(height: 12),
-
-                      Column(
+                    // Right side with distance and actions
+                    SizedBox(
+                      width: 70,
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Location icon and message badge
+                          // Message badge and location
                           Stack(
                             clipBehavior: Clip.none,
                             children: [
@@ -684,85 +606,44 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
                                 widget.meters != null
                                     ? Icons.location_on
                                     : Icons.location_off,
-                                size: 24,
-                                color: Colors.grey.shade600,
+                                size: 20,
+                                color: Colors.grey.shade400,
                               ),
-
-                              // Message count badge
                               if (messagesCount > 0)
                                 Positioned(
                                   top: -8,
                                   right: -8,
                                   child: Container(
-                                    width: 20,
-                                    height: 20,
-                                    constraints: const BoxConstraints(
-                                      minWidth: 20,
-                                      minHeight: 20,
-                                    ),
+                                    width: 18,
+                                    height: 18,
                                     decoration: const BoxDecoration(
                                       color: Colors.redAccent,
                                       shape: BoxShape.circle,
                                     ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      messagesCount > 9
-                                          ? '9+'
-                                          : messagesCount.toString(),
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
+                                    child: Center(
+                                      child: Text(
+                                        messagesCount > 9
+                                            ? '9+'
+                                            : messagesCount.toString(),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
-                                      textAlign: TextAlign.center,
                                     ),
                                   ),
                                 ),
                             ],
                           ),
 
-                          // Review button (only for completed jobs, non-manong users)
-                          if (_selectedRating > 0 &&
-                              widget.isManong == false &&
-                              widget.serviceRequestItem.status ==
-                                  ServiceRequestStatus.completed)
-                            Container(
-                              margin: const EdgeInsets.only(top: 8),
-                              child: ElevatedButton(
-                                onPressed: widget.onTapReview,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColorScheme.primaryColor,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  minimumSize: const Size(
-                                    0,
-                                    30,
-                                  ), // Fixed height
-                                ),
-                                child: Text(
-                                  hasReviewFeedback
-                                      ? 'Update Review'
-                                      : 'Leave a Review',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                          const SizedBox(height: 4),
 
-                      const SizedBox(height: 4),
-                      widget.meters != null &&
+                          // Distance
+                          if (widget.meters != null &&
                               widget.serviceRequestItem.status ==
-                                  ServiceRequestStatus.inProgress
-                          ? Text(
+                                  ServiceRequestStatus.inProgress)
+                            Text(
                               DistanceMatrix().formatDistance(widget.meters!),
                               style: TextStyle(
                                 fontSize: 11,
@@ -770,138 +651,154 @@ class _ServiceRequestCardState extends State<ServiceRequestCard> {
                                 fontWeight: FontWeight.w500,
                               ),
                               textAlign: TextAlign.center,
-                            )
-                          : Text(
-                              '',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey.shade700,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              textAlign: TextAlign.center,
                             ),
 
-                      if (widget.isManong == true &&
-                          widget.onStartJob != null) ...[
-                        const SizedBox(height: 14),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColorScheme.primaryDark,
-                            foregroundColor: Colors.white,
-                          ),
-                          onPressed: widget.isButtonLoading != null
-                              ? (widget.isButtonLoading == true ||
-                                        widget.disableOnStartJob == true)
-                                    ? null
-                                    : widget.onStartJob
-                              : null,
-                          child: Row(
-                            children: [
-                              Icon(Icons.directions_run),
-                              Icon(Icons.forward),
-                            ],
-                          ),
-                        ),
-                      ],
-
-                      if (widget.meters != null &&
-                          DistanceMatrix()
-                                  .estimateTime(widget.meters!)
-                                  .toLowerCase() ==
-                              'arrived' &&
-                          widget.serviceRequestItem.status ==
-                              ServiceRequestStatus.inProgress) ...[
-                        Icon(Icons.flag, color: Colors.green, size: 28),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-
-              if (widget.serviceRequestItem.status ==
-                  ServiceRequestStatus.completed) ...[
-                const SizedBox(height: 4),
-
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    color: Colors.grey.shade200,
-                  ),
-                  padding: const EdgeInsets.all(8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _rateText,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-
-                      Stack(
-                        children: [
-                          Row(
-                            children: List.generate(5, (index) {
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 2,
-                                ),
-                                child: GestureDetector(
-                                  onTap: widget.isManong == true
-                                      ? null
-                                      : () => _onTapRatings(index),
-                                  child: Icon(
-                                    index < _selectedRating
-                                        ? Icons.star
-                                        : Icons.star_border,
-                                    color: AppColorScheme.gold,
-                                    size: 22,
-                                  ),
-                                ),
-                              );
-                            }),
-                          ),
-
-                          if (widget.isManong == true) ...[
-                            if (widget.isManong == true && _selectedRating == 0)
-                              Positioned.fill(
-                                child: Center(
-                                  child: Container(
+                          // Review button
+                          if (_selectedRating > 0 &&
+                              widget.isManong == false &&
+                              widget.serviceRequestItem.status ==
+                                  ServiceRequestStatus.completed)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: widget.onTapReview,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor:
+                                        AppColorScheme.primaryColor,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 2,
+                                      vertical: 6,
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.6),
-                                      borderRadius: BorderRadius.circular(16),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black12,
-                                          blurRadius: 6,
-                                          offset: Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Text(
-                                      'No Ratings Yet',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.grey.shade700,
-                                      ),
-                                    ),
+                                    minimumSize: const Size(0, 28),
+                                  ),
+                                  child: Text(
+                                    hasReviewFeedback
+                                        ? 'Edit Review'
+                                        : 'Review',
+                                    style: const TextStyle(fontSize: 11),
                                   ),
                                 ),
                               ),
+                            ),
+
+                          // Start job button for manong
+                          if (widget.isManong == true &&
+                              widget.onStartJob != null) ...[
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColorScheme.primaryDark,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 6,
+                                  ),
+                                  minimumSize: const Size(0, 28),
+                                ),
+                                onPressed: widget.isButtonLoading != null
+                                    ? (widget.isButtonLoading == true ||
+                                              widget.disableOnStartJob == true)
+                                          ? null
+                                          : widget.onStartJob
+                                    : null,
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.play_arrow, size: 14),
+                                    SizedBox(width: 2),
+                                    Text(
+                                      'Start',
+                                      style: TextStyle(fontSize: 11),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
+
+                          // Arrived flag
+                          if (widget.meters != null &&
+                              DistanceMatrix()
+                                      .estimateTime(widget.meters!)
+                                      .toLowerCase() ==
+                                  'arrived' &&
+                              widget.serviceRequestItem.status ==
+                                  ServiceRequestStatus.inProgress)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 4),
+                              child: Icon(
+                                Icons.flag,
+                                color: Colors.green,
+                                size: 24,
+                              ),
+                            ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+
+                // Rating section for completed services
+                if (widget.serviceRequestItem.status ==
+                    ServiceRequestStatus.completed) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.grey.shade200,
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _rateText,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                        Row(
+                          children: List.generate(5, (index) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 2,
+                              ),
+                              child: GestureDetector(
+                                onTap: widget.isManong == true
+                                    ? null
+                                    : () => _onTapRatings(index),
+                                child: Icon(
+                                  index < _selectedRating
+                                      ? Icons.star
+                                      : Icons.star_border,
+                                  color: AppColorScheme.gold,
+                                  size: 20,
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

@@ -29,6 +29,7 @@ import 'package:manong_application/utils/refund_utils.dart';
 import 'package:manong_application/utils/snackbar_utils.dart';
 import 'package:manong_application/utils/status_utils.dart';
 import 'package:manong_application/widgets/card_container.dart';
+import 'package:manong_application/widgets/chat_widget.dart';
 import 'package:manong_application/widgets/detailed_manong_report_card.dart';
 import 'package:manong_application/widgets/disclaimer_dialog.dart';
 import 'package:manong_application/widgets/error_state_widget.dart';
@@ -55,7 +56,8 @@ class ServiceRequestsDetailsScreen extends StatefulWidget {
 }
 
 class _ServiceRequestsDetailsScreenState
-    extends State<ServiceRequestsDetailsScreen> {
+    extends State<ServiceRequestsDetailsScreen>
+    with TickerProviderStateMixin {
   final Logger logger = Logger('ServiceRequestsDetailsScreen');
   final _trackingApiService = TrackingApiService();
   late bool? _isManong;
@@ -72,6 +74,20 @@ class _ServiceRequestsDetailsScreenState
   bool _isServiceCompleted = false;
   ServiceSettings? _serviceSettings;
   Manong? _manong;
+  bool _showFullReason = false;
+  bool _showChat = false;
+  bool _isKeyboardVisible = false;
+
+  late double _sheetHeight = 0.45; // Track current sheet height
+  late bool _isSheetExpanded = false;
+  late bool _isMapDragging = false;
+  late DraggableScrollableController _draggableController;
+  double _dragStartPosition = 0;
+
+  late AnimationController _chatAnimationController;
+  late Animation<double> _chatScaleAnimation;
+  late Animation<Offset> _chatSlideAnimation;
+  bool _isChatAnimating = false;
 
   @override
   void initState() {
@@ -87,9 +103,246 @@ class _ServiceRequestsDetailsScreenState
 
     _getTrackingStream();
     _fetchServiceSettings();
+    _setupChatAnimationController();
+  }
+
+  void _setupChatAnimationController() {
+    // Initialize animation controller
+    _chatAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    // Scale animation for the FAB
+    _chatScaleAnimation = Tween<double>(begin: 1.0, end: 0.8).animate(
+      CurvedAnimation(
+        parent: _chatAnimationController,
+        curve: Curves.easeOutBack,
+      ),
+    );
+
+    // Slide animation for the chat panel
+    _chatSlideAnimation =
+        Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _chatAnimationController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Check if keyboard is visible using MediaQuery
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final keyboardVisible = bottomInset > 0;
+
+    if (keyboardVisible != _isKeyboardVisible) {
+      setState(() {
+        _isKeyboardVisible = keyboardVisible;
+      });
+    }
+  }
+
+  Future<void> _manualMarkArrived() async {
+    // Get current distance
+    final currentDistance = _trackingApiService.distanceNotifier.value;
+
+    // Check if distance is available and within threshold
+    if (currentDistance == null) {
+      SnackBarUtils.showError(
+        context,
+        'Unable to detect your location. Please make sure GPS is enabled.',
+      );
+      return;
+    }
+
+    // If too far, show dialog
+    if (currentDistance > 100) {
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Too Far from Location'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'You are currently ${currentDistance.round()}m away from the customer\'s location.',
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Please move closer to the pin on the map before confirming arrival.',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // If within 100m, proceed with confirmation
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Arrival'),
+        content: Text(
+          'You are ${currentDistance.round()}m away from the location.\n\n'
+          'Are you sure you have arrived?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Yes, I\'m here'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() {
+      _isButtonLoading = true;
+    });
+
+    try {
+      final response = await ServiceRequestApiService().markServiceAsArrived(
+        _serviceRequest!.id!,
+      );
+
+      if (response != null && response['success'] == true) {
+        setState(() {
+          _serviceRequest = _serviceRequest?.copyWith(
+            arrivedAt: DateTime.now(),
+          );
+        });
+
+        SnackBarUtils.showSuccess(
+          context,
+          'Arrival confirmed! You can now complete the service.',
+        );
+      } else {
+        SnackBarUtils.showError(
+          context,
+          response?['message'] ?? 'Failed to mark arrival',
+        );
+      }
+    } catch (e) {
+      SnackBarUtils.showError(
+        context,
+        'Failed to mark arrival. Please try again.',
+      );
+    } finally {
+      setState(() {
+        _isButtonLoading = false;
+      });
+    }
+  }
+
+  void _toggleChat() {
+    if (_isChatAnimating) return;
+
+    setState(() {
+      _isChatAnimating = true;
+    });
+
+    if (_showChat) {
+      FocusScope.of(context).unfocus();
+      // Start both operations simultaneously
+      Future.wait([
+        // Refresh messages in background
+        _refreshMessageCountSilently(),
+        // Start closing animation
+        _chatAnimationController.reverse(),
+      ]).then((_) {
+        if (mounted) {
+          setState(() {
+            _showChat = false;
+            _isChatAnimating = false;
+          });
+        }
+      });
+    } else {
+      setState(() {
+        _showChat = true;
+      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _chatAnimationController.forward().then((_) {
+          if (mounted) {
+            setState(() {
+              _isChatAnimating = false;
+            });
+          }
+        });
+      });
+    }
+  }
+
+  Future<void> _refreshMessageCountSilently() async {
+    if (_serviceRequest?.id == null) return;
+
+    try {
+      final updatedRequest = await ServiceRequestApiService()
+          .fetchServiceRequest(_serviceRequest!.id!);
+
+      if (updatedRequest != null && mounted) {
+        // Update without triggering a rebuild until animation completes
+        _serviceRequest = updatedRequest;
+      }
+    } catch (e) {
+      logger.warning('Failed to refresh message count: $e');
+    }
+  }
+
+  void _onMapDragStart(PointerMoveEvent event) {
+    // Only trigger if this is the first move after a drag start
+    if (_dragStartPosition == 0) {
+      _dragStartPosition = event.position.dy;
+      return;
+    }
+
+    // Check if there's significant movement (actual dragging)
+    double delta = (event.position.dy - _dragStartPosition).abs();
+
+    if (delta > 10 && !_isMapDragging && !_isSheetExpanded) {
+      setState(() {
+        _isMapDragging = true;
+      });
+
+      _draggableController.animateTo(
+        0.15, // minChildSize
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+
+      // Reset the flag after animation completes
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          setState(() {
+            _isMapDragging = false;
+            _dragStartPosition = 0;
+          });
+        }
+      });
+    }
   }
 
   void _initializeComponents() {
+    _draggableController = DraggableScrollableController();
     _isManong = widget.isManong;
     _goToChat = widget.goToChat;
   }
@@ -272,7 +525,7 @@ class _ServiceRequestsDetailsScreenState
 
   Widget _buildTotals(double meters) {
     if (_serviceRequest == null || _serviceSettings == null) {
-      const SizedBox.shrink();
+      return const SizedBox.shrink();
     }
 
     final serviceName =
@@ -281,59 +534,206 @@ class _ServiceRequestsDetailsScreenState
         ? _serviceRequest?.otherServiceName
         : _serviceRequest?.subServiceItem?.title;
 
-    return CardContainer(
-      children: [
-        Divider(color: Colors.grey, thickness: 1, indent: 20, endIndent: 20),
-        LabelValueRow(
-          label: 'Service: ',
-          valueWidget: Expanded(
-            child: Text(
-              serviceName ?? '',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200, width: 0.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Service Row
+          _buildTotalRow(
+            label: 'Service',
+            value: serviceName ?? '',
+            isBold: false,
+          ),
+
+          const SizedBox(height: 12),
+
+          // Payment Method Row
+          _buildTotalRow(
+            label: 'Payment',
+            value: _serviceRequest?.paymentMethod?.name ?? '',
+            isBold: false,
+          ),
+
+          const SizedBox(height: 12),
+
+          // Divider
+          Container(height: 1, color: Colors.grey.shade200),
+
+          const SizedBox(height: 12),
+
+          // Base Fee Row
+          if (_serviceRequest?.subServiceItem?.fee != null)
+            _buildTotalRow(
+              label: 'Base Fee',
+              valueWidget: PriceTag(
+                price: _serviceRequest!.subServiceItem!.fee!.toDouble(),
+                textStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+
+          if (_serviceRequest?.subServiceItem?.fee != null)
+            const SizedBox(height: 8),
+
+          // Urgency Fee Row
+          if (_serviceRequest?.urgencyLevel?.level != null)
+            _buildTotalRow(
+              label: 'Urgency Fee',
+              valueWidget: PriceTag(
+                price: _serviceRequest!.urgencyLevel!.price!.toDouble(),
+                textStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+
+          if (_serviceRequest?.urgencyLevel?.level != null)
+            const SizedBox(height: 8),
+
+          // Tax Row (if exists)
+          if (_serviceSettings != null) ...[
+            _buildTotalRow(
+              label:
+                  'Service Tax (${(_serviceSettings!.serviceTax * 100).toStringAsFixed(0)}%)',
+              valueWidget: PriceTag(
+                price: double.parse(
+                  CalculationTotals()
+                      .calculateServiceTaxAmount(
+                        _serviceRequest,
+                        _serviceSettings?.serviceTax ?? 0,
+                      )
+                      .toStringAsFixed(2),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          // Distance Fee Row
+          _buildTotalRow(
+            label: 'Distance Fee',
+            valueWidget: PriceTag(
+              price: CalculationTotals().distanceFee(
+                meters: meters,
+                ratePerKm: _serviceRequest!.serviceItem!.ratePerKm,
+              ),
+              textStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: Colors.black87,
+              ),
             ),
           ),
-        ),
-        LabelValueRow(
-          label: 'Payment:',
-          valueWidget: Text(_serviceRequest?.paymentMethod?.name ?? ''),
-        ),
-        const SizedBox(height: 4),
-        LabelValueRow(
-          label: 'Base Fee:',
-          valueWidget: _serviceRequest?.subServiceItem?.fee != null
-              ? PriceTag(
-                  price: _serviceRequest!.subServiceItem!.fee!.toDouble(),
-                )
-              : null,
-        ),
-        LabelValueRow(
-          label: 'Urgency Fee:',
-          valueWidget: _serviceRequest?.urgencyLevel?.level != null
-              ? PriceTag(
-                  price: _serviceRequest!.urgencyLevel!.price!.toDouble(),
-                )
-              : null,
-        ),
-        Divider(color: Colors.grey, thickness: 1, indent: 20, endIndent: 20),
-        LabelValueRow(
-          label: 'Subtotal',
-          valueWidget: PriceTag(
-            price: CalculationTotals().calculateSubTotal(_serviceRequest),
+
+          const SizedBox(height: 12),
+
+          // Divider
+          Container(height: 1, color: Colors.grey.shade200),
+
+          const SizedBox(height: 12),
+
+          // Subtotal Row
+          _buildTotalRow(
+            label: 'Subtotal',
+            valueWidget: PriceTag(
+              price: CalculationTotals().calculateSubTotal(_serviceRequest),
+              textStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Divider
+          Container(height: 1, color: Colors.grey.shade200),
+
+          const SizedBox(height: 12),
+
+          // Total Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Total',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppColorScheme.primaryDark,
+                ),
+              ),
+              PriceTag(
+                price: CalculationTotals().calculateTotal(
+                  _serviceRequest,
+                  meters,
+                  _serviceSettings?.serviceTax,
+                ),
+                textStyle: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColorScheme.primaryColor,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method for consistent row styling
+  Widget _buildTotalRow({
+    required String label,
+    String? value,
+    Widget? valueWidget,
+    bool isBold = false,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: isBold ? FontWeight.w500 : FontWeight.w400,
+            color: Colors.grey.shade700,
           ),
         ),
-        // _buildTaxes()
-        Divider(color: Colors.grey, thickness: 1, indent: 20, endIndent: 20),
-        Text('Total To Pay:'),
-        const SizedBox(height: 4),
-        PriceTag(
-          price: CalculationTotals().calculateTotal(
-            _serviceRequest,
-            meters,
-            _serviceSettings?.serviceTax,
-          ),
-          textStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
+        valueWidget ??
+            Text(
+              value ?? '',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isBold ? FontWeight.w600 : FontWeight.w400,
+                color: Colors.black87,
+              ),
+            ),
       ],
     );
   }
@@ -461,6 +861,7 @@ class _ServiceRequestsDetailsScreenState
     if (_serviceRequest!.user == null || _serviceRequest == null) {
       return const SizedBox.shrink();
     }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -492,288 +893,688 @@ class _ServiceRequestsDetailsScreenState
             ],
           ),
         ],
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Text(
-              "Request Number",
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => _copyToClipboard(_serviceRequest?.requestNumber),
-              child: Icon(
-                Icons.content_copy,
-                size: 16,
-                color: AppColorScheme.primaryColor,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        GestureDetector(
-          onTap: () => _copyToClipboard(_serviceRequest?.requestNumber),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColorScheme.primaryLight,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColorScheme.primaryColor),
-            ),
-            child: SelectableText(
-              _serviceRequest?.requestNumber ?? 'N/A',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColorScheme.primaryDark,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (_serviceRequest?.user?.firstName != null &&
-            _serviceRequest?.user?.lastName != null) ...[
-          Text(
-            "Name",
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-          ),
-          const SizedBox(height: 4),
 
-          Row(
-            children: [
-              SelectableText(
-                '${_serviceRequest!.user?.firstName} ${_serviceRequest!.user?.lastName}',
-                style: TextStyle(fontSize: 18, color: Colors.black),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-        ],
+        const SizedBox(height: 16),
 
-        if (_serviceRequest?.user?.nickname != null) ...[
-          Text(
-            "Nickname",
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-          ),
-          const SizedBox(height: 4),
-
-          Row(
-            children: [
-              SelectableText(
-                '${_serviceRequest!.user?.nickname}',
-                style: TextStyle(fontSize: 18, color: Colors.black),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-        ],
-
-        Text(
-          "Contact",
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-        ),
-        const SizedBox(height: 4),
-
-        Row(
-          children: [
-            SelectableText(
-              _serviceRequest!.user?.phone ?? "",
-              style: TextStyle(fontSize: 18, color: Colors.black),
-            ),
-          ],
-        ),
-
-        // -- Payment Status
-        if (_serviceRequest?.paymentStatus != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            "Payment Status",
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-          ),
-
-          const SizedBox(height: 6),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              color: getStatusColor(
-                _serviceRequest!.paymentStatus!.name,
-              ).withOpacity(0.1),
-              border: Border.all(
-                color: getStatusBorderColor(
-                  _serviceRequest!.paymentStatus!.name,
-                ),
-                width: 1,
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            child: Text(
-              _serviceRequest!.paymentStatus!.name
-                  .split(' ')
-                  .map((word) => word[0].toUpperCase() + word.substring(1))
-                  .join(' '),
-              style: TextStyle(
-                fontSize: 11,
-                color: getStatusBorderColor(
-                  _serviceRequest!.paymentStatus!.name,
-                ),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-        ],
-
-        // -- Request Status
-        Text(
-          "Request Status",
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-        ),
-        const SizedBox(height: 4),
+        // Request Number Section - iPhone style
         Container(
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: getStatusColor(
-              _serviceRequest!.status!.value,
-            ).withOpacity(0.1),
-            border: Border.all(
-              color: getStatusBorderColor(_serviceRequest!.status!.value),
-              width: 1,
-            ),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200, width: 0.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          child: Text(
-            getStatusText(_serviceRequest!.status!.value),
-            style: TextStyle(
-              fontSize: 11,
-              color: getStatusBorderColor(_serviceRequest!.status!.value),
-              fontWeight: FontWeight.w500,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.receipt_outlined,
+                    size: 16,
+                    color: AppColorScheme.primaryColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'REQUEST NUMBER',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade500,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () =>
+                        _copyToClipboard(_serviceRequest?.requestNumber),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColorScheme.primaryColor.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.copy,
+                        size: 14,
+                        color: AppColorScheme.primaryColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => _copyToClipboard(_serviceRequest?.requestNumber),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColorScheme.primaryColor.withOpacity(0.04),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: SelectableText(
+                    _serviceRequest?.requestNumber ?? 'N/A',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: AppColorScheme.primaryDark,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
 
-        const SizedBox(height: 4),
+        const SizedBox(height: 16),
 
-        // -- Payment Method
-        Text(
-          "Payment Method",
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+        // Customer Info Card - iPhone style
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200, width: 0.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Icon(
+                    Icons.person_outline_rounded,
+                    size: 16,
+                    color: AppColorScheme.primaryColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'CUSTOMER INFORMATION',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade500,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              // Name
+              if (_serviceRequest?.user?.firstName != null &&
+                  _serviceRequest?.user?.lastName != null) ...[
+                _buildInfoRow(
+                  icon: Icons.badge_outlined,
+                  label: 'Name',
+                  value:
+                      '${_serviceRequest!.user!.firstName} ${_serviceRequest!.user!.lastName}',
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // Nickname
+              if (_serviceRequest?.user?.nickname != null) ...[
+                _buildInfoRow(
+                  icon: Icons.alternate_email_rounded,
+                  label: 'Nickname',
+                  value: _serviceRequest!.user!.nickname!,
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // Contact
+              _buildInfoRow(
+                icon: Icons.phone_outlined,
+                label: 'Contact',
+                value: _serviceRequest!.user?.phone ?? 'No contact',
+                canCopy: true,
+                onCopy: () => _copyToClipboard(_serviceRequest!.user?.phone),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 4),
 
-        Text(_serviceRequest?.paymentMethod?.name ?? ''),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
 
-        Divider(),
-
-        // -- Other Service Name
-        if (_serviceRequest?.otherServiceName != null &&
-            _serviceRequest!.otherServiceName.toString().trim().isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(
-            'Custom Service',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              color: AppColorScheme.primaryLight,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColorScheme.primaryColor),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            child: Text(
-              _serviceRequest?.otherServiceName ?? '',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppColorScheme.primaryDark,
+        // Status Card - iPhone style
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200, width: 0.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-            ),
+            ],
           ),
-        ] else ...[
-          const SizedBox(height: 4),
-          Text(
-            'Service',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              color: AppColorScheme.primaryLight,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColorScheme.primaryColor),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            child: Text(
-              _serviceRequest?.subServiceItem?.title ?? '',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppColorScheme.primaryDark,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 16,
+                    color: AppColorScheme.primaryColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'STATUS',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade500,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ),
-        ],
-        const SizedBox(height: 8),
 
-        // -- Service Details
-        if (_serviceRequest?.serviceDetails != null &&
-            _serviceRequest!.serviceDetails.toString().trim().isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(
-            'Service Details',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+              const SizedBox(height: 14),
+
+              // Payment Status
+              if (_serviceRequest?.paymentStatus != null) ...[
+                Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: getStatusColor(
+                          _serviceRequest!.paymentStatus!.name,
+                        ).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.payments_outlined,
+                        size: 16,
+                        color: getStatusBorderColor(
+                          _serviceRequest!.paymentStatus!.name,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Payment Status',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: getStatusColor(
+                                _serviceRequest!.paymentStatus!.name,
+                              ).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              _serviceRequest!.paymentStatus!.name
+                                  .split(' ')
+                                  .map(
+                                    (word) =>
+                                        word[0].toUpperCase() +
+                                        word.substring(1),
+                                  )
+                                  .join(' '),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: getStatusBorderColor(
+                                  _serviceRequest!.paymentStatus!.name,
+                                ),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // Request Status
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: getStatusColor(
+                        _serviceRequest!.status!.value,
+                      ).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.pending_outlined,
+                      size: 16,
+                      color: getStatusBorderColor(
+                        _serviceRequest!.status!.value,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Request Status',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: getStatusColor(
+                              _serviceRequest!.status!.value,
+                            ).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            getStatusText(_serviceRequest!.status!.value),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: getStatusBorderColor(
+                                _serviceRequest!.status!.value,
+                              ),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // Payment Method
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: AppColorScheme.primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.credit_card_outlined,
+                      size: 16,
+                      color: AppColorScheme.primaryColor,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Payment Method',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _serviceRequest?.paymentMethod?.name ??
+                              'Not specified',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: AppColorScheme.primaryDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Service Details Card - iPhone style
+        if (_serviceRequest?.otherServiceName != null ||
+            _serviceRequest?.subServiceItem?.title != null ||
+            (_serviceRequest?.serviceDetails?.isNotEmpty == true) ||
+            (_serviceRequest?.notes?.isNotEmpty == true)) ...[
           Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(12),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.grey.shade200, width: 0.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            child: SelectableText(_serviceRequest?.serviceDetails ?? ''),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Icon(
+                      Icons.build_outlined,
+                      size: 16,
+                      color: AppColorScheme.primaryColor,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'SERVICE DETAILS',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey.shade500,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 14),
+
+                // Service Name
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Service',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColorScheme.primaryColor.withOpacity(
+                                0.08,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              _serviceRequest?.otherServiceName?.isNotEmpty ==
+                                      true
+                                  ? _serviceRequest!.otherServiceName!
+                                  : _serviceRequest?.subServiceItem?.title ??
+                                        'Service',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: AppColorScheme.primaryDark,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (_serviceRequest?.serviceDetails?.isNotEmpty == true) ...[
+                  const SizedBox(height: 12),
+                  _buildExpandableSection(
+                    icon: Icons.description_outlined,
+                    label: 'Service Details',
+                    content: _serviceRequest!.serviceDetails!,
+                  ),
+                ],
+
+                if (_serviceRequest?.notes?.isNotEmpty == true) ...[
+                  const SizedBox(height: 12),
+                  _buildExpandableSection(
+                    icon: Icons.note_outlined,
+                    label: 'Notes',
+                    content: _serviceRequest!.notes!,
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
-        const SizedBox(height: 8),
 
-        // -- Notes
-        if (_serviceRequest?.notes != null &&
-            (_serviceRequest?.notes ?? '').trim().isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(
-            'Notes',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-          ),
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: SelectableText(_serviceRequest!.notes ?? ''),
-          ),
-        ],
-
-        // -- Images
+        // Images Section
         _buildUploadedPhotos(),
 
-        // -- Totals
+        const SizedBox(height: 16),
+
+        // Totals Card
         _buildTotals(meters),
 
-        const SizedBox(height: 14),
+        const SizedBox(height: 20),
 
-        // -- Transactions (add this line)
+        // Payment History
         TransactionList(
           transactions: _serviceRequest?.paymentTransactions ?? [],
           title: 'Payment History',
         ),
 
-        const SizedBox(height: 14),
+        const SizedBox(height: 20),
 
-        // == Feedback
+        // Feedback
         _buildFeedbackDetails(),
 
         const SizedBox(height: 56),
       ],
     );
+  }
+
+  // Helper method for info rows
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    bool canCopy = false,
+    VoidCallback? onCopy,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: AppColorScheme.primaryColor.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: AppColorScheme.primaryColor),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  Expanded(
+                    child: SelectableText(
+                      value,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppColorScheme.primaryDark,
+                      ),
+                    ),
+                  ),
+                  if (canCopy && onCopy != null)
+                    GestureDetector(
+                      onTap: onCopy,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.copy,
+                          size: 14,
+                          color: AppColorScheme.primaryColor,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper method for expandable sections
+  Widget _buildExpandableSection({
+    required IconData icon,
+    required String label,
+    required String content,
+  }) {
+    final ValueNotifier<bool> isExpanded = ValueNotifier(false);
+    final bool isLong = content.length > 100;
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: isExpanded,
+      builder: (context, expanded, child) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColorScheme.primaryColor.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 16,
+                    color: AppColorScheme.primaryColor,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        expanded ? content : _truncateContent(content),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColorScheme.primaryDark,
+                          height: 1.4,
+                        ),
+                      ),
+                      if (isLong)
+                        GestureDetector(
+                          onTap: () => isExpanded.value = !expanded,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  expanded ? 'Show less' : 'Show more',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColorScheme.primaryColor,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  expanded
+                                      ? Icons.keyboard_arrow_up
+                                      : Icons.keyboard_arrow_down,
+                                  size: 16,
+                                  color: AppColorScheme.primaryColor,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _truncateContent(String content) {
+    if (content.length <= 100) return content;
+    return '${content.substring(0, 97)}...';
   }
 
   void _toggleIsEditingPaymentStatus() {
@@ -793,7 +1594,7 @@ class _ServiceRequestsDetailsScreenState
         ),
         const SizedBox(height: 4),
 
-        Row(
+        Wrap(
           children: [
             Text(
               _manong?.appUser.firstName ?? "No name",
@@ -1327,6 +2128,7 @@ class _ServiceRequestsDetailsScreenState
       context: navigatorKey.currentContext!,
       builder: (context) {
         return AlertDialog(
+          backgroundColor: Colors.white,
           title: Text(
             '${isRefund ? 'Refund' : 'Cancel'} Service Request',
             style: TextStyle(fontSize: 22),
@@ -1468,9 +2270,6 @@ class _ServiceRequestsDetailsScreenState
   }
 
   Widget _buildBottomNav(double? meters, ScrollController scrollController) {
-    // State for show more functionality
-    bool _showFullReason = false;
-
     // Safe access to refund request
     final hasRefundRequest =
         _serviceRequest?.refundRequests != null &&
@@ -1482,285 +2281,129 @@ class _ServiceRequestsDetailsScreenState
     final refundStatus = refundRequest?.status.name;
 
     return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(16),
-          topRight: Radius.circular(16),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: StatefulBuilder(
-        builder: (context, setState) {
-          return ListView(
-            controller: scrollController,
-            children: [
-              // -- Drag handle
-              Center(
-                child: Container(
-                  width: 40,
+      color: Colors.white,
+      child: CustomScrollView(
+        controller: scrollController,
+        slivers: [
+          // Drag handle - with minimal top padding
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8), // Minimal top padding
+              child: Center(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: _isSheetExpanded ? 80 : 60,
                   height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade400,
+                    color: _isSheetExpanded
+                        ? Colors.grey.shade300
+                        : Colors.grey.shade400,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
+            ),
+          ),
 
-              // --- Refund Requested Section (at the top)
-              if (hasRefundRequest) ...[
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: getStatusColor(refundStatus).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: getStatusBorderColor(refundStatus),
-                    ),
-                  ),
-                  child: Stack(
-                    children: [
-                      // Main content
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Header with badge positioned absolutely
-                          SizedBox(height: 4), // Space for the badge
-                          // Title
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.receipt_long,
-                                size: 18,
-                                color: getStatusBorderColor(refundStatus),
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Refund Requested',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: getStatusBorderColor(refundStatus),
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 16),
+          // Add a small gap after handle
+          const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-                          // Reason with show more
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Reason:',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade700,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                refundRequest?.reason ?? '',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w400,
-                                  color: Colors.grey.shade800,
-                                ),
-                                maxLines: _showFullReason ? null : 3,
-                                overflow: _showFullReason
-                                    ? null
-                                    : TextOverflow.ellipsis,
-                              ),
-                              if ((refundRequest?.reason.length ?? 0) >
-                                  100) ...[
-                                SizedBox(height: 8),
-                                GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _showFullReason = !_showFullReason;
-                                    });
-                                  },
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        _showFullReason
-                                            ? 'Show less'
-                                            : 'Show more',
-                                        style: TextStyle(
-                                          color: Colors.orange.shade700,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      SizedBox(width: 4),
-                                      Icon(
-                                        _showFullReason
-                                            ? Icons.expand_less
-                                            : Icons.expand_more,
-                                        size: 16,
-                                        color: Colors.orange.shade700,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-
-                          // Remarks
-                          if (refundRequest?.remarks != null &&
-                              refundRequest!.remarks!.isNotEmpty) ...[
-                            SizedBox(height: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Remarks:',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  refundRequest.remarks!,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w400,
-                                    color: Colors.grey.shade800,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-
-                      // Refund Status Badge - Top Right
-                      if (refundStatus != null)
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              color: getStatusColor(
-                                refundStatus,
-                              ).withOpacity(0.1),
-                              border: Border.all(
-                                color: getStatusBorderColor(refundStatus),
-                                width: 1,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 2,
-                                  offset: Offset(0, 1),
-                                ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            child: Text(
-                              refundStatus.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: getStatusBorderColor(refundStatus),
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+          // Refund Requested Section (if any)
+          if (hasRefundRequest) ...[
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildRefundSection(
+                  refundRequest,
+                  refundStatus,
+                  _showFullReason,
                 ),
-                SizedBox(height: 16),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Divider(color: Colors.grey, thickness: 1),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+          ],
 
-                // Divider after refund section
-                Divider(color: Colors.grey.shade300, thickness: 1, height: 1),
-                SizedBox(height: 16),
-              ],
+          // Main content with horizontal padding only
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _buildDistanceRow(),
+                const SizedBox(height: 12),
 
-              // Rest of your existing content...
-              _buildDistanceRow(),
-              const SizedBox(height: 12),
-
-              // --- Accept Button
-              if (_serviceRequest?.status == ServiceRequestStatus.pending ||
-                  _serviceRequest?.status ==
-                      ServiceRequestStatus.awaitingAcceptance) ...[
-                if (_isManong == true) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: !_isButtonLoading
-                              ? _acceptServiceRequest
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColorScheme.primaryColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 32,
-                              vertical: 14,
+                // Accept Button
+                if (_serviceRequest?.status == ServiceRequestStatus.pending ||
+                    _serviceRequest?.status ==
+                        ServiceRequestStatus.awaitingAcceptance) ...[
+                  if (_isManong == true) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: !_isButtonLoading
+                                ? _acceptServiceRequest
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColorScheme.primaryColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: _isButtonLoading
-                              ? SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      color: AppColorScheme.primaryColor,
+                            child: _isButtonLoading
+                                ? SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        color: AppColorScheme.primaryColor,
+                                      ),
                                     ),
-                                  ),
-                                )
-                              : Text('Accept'),
+                                  )
+                                : Text('Accept'),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ] else ...[
+                      ],
+                    ),
+                  ] else ...[
+                    _refundButton(),
+                  ],
+                ],
+
+                if (_serviceRequest?.status ==
+                        ServiceRequestStatus.inProgress ||
+                    _serviceRequest?.status ==
+                        ServiceRequestStatus.accepted) ...[
                   _refundButton(),
                 ],
-              ],
 
-              if (_serviceRequest?.status == ServiceRequestStatus.inProgress ||
-                  _serviceRequest?.status == ServiceRequestStatus.accepted) ...[
-                _refundButton(),
-              ],
+                _buildStartJobBtn(),
+                _buildCompleteServiceSection(),
 
-              _buildStartJobBtn(),
-
-              // -- Complete Button
-              if (_serviceRequest?.status == ServiceRequestStatus.inProgress &&
-                  !(_isServiceCompleted) &&
-                  _serviceRequest?.arrivedAt != null) ...[
-                if (_isManong == true) ...[
+                // Mark As Paid Button
+                if (_serviceRequest?.status == ServiceRequestStatus.completed &&
+                    _serviceRequest?.paymentStatus == PaymentStatus.pending &&
+                    _serviceRequest?.paymentMethod?.code == 'cash' &&
+                    _isManong == true) ...[
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: !_isButtonLoading
-                              ? _markServiceRequestCompleted
-                              : null,
+                          onPressed: !_isButtonLoading ? _markAsPaid : null,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColorScheme.primaryColor,
+                            backgroundColor: Colors.green,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 32,
@@ -1776,88 +2419,802 @@ class _ServiceRequestsDetailsScreenState
                                   height: 22,
                                   child: Center(
                                     child: CircularProgressIndicator(
-                                      color: AppColorScheme.primaryColor,
+                                      color: Colors.white,
                                     ),
                                   ),
                                 )
-                              : Text('Complete Service Request'),
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.payments, size: 20),
+                                    SizedBox(width: 8),
+                                    Text('Mark as Paid'),
+                                  ],
+                                ),
                         ),
                       ),
                     ],
                   ),
                 ],
-              ],
 
-              // Mark As Paid Button
-              if (_serviceRequest?.status == ServiceRequestStatus.completed &&
-                  _serviceRequest?.paymentStatus == PaymentStatus.pending &&
-                  _serviceRequest?.paymentMethod?.code == 'cash' &&
-                  _isManong == true) ...[
+                // More details indicator
+                AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: _isSheetExpanded ? 0.0 : 1.0,
+                  child: const Column(
+                    children: [
+                      SizedBox(height: 8),
+                      Icon(Icons.keyboard_arrow_down),
+                    ],
+                  ),
+                ),
+
                 const SizedBox(height: 12),
-                Row(
+
+                // User/Manong details
+                if (_isManong == true)
+                  _buildUserDetails(meters ?? 0)
+                else
+                  _buildManongDetails(meters ?? 0),
+              ]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRefundSection(
+    RefundRequest? refundRequest,
+    String? refundStatus,
+    bool showFullReason,
+  ) {
+    final statusColor = getStatusColor(refundStatus);
+    final borderColor = getStatusBorderColor(refundStatus);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor.withOpacity(0.3), width: 0.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with icon and title
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.receipt_long_rounded,
+                  size: 18,
+                  color: borderColor,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Refund Requested',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    color: AppColorScheme.primaryDark,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+              // Status badge
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: borderColor.withOpacity(0.2),
+                    width: 0.5,
+                  ),
+                ),
+                child: Text(
+                  refundStatus?.toUpperCase() ?? '',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: borderColor,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Reason section
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'REASON',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade500,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade200, width: 0.5),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: !_isButtonLoading ? _markAsPaid : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 32,
-                            vertical: 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                    Text(
+                      refundRequest?.reason ?? '',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        color: AppColorScheme.primaryDark,
+                        height: 1.4,
+                      ),
+                      maxLines: showFullReason ? null : 3,
+                      overflow: showFullReason ? null : TextOverflow.ellipsis,
+                    ),
+                    if ((refundRequest?.reason.length ?? 0) > 100)
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _showFullReason = !_showFullReason;
+                          });
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                showFullReason ? 'Show less' : 'Show more',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: borderColor,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                showFullReason
+                                    ? Icons.keyboard_arrow_up_rounded
+                                    : Icons.keyboard_arrow_down_rounded,
+                                size: 16,
+                                color: borderColor,
+                              ),
+                            ],
                           ),
                         ),
-                        child: _isButtonLoading
-                            ? SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              )
-                            : const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.payments, size: 20),
-                                  SizedBox(width: 8),
-                                  Text('Mark as Paid'),
-                                ],
-                              ),
                       ),
-                    ),
                   ],
                 ),
-              ],
+              ),
+            ],
+          ),
 
-              // -- More details
-              Visibility(
-                visible: true,
-                maintainSize: true,
-                maintainAnimation: true,
-                maintainState: true,
-                child: Column(
+          // Remarks section (if exists)
+          if (refundRequest?.remarks != null &&
+              refundRequest!.remarks!.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'REMARKS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade500,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade200, width: 0.5),
+                  ),
+                  child: Text(
+                    refundRequest.remarks!,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: AppColorScheme.primaryDark,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompleteServiceSection() {
+    if (_serviceRequest?.status != ServiceRequestStatus.inProgress ||
+        _isManong != true) {
+      return const SizedBox.shrink();
+    }
+
+    final bool hasArrived = _serviceRequest?.arrivedAt != null;
+
+    return Column(
+      children: [
+        const SizedBox(height: 12),
+        if (!hasArrived) _buildArrivalGuidance() else _buildCompleteButton(),
+        const SizedBox(height: 8),
+        _buildLocationStatusIndicator(),
+      ],
+    );
+  }
+
+  Widget _buildArrivalGuidance() {
+    // Get current distance if available
+    final currentDistance = _trackingApiService.distanceNotifier.value;
+
+    return Column(
+      children: [
+        _buildDestinationCard(),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200, width: 0.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Header with lock icon and status - iPhone style
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: AppColorScheme.primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.lock_outline_rounded,
+                      size: 16,
+                      color: AppColorScheme.primaryColor,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Complete Button Locked',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: AppColorScheme.primaryDark,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ),
+
+                  // Distance indicator - iPhone style pill
+                  if (currentDistance != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColorScheme.primaryColor.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            size: 12,
+                            color: AppColorScheme.primaryColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${currentDistance.round()}m',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppColorScheme.primaryDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              // Instruction - iPhone style
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 2),
+                    child: Icon(
+                      Icons.location_on,
+                      size: 16,
+                      color: AppColorScheme.primaryColor,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Go to customer location',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: AppColorScheme.primaryDark,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Complete button will unlock automatically',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              // Tips card - iPhone style
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColorScheme.primaryColor.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
                   children: [
-                    const SizedBox(height: 3),
                     Icon(
-                      Icons.keyboard_arrow_down,
-                      color: Colors.grey.shade700,
+                      Icons.lightbulb_outline_rounded,
+                      size: 16,
+                      color: AppColorScheme.primaryColor,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Keep app open for automatic arrival detection',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColorScheme.primaryDark,
+                          height: 1.3,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-              SizedBox(height: 12),
-
-              if (_isManong == true) _buildUserDetails(meters ?? 0),
-
-              if (_isManong == false) _buildManongDetails(meters ?? 0),
             ],
-          );
-        },
+          ),
+        ),
+
+        // Trouble button - iPhone style
+        _buildTroubleButton(),
+      ],
+    );
+  }
+
+  Widget _buildDestinationCard() {
+    final bool isAddressLong =
+        (_serviceRequest?.customerFullAddress?.length ?? 0) > 50;
+    final ValueNotifier<bool> showFullAddress = ValueNotifier(false);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200, width: 0.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColorScheme.primaryColor,
+                  AppColorScheme.primaryColor.withOpacity(0.8),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.flag_rounded,
+              size: 18,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'DESTINATION',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade500,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+
+                // Address with show more/less
+                ValueListenableBuilder<bool>(
+                  valueListenable: showFullAddress,
+                  builder: (context, expanded, child) {
+                    final address =
+                        _serviceRequest?.customerFullAddress ??
+                        'Customer Location';
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          expanded ? address : _truncateAddress(address),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                            color: AppColorScheme.primaryDark,
+                            height: 1.3,
+                          ),
+                        ),
+                        if (isAddressLong)
+                          GestureDetector(
+                            onTap: () => showFullAddress.value = !expanded,
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    expanded ? 'Show less' : 'Show more',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppColorScheme.primaryColor,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    expanded
+                                        ? Icons.keyboard_arrow_up
+                                        : Icons.keyboard_arrow_down,
+                                    size: 16,
+                                    color: AppColorScheme.primaryColor,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _truncateAddress(String address) {
+    if (address.length <= 50) return address;
+    return '${address.substring(0, 47)}...';
+  }
+
+  Widget _buildTroubleButton() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: _isButtonLoading ? null : _manualMarkArrived,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.help_outline,
+                    size: 18,
+                    color: AppColorScheme.primaryColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Having trouble? Tap to confirm arrival',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      color: AppColorScheme.primaryDark,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompleteButton() {
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton(
+            onPressed: !_isButtonLoading ? _markServiceRequestCompleted : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
+            ),
+            child: _isButtonLoading
+                ? SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.check_circle, size: 22),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Complete Service Request',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.arrow_forward, size: 18),
+                    ],
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLocationStatusIndicator() {
+    final bool hasArrived = _serviceRequest?.arrivedAt != null;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: hasArrived
+              ? AppColorScheme.primaryColor.withOpacity(0.2)
+              : Colors.grey.shade200,
+          width: 0.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Status icon with gradient background
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: hasArrived
+                    ? [
+                        AppColorScheme.primaryColor,
+                        AppColorScheme.primaryColor.withOpacity(0.8),
+                      ]
+                    : [AppColorScheme.goldDeep, AppColorScheme.goldLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              hasArrived ? Icons.check_box_rounded : Icons.navigation_rounded,
+              size: 18,
+              color: Colors.white,
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // Status text
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasArrived ? 'Arrived at destination' : 'En route',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: AppColorScheme.primaryDark,
+                    fontSize: 15,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  hasArrived
+                      ? 'You can now complete the service'
+                      : 'Heading to customer location',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+
+          // Distance or status badge
+          if (!hasArrived)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColorScheme.primaryColor.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColorScheme.primaryColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'ETA',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: AppColorScheme.primaryDark,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColorScheme.primaryColor.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.check_box_rounded,
+                    size: 12,
+                    color: AppColorScheme.primaryColor,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Arrived',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: AppColorScheme.primaryDark,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -1871,7 +3228,6 @@ class _ServiceRequestsDetailsScreenState
 
     try {
       // Live Location Tracking
-
       if (_serviceRequest?.status != 'inProgress') return;
 
       logger.info('Live now');
@@ -1881,11 +3237,33 @@ class _ServiceRequestsDetailsScreenState
         serviceRequestId: _serviceRequest!.id.toString(),
       );
 
+      _trackingApiService.onArrivalDetected((arrivedAt) {
+        if (!mounted) return;
+
+        logger.info('✅ ARRIVAL DETECTED via WebSocket!');
+
+        // IMPORTANT: Create a new ServiceRequest instance with arrivedAt set
+        setState(() {
+          _serviceRequest = _serviceRequest?.copyWith(arrivedAt: arrivedAt);
+        });
+
+        // Show success message
+        SnackBarUtils.showSuccess(
+          context,
+          'You have arrived at the destination!',
+        );
+
+        // Haptic feedback
+        HapticFeedback.heavyImpact();
+      });
+
       if (_isManong == true) {
         logger.info('Started Tracking');
         _trackingApiService.startTracking(
           manongId: _serviceRequest!.manongId.toString(),
           serviceRequestId: _serviceRequest!.id.toString(),
+          destinationLat: _serviceRequest?.customerLat,
+          destinationLng: _serviceRequest?.customerLng,
         );
       }
 
@@ -1932,33 +3310,120 @@ class _ServiceRequestsDetailsScreenState
   }
 
   Widget _buildStack(double meters) {
-    if (_manong == null) return SizedBox.shrink();
+    if (_manong == null) return const SizedBox.shrink();
+
     return Stack(
       children: [
-        _buildRouteTracking(),
-        if (_manong?.profile?.specialities?.length != null)
-          SafeArea(
-            child: DraggableScrollableSheet(
-              initialChildSize: 0.20,
-              minChildSize: 0.05,
-              maxChildSize:
-                  _manong!.profile!.specialities!.length >= 6 ||
-                      _serviceRequest!.images.isNotEmpty
-                  ? 0.99
-                  : 0.5,
-              snap: true,
-              snapSizes: [
-                0.20,
-                _manong!.profile!.specialities!.length >= 6 ||
-                        _serviceRequest!.images.isNotEmpty
-                    ? 0.99
-                    : 0.5,
-              ],
-              builder: (context, scrollController) {
-                return _buildBottomNav(meters, scrollController);
-              },
+        // Make the map area detect drag gestures with threshold
+        Listener(
+          onPointerDown: (event) {
+            _dragStartPosition = event.position.dy;
+          },
+          onPointerMove: _onMapDragStart,
+          behavior: HitTestBehavior.opaque,
+          child: _buildRouteTracking(),
+        ),
+
+        NotificationListener<DraggableScrollableNotification>(
+          onNotification: (notification) {
+            setState(() {
+              _sheetHeight = notification.extent;
+              _isSheetExpanded = notification.extent > 0.8;
+            });
+            return false;
+          },
+          child: DraggableScrollableSheet(
+            controller: _draggableController,
+            initialChildSize: 0.45,
+            minChildSize: 0.15,
+            maxChildSize: 0.93,
+            snap: true,
+            snapSizes: const [0.15, 0.45, 0.93],
+            builder: (context, scrollController) {
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+                margin: EdgeInsets.all(_isSheetExpanded ? 0 : 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(_isSheetExpanded ? 0 : 20),
+                    topRight: Radius.circular(_isSheetExpanded ? 0 : 20),
+                    bottomLeft: Radius.circular(_isSheetExpanded ? 0 : 20),
+                    bottomRight: Radius.circular(_isSheetExpanded ? 0 : 20),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(_isSheetExpanded ? 0 : 20),
+                    topRight: Radius.circular(_isSheetExpanded ? 0 : 20),
+                    bottomLeft: Radius.circular(_isSheetExpanded ? 0 : 20),
+                    bottomRight: Radius.circular(_isSheetExpanded ? 0 : 20),
+                  ),
+                  child: _buildBottomNav(meters, scrollController),
+                ),
+              );
+            },
+          ),
+        ),
+
+        // Chat overlay - always in the tree but animated
+        Positioned.fill(
+          child: AnimatedBuilder(
+            animation: _chatAnimationController,
+            builder: (context, child) {
+              return Opacity(
+                opacity: _chatAnimationController.value,
+                child: SlideTransition(
+                  position: _chatSlideAnimation,
+                  child: child,
+                ),
+              );
+            },
+            child: GestureDetector(
+              onTap: _toggleChat,
+              child: Container(
+                color: Colors.black.withOpacity(0.5),
+                child: Center(
+                  child: GestureDetector(
+                    onTap:
+                        () {}, // Prevent taps from closing when tapping on chat
+                    child: Container(
+                      height: MediaQuery.of(context).size.height * 0.8,
+                      margin: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: ChatWidget(
+                          serviceRequest: _serviceRequest!,
+                          onClose: _toggleChat,
+                          isFullScreen: false,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
+        ),
       ],
     );
   }
@@ -2115,43 +3580,70 @@ class _ServiceRequestsDetailsScreenState
       child: Material(
         child: Scaffold(
           body: meters != null ? _buildState(meters) : null,
-          floatingActionButton: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              FloatingActionButton(
-                onPressed: _goToChatFunction,
-                tooltip: 'Message Manong',
-                backgroundColor: AppColorScheme.primaryLight,
-                child: Icon(Icons.message, color: AppColorScheme.primaryDark),
-              ),
-              if (messagesCount > 0)
-                Positioned(
-                  top: -8,
-                  right: -8,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    constraints: const BoxConstraints(
-                      minWidth: 20,
-                      minHeight: 20,
-                    ),
-                    decoration: const BoxDecoration(
-                      color: Colors.redAccent,
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      messagesCount > 9 ? '9+' : messagesCount.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
+          floatingActionButton: AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            opacity: _isKeyboardVisible ? 0.0 : 1.0,
+            child: _isKeyboardVisible
+                ? null
+                : ScaleTransition(
+                    scale: _chatScaleAnimation,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        FloatingActionButton(
+                          onPressed: _isChatAnimating ? null : _toggleChat,
+                          tooltip: 'Chat',
+                          backgroundColor: _showChat
+                              ? Colors.red
+                              : AppColorScheme.primaryLight,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            transitionBuilder:
+                                (Widget child, Animation<double> animation) {
+                                  return ScaleTransition(
+                                    scale: animation,
+                                    child: child,
+                                  );
+                                },
+                            child: Icon(
+                              _showChat ? Icons.close : Icons.chat,
+                              key: ValueKey(_showChat),
+                              color: _showChat
+                                  ? Colors.white
+                                  : AppColorScheme.primaryDark,
+                            ),
+                          ),
+                        ),
+                        if (messagesCount > 0 && !_showChat)
+                          Positioned(
+                            top: -8,
+                            right: -8,
+                            child: ScaleTransition(
+                              scale: _chatScaleAnimation,
+                              child: Container(
+                                width: 20,
+                                height: 20,
+                                decoration: const BoxDecoration(
+                                  color: Colors.redAccent,
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  messagesCount > 9
+                                      ? '9+'
+                                      : messagesCount.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                ),
-            ],
           ),
         ),
       ),
@@ -2160,6 +3652,7 @@ class _ServiceRequestsDetailsScreenState
 
   @override
   void dispose() {
+    _draggableController.dispose();
     if (_serviceRequest != null) {
       logger.info(
         'Disconnected with lat ${_trackingApiService.manongLatLngNotifier.value?.latitude} && Lng ${_trackingApiService.manongLatLngNotifier.value?.longitude}',

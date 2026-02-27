@@ -106,38 +106,31 @@ class ManongWalletTransactionCard extends StatelessWidget {
     }
   }
 
-  // Helper method to get the display text for provider/bank
   String? _getProviderOrBankDisplayText() {
     final metadata = manongWalletTransaction.metadata;
-
     if (metadata == null) return null;
 
-    // Check if provider exists and is not empty
     if (metadata['provider'] != null &&
         metadata['provider'].toString().isNotEmpty &&
         metadata['provider'].toString().toLowerCase() != 'null') {
       return metadata['provider'].toString();
     }
 
-    // If provider is empty, check for bank code
     if (metadata['bankCode'] != null &&
         metadata['bankCode'].toString().isNotEmpty &&
         metadata['bankCode'].toString().toLowerCase() != 'null') {
       return metadata['bankCode'].toString();
     }
 
-    // If bank code is empty, check for bank name
     if (metadata['bankName'] != null &&
         metadata['bankName'].toString().isNotEmpty &&
         metadata['bankName'].toString().toLowerCase() != 'null') {
       return metadata['bankName'].toString();
     }
 
-    // Return null if none found
     return null;
   }
 
-  // Helper method to get icon for provider/bank
   IconData? _getProviderOrBankIcon(String? displayText) {
     if (displayText == null) return null;
 
@@ -168,7 +161,6 @@ class ManongWalletTransactionCard extends StatelessWidget {
     return Icons.payment;
   }
 
-  // Helper method to check if we should show account details (for payouts)
   bool _shouldShowAccountDetails() {
     return manongWalletTransaction.type == WalletTransactionType.payout &&
         manongWalletTransaction.metadata != null &&
@@ -176,7 +168,6 @@ class ManongWalletTransactionCard extends StatelessWidget {
             manongWalletTransaction.metadata!['accountNumber'] != null);
   }
 
-  // Helper method to format account number (hide some digits for privacy)
   String _formatAccountNumber(String? accountNumber) {
     if (accountNumber == null || accountNumber.isEmpty) return '';
 
@@ -193,11 +184,9 @@ class ManongWalletTransactionCard extends StatelessWidget {
         manongWalletTransaction.type == WalletTransactionType.topup;
     final typeColor = _getTypeColor(manongWalletTransaction.type);
 
-    // Get the display text for provider/bank
     final providerOrBankText = _getProviderOrBankDisplayText();
     final providerOrBankIcon = _getProviderOrBankIcon(providerOrBankText);
 
-    // Check if we should show account details
     final showAccountDetails = _shouldShowAccountDetails();
     final accountName = manongWalletTransaction.metadata?['accountName']
         ?.toString();
@@ -206,15 +195,16 @@ class ManongWalletTransactionCard extends StatelessWidget {
     final formattedAccountNumber = _formatAccountNumber(accountNumber);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200, width: 0.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -223,80 +213,142 @@ class ManongWalletTransactionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // First row: Type and amount
+            // Header row with icon, type and amount
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: typeColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        _getTypeIcon(manongWalletTransaction.type),
-                        color: typeColor,
-                        size: 18,
-                      ),
+                // Icon with gradient background
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [typeColor, typeColor.withOpacity(0.8)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                      _getTypeDisplayName(manongWalletTransaction.type),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    _getTypeIcon(manongWalletTransaction.type),
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
-                PriceTag(price: manongWalletTransaction.amount),
+                const SizedBox(width: 12),
+
+                // Type and amount
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _getTypeDisplayName(manongWalletTransaction.type),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatDate(manongWalletTransaction.createdAt),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Amount
+                PriceTag(
+                  price: manongWalletTransaction.amount,
+                  textStyle: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: isPositive
+                        ? Colors.green
+                        : AppColorScheme.primaryDark,
+                    letterSpacing: -0.3,
+                  ),
+                ),
               ],
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
-            // Second row: Status, provider/bank, and date
-            Row(
+            // Status and provider chips row
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
+                // Status chip
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
-                    vertical: 4,
+                    vertical: 5,
                   ),
                   decoration: BoxDecoration(
                     color: _getStatusColor(
                       manongWalletTransaction.status,
-                    ).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    manongWalletTransaction.status.name.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: _getStatusColor(manongWalletTransaction.status),
+                    ).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _getStatusColor(
+                        manongWalletTransaction.status,
+                      ).withOpacity(0.2),
+                      width: 0.5,
                     ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        manongWalletTransaction.status ==
+                                WalletTransactionStatus.completed
+                            ? Icons.check_circle_rounded
+                            : manongWalletTransaction.status ==
+                                  WalletTransactionStatus.pending
+                            ? Icons.hourglass_empty_rounded
+                            : Icons.error_outline_rounded,
+                        size: 12,
+                        color: _getStatusColor(manongWalletTransaction.status),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        manongWalletTransaction.status.name.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _getStatusColor(
+                            manongWalletTransaction.status,
+                          ),
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 
-                // Show provider/bank chip if available
-                if (providerOrBankText != null &&
-                    providerOrBankIcon != null) ...[
-                  const SizedBox(width: 8),
+                // Provider/Bank chip
+                if (providerOrBankText != null && providerOrBankIcon != null)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                      horizontal: 10,
+                      vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.blue.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.blue.withOpacity(0.2),
+                        width: 0.5,
+                      ),
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(providerOrBankIcon, size: 12, color: Colors.blue),
                         const SizedBox(width: 4),
@@ -306,51 +358,69 @@ class ManongWalletTransactionCard extends StatelessWidget {
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                             color: Colors.blue,
+                            letterSpacing: 0.3,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-
-                const Spacer(),
-
-                Text(
-                  _formatDate(manongWalletTransaction.createdAt),
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
               ],
             ),
 
             // Account details section (for payouts)
             if (showAccountDetails) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[200]!, width: 1),
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200, width: 0.5),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (accountName != null && accountName.isNotEmpty) ...[
                       Text(
-                        'Account: $accountName',
+                        'ACCOUNT NAME',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 10,
                           fontWeight: FontWeight.w500,
-                          color: Colors.grey[700],
+                          color: Colors.grey.shade500,
+                          letterSpacing: 0.3,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
+                      Text(
+                        accountName,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                     ],
                     if (formattedAccountNumber.isNotEmpty) ...[
                       Text(
-                        'Number: $formattedAccountNumber',
-                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                        'ACCOUNT NUMBER',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade500,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        formattedAccountNumber,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade800,
+                          letterSpacing: 1,
+                        ),
                       ),
                     ],
                   ],
@@ -361,10 +431,34 @@ class ManongWalletTransactionCard extends StatelessWidget {
             // Description (if exists)
             if (manongWalletTransaction.description != null &&
                 manongWalletTransaction.description!.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                manongWalletTransaction.description!,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 16,
+                      color: Colors.grey.shade500,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        manongWalletTransaction.description!,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ],

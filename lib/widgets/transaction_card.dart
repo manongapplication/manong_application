@@ -26,47 +26,54 @@ class TransactionCard extends StatelessWidget {
     bool isRefundType = paymentTransaction.type == TransactionType.refund;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.grey[50], // bg-gray-50
-        border: Border.all(color: Colors.grey[100]!), // border-gray-100
-        borderRadius: BorderRadius.circular(16), // rounded-xl
+        color: Colors.grey.shade50,
+        border: Border.all(color: Colors.grey.shade200, width: 0.5),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Amount Column
           Expanded(
             flex: 2,
-            child: // Amount Column
-            Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Amount',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  'AMOUNT',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade500,
+                    letterSpacing: 0.3,
+                  ),
                 ),
-                const SizedBox(height: 4),
-
+                const SizedBox(height: 6),
                 PriceTag(
                   price: paymentTransaction.amount,
                   textStyle: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
                     color: AppColorScheme.primaryColor,
+                    letterSpacing: -0.3,
                   ),
                 ),
-                const SizedBox(height: 4),
-
                 if (paymentTransaction.paymentIdOnGateway != null) ...[
+                  const SizedBox(height: 12),
                   Text(
-                    isRefundType ? 'Refund Id' : 'Payment Id',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                    isRefundType ? 'REFUND ID' : 'PAYMENT ID',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade500,
+                      letterSpacing: 0.3,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Expanded(
                         child: Text(
@@ -74,14 +81,15 @@ class TransactionCard extends StatelessWidget {
                               ? paymentTransaction.refundIdOnGateway ?? ''
                               : paymentTransaction.paymentIdOnGateway ?? '',
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w300,
-                            color: Colors.grey[900],
+                            fontSize: 11,
+                            fontWeight: FontWeight.w400,
+                            color: AppColorScheme.primaryDark,
                           ),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                         ),
                       ),
+                      const SizedBox(width: 6),
                       GestureDetector(
                         onTap: () async {
                           final id =
@@ -90,14 +98,23 @@ class TransactionCard extends StatelessWidget {
                             await Clipboard.setData(ClipboardData(text: id));
                             SnackBarUtils.showInfo(
                               navigatorKey.currentContext!,
-                              'Payment ID copied to clipboard',
+                              'Payment ID copied',
                             );
                           }
                         },
-                        child: const Icon(
-                          Icons.copy,
-                          size: 14,
-                          color: Colors.grey,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: AppColorScheme.primaryColor.withOpacity(
+                              0.08,
+                            ),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            Icons.copy,
+                            size: 12,
+                            color: AppColorScheme.primaryColor,
+                          ),
                         ),
                       ),
                     ],
@@ -107,25 +124,40 @@ class TransactionCard extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
 
+          // Request Number Column
           Expanded(
             flex: 2,
-            child: // Transaction Column
-            Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  'Request Number',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  paymentTransaction.metadata?['requestNumber'] ?? '-',
+                  'REQUEST NO.',
                   style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[700],
-                    letterSpacing: 0.5,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade500,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColorScheme.primaryColor.withOpacity(0.04),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    paymentTransaction.metadata?['requestNumber'] ?? '-',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppColorScheme.primaryDark,
+                    ),
                   ),
                 ),
               ],
@@ -147,121 +179,174 @@ class TransactionCard extends StatelessWidget {
         ? paymentTransaction.refundRequest?.amount == paymentTransaction.amount
               ? 'Full Refund'
               : 'Partial Refund'
-        : '${paymentTransaction.type.name}${paymentTransaction.status == PaymentStatus.pending ? ' - Pending' : ''}';
+        : paymentTransaction.type.name.toUpperCase();
 
     String firstSentence =
         user != null &&
             user?.role == UserRole.manong &&
             paymentTransaction.userId != user?.id
         ? 'User'
-        : 'You have';
+        : 'You';
 
     return Container(
-      margin: const EdgeInsets.only(top: 24),
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200, width: 0.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header row with type and date
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              // Type chip
               Container(
                 padding: const EdgeInsets.symmetric(
-                  vertical: 2,
-                  horizontal: 12,
+                  vertical: 4,
+                  horizontal: 10,
                 ),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
                   color: PaymentTypeUtils.bgColor(
                     paymentTransaction.type,
                     paymentTransaction.status,
-                  ),
-                ),
-                child: Text(
-                  paymentType.toUpperCase(),
-                  style: TextStyle(
+                  ).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
                     color: PaymentTypeUtils.color(
                       paymentTransaction.type,
                       paymentTransaction.status,
-                    ),
-                    fontSize: 12,
+                    ).withOpacity(0.2),
+                    width: 0.5,
                   ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      paymentTransaction.type == TransactionType.refund
+                          ? Icons.undo_rounded
+                          : Icons.payment_rounded,
+                      size: 12,
+                      color: PaymentTypeUtils.color(
+                        paymentTransaction.type,
+                        paymentTransaction.status,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      paymentType,
+                      style: TextStyle(
+                        color: PaymentTypeUtils.color(
+                          paymentTransaction.type,
+                          paymentTransaction.status,
+                        ),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
+              // Date
               Text(
                 createdDateFormatted,
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w400,
+                ),
               ),
             ],
           ),
 
           const SizedBox(height: 14),
 
+          // Amount area
           _buildAmountArea(),
 
+          // Description
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
             width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey.shade200, width: 0.5),
+            ),
             child: Text.rich(
               TextSpan(
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade700,
+                  height: 1.4,
+                ),
                 children: [
                   TextSpan(
+                    text: firstSentence,
+                    style: const TextStyle(fontWeight: FontWeight.w400),
+                  ),
+                  TextSpan(
                     text:
-                        '$firstSentence ${paymentTransaction.type == TransactionType.refund ? 'refunded' : paymentTransaction.status.name} ',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black,
-                      fontWeight: FontWeight.w300,
-                      letterSpacing: 0.5,
-                    ),
+                        ' ${paymentTransaction.type == TransactionType.refund ? 'refunded' : paymentTransaction.status.name} ',
+                    style: const TextStyle(fontWeight: FontWeight.w400),
                   ),
                   WidgetSpan(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: PriceTag(price: paymentTransaction.amount),
+                    child: PriceTag(
+                      price: paymentTransaction.amount,
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColorScheme.primaryColor,
+                      ),
                     ),
                     alignment: PlaceholderAlignment.middle,
                   ),
                   const TextSpan(
                     text: ' via ',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.black,
-                      fontWeight: FontWeight.w300,
-                      letterSpacing: 0.5,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w400),
                   ),
                   TextSpan(
                     text: PaymentProviderUtils.readable(
                       paymentTransaction.provider,
                     ),
                     style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColorScheme.primaryDark,
                     ),
                   ),
                   TextSpan(
+                    text: ' for ',
+                    style: const TextStyle(fontWeight: FontWeight.w400),
+                  ),
+                  TextSpan(
                     text:
-                        ' for ${paymentTransaction.metadata?['subServiceType']} under ${paymentTransaction.metadata?['serviceType']} service.',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black,
-                      fontWeight: FontWeight.w300,
-                      letterSpacing: 0.5,
-                    ),
+                        paymentTransaction.metadata?['subServiceType'] ??
+                        'service',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  const TextSpan(
+                    text: ' under ',
+                    style: const TextStyle(fontWeight: FontWeight.w400),
+                  ),
+                  TextSpan(
+                    text: paymentTransaction.metadata?['serviceType'] ?? '',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  const TextSpan(
+                    text: ' service.',
+                    style: const TextStyle(fontWeight: FontWeight.w400),
                   ),
                 ],
               ),

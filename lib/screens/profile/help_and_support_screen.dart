@@ -21,7 +21,7 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
   final Logger logger = Logger('HelpAndSupportScreen');
   bool _isLoading = false;
   bool _isButtonLoading = false;
-  bool _showQuickResponses = true; // NEW: Control variable for showing/hiding
+  bool _showQuickResponses = true;
   final TextEditingController _messageController = TextEditingController();
   late ScrollController _scrollController;
 
@@ -104,54 +104,87 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
     _messageController.clear();
     _addUserMessage(message);
 
-    // Generate intelligent response based on message content
     final response = HelpUtils().generateResponse(message);
     _addSupportMessage(response);
   }
 
-  // UPDATED: Modified to include toggle button
   Widget _buildQuickResponseChips() {
     return AnimatedSize(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        color: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+          ),
+          border: Border(
+            bottom: BorderSide(color: Colors.grey.shade200, width: 0.5),
+          ),
+        ),
         child: Column(
           children: [
             // Toggle Header Row
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Quick Responses',
-                  style: TextStyle(
-                    color: AppColorScheme.primaryColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColorScheme.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.lightbulb_outline_rounded,
+                        size: 16,
+                        color: AppColorScheme.primaryColor,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Quick Help',
+                      style: TextStyle(
+                        color: AppColorScheme.primaryDark,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  icon: Icon(
-                    _showQuickResponses
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
-                    color: AppColorScheme.primaryColor,
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  onPressed: () {
-                    setState(() {
-                      _showQuickResponses = !_showQuickResponses;
-                    });
-                  },
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  tooltip: _showQuickResponses ? 'Hide' : 'Show',
+                  child: IconButton(
+                    icon: Icon(
+                      _showQuickResponses
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      color: AppColorScheme.primaryColor,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _showQuickResponses = !_showQuickResponses;
+                      });
+                    },
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(),
+                    tooltip: _showQuickResponses ? 'Hide' : 'Show',
+                  ),
                 ),
               ],
             ),
-            // Quick Response Chips (conditionally shown)
+
+            // Quick Response Chips
             if (_showQuickResponses) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -160,14 +193,15 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
                     onTap: () => _sendQuickResponse(response),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
+                        horizontal: 14,
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColorScheme.primaryColor.withOpacity(0.1),
+                        color: AppColorScheme.primaryColor.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: AppColorScheme.primaryColor.withOpacity(0.3),
+                          color: AppColorScheme.primaryColor.withOpacity(0.2),
+                          width: 0.5,
                         ),
                       ),
                       child: Text(
@@ -176,6 +210,7 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
                           color: AppColorScheme.primaryColor,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
+                          letterSpacing: -0.2,
                         ),
                       ),
                     ),
@@ -189,131 +224,87 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
     );
   }
 
-  // Alternative: Simple toggle without header
-  Widget _buildSimpleToggleQuickResponseChips() {
-    return Column(
-      children: [
-        // Toggle button row
-        Container(
-          color: Colors.white,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                'Quick Responses',
-                style: TextStyle(
-                  color: AppColorScheme.primaryColor,
-                  fontSize: 12,
-                ),
-              ),
-              IconButton(
-                icon: Icon(
-                  _showQuickResponses ? Icons.visibility_off : Icons.visibility,
-                  size: 20,
-                  color: AppColorScheme.primaryColor,
-                ),
-                onPressed: () {
-                  setState(() {
-                    _showQuickResponses = !_showQuickResponses;
-                  });
-                },
-                padding: const EdgeInsets.all(4),
-              ),
-            ],
-          ),
-        ),
-        // Quick responses with animation
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          child: _showQuickResponses
-              ? Container(
-                  key: const ValueKey('quickResponses'),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: HelpUtils().quickResponses.map((response) {
-                      return GestureDetector(
-                        onTap: () => _sendQuickResponse(response),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColorScheme.primaryColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: AppColorScheme.primaryColor.withOpacity(
-                                0.3,
-                              ),
-                            ),
-                          ),
-                          child: Text(
-                            response.text,
-                            style: TextStyle(
-                              color: AppColorScheme.primaryColor,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                )
-              : const SizedBox.shrink(),
-        ),
-      ],
-    );
-  }
-
   Widget _buildInputArea() {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade200, width: 0.5),
+        ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Column(
         children: [
-          // Choose one of these:
-          _buildQuickResponseChips(), // Option 1: With header toggle
-          // _buildSimpleToggleQuickResponseChips(), // Option 2: Simple toggle
-          // _buildDraggableQuickResponseArea(), // Option 3: Draggable area
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 150),
-                  child: TextFormField(
-                    controller: _messageController,
-                    minLines: 1,
-                    maxLines: null,
-                    keyboardType: TextInputType.multiline,
-                    decoration: inputDecoration('Type your message here...'),
-                    textCapitalization: TextCapitalization.sentences,
+          _buildQuickResponseChips(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: TextField(
+                      controller: _messageController,
+                      minLines: 1,
+                      maxLines: 5,
+                      decoration: InputDecoration(
+                        hintText: 'Type your message...',
+                        hintStyle: TextStyle(
+                          color: Colors.grey.shade400,
+                          fontSize: 15,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Material(
-                color: AppColorScheme.primaryColor,
-                borderRadius: BorderRadius.circular(12),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: _isButtonLoading ? null : _sendMessage,
-                  child: const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Icon(Icons.send, color: Colors.white),
+                const SizedBox(width: 8),
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColorScheme.primaryColor,
+                        AppColorScheme.primaryColor.withOpacity(0.8),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(22),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColorScheme.primaryColor.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: _isButtonLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.arrow_upward_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                    onPressed: _isButtonLoading ? null : _sendMessage,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -321,72 +312,123 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
   }
 
   Widget _buildChatArea() {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final message = _messages[index];
-                final isSupport = message.isSupport;
+    return Container(
+      color: Colors.grey.shade50,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: _messages.length,
+                itemBuilder: (context, index) {
+                  final message = _messages[index];
+                  final isSupport = message.isSupport;
 
-                return Align(
-                  alignment: isSupport
-                      ? Alignment.centerLeft
-                      : Alignment.centerRight,
-                  child: Container(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.8,
+                  return Container(
+                    margin: EdgeInsets.only(
+                      top: 4,
+                      bottom: 4,
+                      left: isSupport ? 8 : 50,
+                      right: isSupport ? 50 : 8,
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: isSupport
-                          ? Colors.grey[300]
-                          : AppColorScheme.primaryColor,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SelectableText.rich(
-                          TextSpan(
-                            style: TextStyle(
-                              color: isSupport ? Colors.black : Colors.white,
-                              fontSize: 16,
-                              height: 1.2,
+                    child: Align(
+                      alignment: isSupport
+                          ? Alignment.centerLeft
+                          : Alignment.centerRight,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Message bubble
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
                             ),
-                            children: _parseFormattedText(
-                              message.content,
-                              isSupport: isSupport,
-                              context: context,
+                            decoration: BoxDecoration(
+                              gradient: isSupport
+                                  ? null
+                                  : LinearGradient(
+                                      colors: [
+                                        AppColorScheme.primaryColor,
+                                        AppColorScheme.primaryColor.withOpacity(
+                                          0.9,
+                                        ),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                              color: isSupport ? Colors.white : null,
+                              borderRadius: BorderRadius.circular(18).copyWith(
+                                bottomLeft: isSupport
+                                    ? const Radius.circular(4)
+                                    : const Radius.circular(18),
+                                bottomRight: isSupport
+                                    ? const Radius.circular(18)
+                                    : const Radius.circular(4),
+                              ),
+                              border: isSupport
+                                  ? Border.all(
+                                      color: Colors.grey.shade200,
+                                      width: 0.5,
+                                    )
+                                  : null,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: isSupport
+                                      ? Colors.black.withOpacity(0.02)
+                                      : AppColorScheme.primaryColor.withOpacity(
+                                          0.2,
+                                        ),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: SelectableText.rich(
+                              TextSpan(
+                                style: TextStyle(
+                                  color: isSupport
+                                      ? Colors.black87
+                                      : Colors.white,
+                                  fontSize: 15,
+                                  height: 1.4,
+                                ),
+                                children: _parseFormattedText(
+                                  message.content,
+                                  isSupport: isSupport,
+                                  context: context,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          DateFormat.jm().format(message.createdAt),
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: isSupport
-                                ? Colors.grey[600]
-                                : Colors.white70,
+
+                          // Timestamp
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              left: 12,
+                              right: 12,
+                              top: 4,
+                            ),
+                            child: Text(
+                              DateFormat.jm().format(message.createdAt),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -451,7 +493,7 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
                     ? AppColorScheme.primaryColor
                     : Colors.blue[200],
                 decoration: TextDecoration.underline,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
               ),
               recognizer: TapGestureRecognizer()
                 ..onTap = () {
@@ -463,7 +505,7 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
           spans.add(
             TextSpan(
               text: content,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           );
         }
@@ -486,10 +528,13 @@ class _HelpAndSupportScreenState extends State<HelpAndSupportScreen> {
       logger.severe('Error launching URL: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Could not open link'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 2),
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         );
       }

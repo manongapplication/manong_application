@@ -585,4 +585,42 @@ class ServiceRequestApiService {
 
     return null;
   }
+
+  Future<Map<String, dynamic>?> markServiceAsArrived(
+    int serviceRequestId,
+  ) async {
+    try {
+      if (baseUrl == null) {
+        throw Exception('Base URL is not configured.');
+      }
+
+      final token = await AuthService().getNodeToken();
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/service-requests/$serviceRequestId/mark-arrived'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final responseBody = response.body;
+      final jsonData = jsonDecode(responseBody);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        logger.info('Service request marked as arrived successfully');
+        return jsonData;
+      } else {
+        logger.warning(
+          'Failed to mark service as arrived. ${response.statusCode} $responseBody',
+        );
+        return jsonData;
+      }
+    } catch (e) {
+      logger.severe('Error marking service as arrived $e');
+    }
+
+    return null;
+  }
 }

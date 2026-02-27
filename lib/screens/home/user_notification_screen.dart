@@ -216,6 +216,52 @@ class _UserNotificationScreenState extends State<UserNotificationScreen> {
     );
   }
 
+  Future<void> _markAllAsSeen() async {
+    // Show loading indicator
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await NotificationUtils.seenAll(); // This doesn't return a value
+
+      if (mounted) {
+        // Refresh both the notifications list and the unread count
+        await _fetchUserNotifications();
+        await _getUnreadCount();
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('All notifications marked as read'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      logger.severe('Error marking all as seen: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to mark all as read'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   Widget _buildStatusRow() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -242,11 +288,9 @@ class _UserNotificationScreenState extends State<UserNotificationScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6),
           child: FilterChip(
-            label: Text('Seen All'),
+            label: Text('Mark All Read'),
             selected: false,
-            onSelected: (_) => NotificationUtils.seenAll().then(
-              (_) => _fetchUserNotifications(),
-            ),
+            onSelected: (_) => _markAllAsSeen(),
             selectedColor: AppColorScheme.primaryColor,
             backgroundColor: AppColorScheme.primaryLight,
             labelStyle: TextStyle(
@@ -257,6 +301,16 @@ class _UserNotificationScreenState extends State<UserNotificationScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             showCheckmark: false,
+            avatar: _isLoading == true
+                ? SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColorScheme.primaryColor,
+                    ),
+                  )
+                : null,
           ),
         ),
       ],
@@ -274,6 +328,9 @@ class _UserNotificationScreenState extends State<UserNotificationScreen> {
 
       if (response != null) {
         logger.info('Seen notification ${notificationItem.id}!');
+
+        // Refresh unread count after marking as seen
+        await _getUnreadCount();
 
         Navigator.of(navigatorKey.currentContext!).pushNamedAndRemoveUntil(
           '/',

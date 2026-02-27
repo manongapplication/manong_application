@@ -11,6 +11,7 @@ class Chat {
   final DateTime? seenAt;
   final int? serviceRequestId;
   final DateTime createdAt;
+  final bool isLoading; // NEW: For optimistic UI updates
 
   Chat({
     required this.id,
@@ -23,6 +24,7 @@ class Chat {
     this.seenAt,
     this.serviceRequestId,
     required this.createdAt,
+    this.isLoading = false, // Default to false
   });
 
   factory Chat.fromJson(Map<String, dynamic> json) {
@@ -60,6 +62,7 @@ class Chat {
             ? int.tryParse(json['serviceRequestId'].toString())
             : null,
         createdAt: DateTime.parse(json['createdAt'] as String),
+        isLoading: false, // Messages from server are never loading
       );
     } catch (e) {
       debugPrint('Error in Chat.fromJson: $e');
@@ -79,6 +82,40 @@ class Chat {
       'seenAt': seenAt,
       'createdAt': createdAt.toIso8601String(),
     };
+  }
+
+  // NEW: CopyWith method for creating updated instances
+  Chat copyWith({
+    int? id,
+    int? senderId,
+    int? receiverId,
+    String? roomId,
+    String? content,
+    ChatAttachment? attachment,
+    List<ChatAttachment>? attachments,
+    DateTime? seenAt,
+    int? serviceRequestId,
+    DateTime? createdAt,
+    bool? isLoading,
+  }) {
+    return Chat(
+      id: id ?? this.id,
+      senderId: senderId ?? this.senderId,
+      receiverId: receiverId ?? this.receiverId,
+      roomId: roomId ?? this.roomId,
+      content: content ?? this.content,
+      attachment: attachment ?? this.attachment,
+      attachments: attachments ?? this.attachments,
+      seenAt: seenAt ?? this.seenAt,
+      serviceRequestId: serviceRequestId ?? this.serviceRequestId,
+      createdAt: createdAt ?? this.createdAt,
+      isLoading: isLoading ?? this.isLoading,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'Chat(id: $id, senderId: $senderId, content: $content, isLoading: $isLoading)';
   }
 }
 

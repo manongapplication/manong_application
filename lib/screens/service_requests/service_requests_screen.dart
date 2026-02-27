@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -49,6 +50,7 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
   final distance = latlong.Distance();
+  final DistanceMatrix _distanceMatrix = DistanceMatrix();
   bool _permissionDialogShown = false;
 
   late ServiceRequestApiService _serviceRequestApiService;
@@ -93,6 +95,8 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
 
   BookingReadiness? _bookingReadiness;
 
+  Timer? _arrivalCheckTimer;
+
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -103,8 +107,11 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     _fetchInitialStatus();
 
     _fetchServiceRequests();
-    _getOngoingServiceRequest().then((_) => _setManongLatLng());
-
+    _fetchServiceRequests();
+    _getOngoingServiceRequest().then((_) {
+      _setManongLatLng();
+      _startArrivalCheckTimer(); // Start timer after fetching ongoing request
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _setupScrollListener();
     });
@@ -117,6 +124,76 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     });
 
     _countUnseenPaymentTransactions();
+  }
+
+  void _startArrivalCheckTimer() {
+    // Cancel any existing timer first
+    _arrivalCheckTimer?.cancel();
+
+    // Only start timer if there's an ongoing service request
+    if (_ongoingServiceRequest == null) {
+      logger.info(
+        'No ongoing service request, not starting arrival check timer',
+      );
+      return;
+    }
+
+    // Check every 30 seconds as ultimate fallback
+    _arrivalCheckTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      _checkArrivalFallback();
+    });
+
+    logger.info(
+      'Started arrival check timer for ongoing request ID: ${_ongoingServiceRequest!.id}',
+    );
+  }
+
+  void _checkArrivalFallback() {
+    if (!mounted) return;
+
+    // Stop timer if ongoing request is gone
+    if (_ongoingServiceRequest == null) {
+      logger.info('Ongoing request is null, stopping arrival check timer');
+      _arrivalCheckTimer?.cancel();
+      _arrivalCheckTimer = null;
+      return;
+    }
+
+    final ongoing = _ongoingServiceRequest;
+
+    // Skip if already arrived
+    if (ongoing!.arrivedAt != null) {
+      logger.info('Already arrived, stopping arrival check timer');
+      _arrivalCheckTimer?.cancel();
+      _arrivalCheckTimer = null;
+      return;
+    }
+
+    // Skip if not in progress
+    if (ongoing.status != ServiceRequestStatus.inProgress) {
+      logger.info('Service not in progress, stopping arrival check timer');
+      _arrivalCheckTimer?.cancel();
+      _arrivalCheckTimer = null;
+      return;
+    }
+
+    // Get current distance from tracking service
+    final currentDistance = _trackingApiService.distanceNotifier.value;
+
+    if (currentDistance != null) {
+      logger.info(
+        'Fallback check - Current distance: ${currentDistance.round()}m',
+      );
+
+      if (currentDistance <= 50 &&
+          !_arrivalNotified &&
+          !_arrivalFetchInProgress) {
+        logger.info(
+          '⏰ FALLBACK TIMER: Distance indicates arrival (${currentDistance.round()}m)',
+        );
+        _setToArrived(ongoing);
+      }
+    }
   }
 
   Future<void> _fetchCashBookingReadiness() async {
@@ -328,6 +405,26 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
     }
   }
 
+  Future<void> _refreshMessageCount(int serviceRequestId) async {
+    try {
+      final updatedRequest = await ServiceRequestApiService()
+          .fetchServiceRequest(serviceRequestId);
+
+      if (updatedRequest != null && mounted) {
+        setState(() {
+          final index = _serviceRequest.indexWhere(
+            (sr) => sr.id == serviceRequestId,
+          );
+          if (index != -1) {
+            _serviceRequest[index] = updatedRequest;
+          }
+        });
+      }
+    } catch (e) {
+      logger.warning('Failed to refresh message count: $e');
+    }
+  }
+
   Future<void> _countUnseenPaymentTransactions() async {
     try {
       final response = await PaymentTransactionApiService()
@@ -377,29 +474,94 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
       logger.info('Arrival already notified, skipping.');
       return;
     }
+
     if (ongoingRequest.arrivedAt != null || ongoingRequest.id == null) {
       logger.info('Already marked as arrived in DB, skipping.');
       return;
     }
 
+    // Prevent multiple simultaneous calls
+    if (_arrivalFetchInProgress) {
+      logger.info('Arrival fetch already in progress, skipping.');
+      return;
+    }
+
     _arrivalNotified = true;
-    logger.info('_setToArrived started');
+    _arrivalFetchInProgress = true;
 
-    await FcmApiService().sendNotification(
-      title: 'Manong ${ongoingRequest.manong?.appUser.firstName} has arrived!',
-      body:
-          'Your service request is ready. Please meet your Manong at the provided address.',
-      fcmToken: ongoingRequest.user?.fcmToken ?? '',
-      userId: ongoingRequest.userId!,
-      json: {'serviceRequestId': ongoingRequest.id},
-    );
+    logger.info('📍 MARKING ARRIVAL via API');
 
-    final response = await ServiceRequestApiService().updateServiceRequest(
-      ongoingRequest.id!,
-      {'arrivedAt': DateTime.now().toIso8601String()},
-    );
+    try {
+      // First, update the local state immediately for better UX
+      setState(() {
+        if (_ongoingServiceRequest != null) {
+          _ongoingServiceRequest = _ongoingServiceRequest!.copyWith(
+            arrivedAt: DateTime.now(),
+          );
+        }
+      });
 
-    logger.info('_setToArrived ${jsonEncode(response)}');
+      // Stop timer since we're marking arrival
+      _arrivalCheckTimer?.cancel();
+      _arrivalCheckTimer = null;
+
+      // Show optimistic UI update
+      SnackBarUtils.showInfo(context, 'Arrival detected! Updating status...');
+
+      // Call API to mark as arrived
+      final response = await ServiceRequestApiService().updateServiceRequest(
+        ongoingRequest.id!,
+        {'arrivedAt': DateTime.now().toIso8601String()},
+      );
+
+      logger.info('_setToArrived response: $response');
+
+      // Send push notification to customer
+      await FcmApiService().sendNotification(
+        title:
+            'Manong ${ongoingRequest.manong?.appUser.firstName} has arrived!',
+        body:
+            'Your service request is ready. Please meet your Manong at the provided address.',
+        fcmToken: ongoingRequest.user?.fcmToken ?? '',
+        userId: ongoingRequest.userId!,
+        json: {'serviceRequestId': ongoingRequest.id},
+      );
+
+      // Refresh the list to get updated data from server
+      if (!_arrivalFetchInProgress) {
+        Future.microtask(() async {
+          try {
+            await _fetchServiceRequests();
+          } finally {
+            if (mounted) {
+              _arrivalFetchInProgress = false;
+            }
+          }
+        });
+      }
+    } catch (e) {
+      logger.severe('Error in fallback arrival: $e');
+
+      // If API fails, revert the optimistic update
+      setState(() {
+        if (_ongoingServiceRequest != null) {
+          _ongoingServiceRequest = _ongoingServiceRequest!.copyWith(
+            arrivedAt: null,
+          );
+        }
+      });
+
+      SnackBarUtils.showError(
+        context,
+        'Failed to mark arrival. Please try again.',
+      );
+
+      _arrivalNotified = false;
+      _arrivalFetchInProgress = false;
+
+      // Restart timer since arrival failed
+      _startArrivalCheckTimer();
+    }
   }
 
   Future<void> _getOngoingServiceRequest() async {
@@ -414,10 +576,56 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
             serviceRequestId: ongoingRequest.id.toString(),
           );
 
+          // LISTEN FOR ARRIVAL VIA WEBSOCKET
+          _trackingApiService.onArrivalDetected((arrivedAt) {
+            if (!mounted) return;
+
+            logger.info(
+              '✅ ARRIVAL DETECTED via WebSocket in ServiceRequestsScreen!',
+            );
+
+            _navProvider.setManongArrived(true);
+
+            // Update the ongoing request with arrivedAt
+            setState(() {
+              if (_ongoingServiceRequest != null) {
+                _ongoingServiceRequest = _ongoingServiceRequest!.copyWith(
+                  arrivedAt: arrivedAt,
+                );
+              }
+            });
+
+            // Stop timer since we've arrived
+            _arrivalCheckTimer?.cancel();
+            _arrivalCheckTimer = null;
+
+            // Show success message
+            SnackBarUtils.showSuccess(
+              context,
+              'Manong has arrived at the destination!',
+            );
+
+            // Refresh the list
+            if (!_arrivalFetchInProgress) {
+              _arrivalFetchInProgress = true;
+              Future.microtask(() async {
+                try {
+                  await _fetchServiceRequests();
+                } finally {
+                  if (mounted) {
+                    _arrivalFetchInProgress = false;
+                  }
+                }
+              });
+            }
+          });
+
           if (_isManong == true) {
             _trackingApiService.startTracking(
               manongId: ongoingRequest.manongId.toString(),
               serviceRequestId: ongoingRequest.id.toString(),
+              destinationLat: ongoingRequest.customerLat,
+              destinationLng: ongoingRequest.customerLng,
             );
           }
 
@@ -441,7 +649,8 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
               _updateManongStatusOnJobCompletion(status);
             }
 
-            final meters = DistanceMatrix().calculateDistance(
+            // Update distance for UI display only (optional)
+            final meters = _distanceMatrix.calculateDistance(
               startLat: ongoingRequest.customerLat,
               startLng: ongoingRequest.customerLng,
               endLat:
@@ -450,29 +659,9 @@ class _ServiceRequestsScreenState extends State<ServiceRequestsScreen> {
                   lng ?? _ongoingServiceRequest?.manong?.appUser.lastKnownLng,
             );
 
-            final estimate = DistanceMatrix().estimateTime(meters ?? 0);
-
-            if (estimate.toLowerCase() == 'arrived') {
-              _navProvider.setManongArrived(true);
-              if (ongoingRequest.arrivedAt == null) {
-                await _setToArrived(ongoingRequest);
-              }
-
-              // Only fetch if not already fetching
-              if (!_arrivalFetchInProgress) {
-                _arrivalFetchInProgress = true;
-
-                // Schedule the fetch for later (not during build)
-                Future.microtask(() async {
-                  try {
-                    await _fetchServiceRequests();
-                  } finally {
-                    if (mounted) {
-                      _arrivalFetchInProgress = false;
-                    }
-                  }
-                });
-              }
+            if (meters != null &&
+                _trackingApiService.distanceNotifier.value != meters) {
+              _trackingApiService.distanceNotifier.value = meters;
             }
           });
         } else {
@@ -1152,6 +1341,8 @@ Is loading: $_isLoadingMore
           _getOngoingServiceRequest();
         }
       }
+
+      _refreshMessageCount(serviceRequestItem.id!);
     } else {
       Navigator.pushNamed(
         context,
@@ -1229,11 +1420,20 @@ Is loading: $_isLoadingMore
     ServiceRequest serviceRequestItem,
     double? meters,
   ) {
-    if (meters != null) {
-      if (DistanceMatrix().estimateTime(meters).toLowerCase() == 'arrived') {
-        if (_ongoingServiceRequest != null) {
-          _setToArrived(_ongoingServiceRequest!);
-        }
+    // FALLBACK: Check if we need to mark as arrived based on distance
+    if (meters != null &&
+        _ongoingServiceRequest?.id == serviceRequestItem.id &&
+        serviceRequestItem.arrivedAt == null) {
+      final estimate = _distanceMatrix.estimateTime(meters);
+
+      // If distance is <= 50m (arrived threshold) and not already marked
+      if (estimate.toLowerCase() == 'arrived' && !_arrivalNotified) {
+        logger.info(
+          '📍 FALLBACK: Distance indicates arrival (${meters.round()}m)',
+        );
+
+        // Mark as arrived via API
+        _setToArrived(serviceRequestItem);
       }
     }
 
@@ -1322,88 +1522,17 @@ Is loading: $_isLoadingMore
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: filteredRequests.length + (_hasMore ? 1 : 0),
         itemBuilder: (context, index) {
-          // If this is the Load More item
           if (index >= filteredRequests.length) {
-            return Container(
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-              margin: const EdgeInsets.only(bottom: 100),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: _isLoadingMore
-                  ? const Column(
-                      children: [
-                        SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            color: AppColorScheme.primaryColor,
-                            strokeWidth: 2,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Loading more requests...',
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
-                        ),
-                      ],
-                    )
-                  : ElevatedButton(
-                      onPressed: _fetchMoreServiceRequests,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColorScheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        elevation: 3,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        minimumSize: const Size(double.infinity, 52),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 16,
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.arrow_downward, size: 20),
-                          SizedBox(width: 12),
-                          Text(
-                            'Load More Requests',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-            );
+            return _buildLoadMoreWidget();
           }
 
-          // Regular service request item
           ServiceRequest serviceRequestItem = filteredRequests[index];
 
           if (_ongoingServiceRequest?.id == serviceRequestItem.id) {
-            return ValueListenableBuilder<latlong.LatLng?>(
-              valueListenable: _trackingApiService.manongLatLngNotifier,
-              builder: (BuildContext context, value, Widget? child) {
-                meters = DistanceMatrix().calculateDistance(
-                  startLat: serviceRequestItem.customerLat,
-                  startLng: serviceRequestItem.customerLng,
-                  endLat: value?.latitude ?? 0,
-                  endLng: value?.longitude ?? 0,
-                );
-
-                return _buildServiceRequestCard(serviceRequestItem, meters);
+            return ValueListenableBuilder<double?>(
+              valueListenable: _trackingApiService.distanceNotifier,
+              builder: (context, distance, child) {
+                return _buildServiceRequestCard(serviceRequestItem, distance);
               },
             );
           } else {
@@ -1411,6 +1540,70 @@ Is loading: $_isLoadingMore
           }
         },
       ),
+    );
+  }
+
+  // Extract load more widget for cleaner code
+  Widget _buildLoadMoreWidget() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+      margin: const EdgeInsets.only(bottom: 100),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: _isLoadingMore
+          ? const Column(
+              children: [
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: AppColorScheme.primaryColor,
+                    strokeWidth: 2,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Loading more requests...',
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+              ],
+            )
+          : ElevatedButton(
+              onPressed: _fetchMoreServiceRequests,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColorScheme.primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 3,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                minimumSize: const Size(double.infinity, 52),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.arrow_downward, size: 20),
+                  SizedBox(width: 12),
+                  Text(
+                    'Load More Requests',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -1485,8 +1678,9 @@ Is loading: $_isLoadingMore
                 'Average Rating: ${_averageRating?.toStringAsFixed(1) ?? 'No Ratings yet'} ★',
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w500,
                   color: Colors.grey.shade600,
+                  letterSpacing: 0.3,
                 ),
               ),
             ),
@@ -1636,7 +1830,9 @@ Is loading: $_isLoadingMore
   void dispose() {
     _highlightedId.dispose();
     _searchController.dispose();
-    _scrollController.dispose(); // Add this
+    _scrollController.dispose();
+    _arrivalCheckTimer?.cancel();
+    _arrivalCheckTimer = null;
     if (_ongoingServiceRequest != null) {
       logger.info(
         'Disconnected with lat ${_trackingApiService.manongLatLngNotifier.value?.latitude} && Lng ${_trackingApiService.manongLatLngNotifier.value?.longitude}',

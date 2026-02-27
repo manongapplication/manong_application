@@ -9,6 +9,7 @@ import 'package:manong_application/models/service_request.dart';
 import 'package:manong_application/theme/colors.dart';
 import 'package:manong_application/utils/distance_matrix.dart';
 import 'package:manong_application/utils/permission_utils.dart';
+import 'package:manong_application/widgets/map_action_buttons.dart';
 import 'package:manong_application/widgets/my_app_bar.dart';
 import 'package:manong_application/widgets/modal_icon_overlay.dart';
 import 'package:latlong2/latlong.dart' as latlong;
@@ -823,45 +824,50 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: myAppBar(title: _buildAppBarTitle(), fontSize: 18),
+      backgroundColor: AppColorScheme.primaryColor,
       body: Stack(
         children: [
           _buildGoogleMap(),
 
+          // iPhone-style circle back button
           Positioned(
-            top: 10,
-            right: 10,
-            child: Column(
-              children: [
-                SizedBox(width: 40, height: 60),
-                SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: FloatingActionButton(
-                    onPressed: _centerOnManong,
-                    backgroundColor: Colors.white.withOpacity(0.8),
-                    foregroundColor: Colors.grey.shade600,
-                    child: const Icon(Icons.directions_car),
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 16,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
+                ],
+              ),
+              child: IconButton(
+                icon: Icon(
+                  Icons.arrow_back,
+                  color: AppColorScheme.primaryColor,
+                  size: 20,
                 ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: FloatingActionButton(
-                    onPressed: _centerOnUser,
-                    backgroundColor: Colors.white.withOpacity(0.8),
-                    foregroundColor: Colors.grey.shade600,
-                    child: const Icon(Icons.person),
-                  ),
-                ),
-              ],
+                onPressed: () => Navigator.pop(context),
+                padding: EdgeInsets.zero,
+                iconSize: 20,
+              ),
             ),
           ),
 
-          // Non-blocking loading indicator - ONLY SHOW WHEN NO POLYLINES
-          if (_isLoading && polylines.isEmpty) _buildLoadingOverlay(),
+          // Right side buttons
+          MapActionButtons(
+            onCenterManong: _centerOnManong,
+            onCenterUser: _centerOnUser,
+            topPadding: 80,
+          ),
 
+          if (_isLoading && polylines.isEmpty) _buildLoadingOverlay(),
           if (_error != null && !_isLoading) _buildErrorOverlay(),
         ],
       ),
