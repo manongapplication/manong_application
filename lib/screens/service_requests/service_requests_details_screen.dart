@@ -1749,7 +1749,8 @@ class _ServiceRequestsDetailsScreenState
 
               // -- Complete Button
               if (_serviceRequest?.status == ServiceRequestStatus.inProgress &&
-                  !(_isServiceCompleted)) ...[
+                  !(_isServiceCompleted) &&
+                  _serviceRequest?.arrivedAt != null) ...[
                 if (_isManong == true) ...[
                   Row(
                     children: [
