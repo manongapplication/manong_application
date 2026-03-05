@@ -26,7 +26,6 @@ class _WalletScreenState extends State<WalletScreen>
   final Logger logger = Logger('WalletScreen');
   bool _isLoading = false;
   bool _isButtonLoading = false;
-  bool _showWalletCreationOverlay = false;
   String? _error;
   final String _selectedCurrency = "PHP";
   ManongWallet? _wallet;
@@ -38,29 +37,10 @@ class _WalletScreenState extends State<WalletScreen>
   bool _isLoadingTransactions = false;
   bool _hasLoadedTransactions = false;
 
-  // Animation controllers
-  late AnimationController _overlayController;
-  late Animation<double> _overlayAnimation;
-
   @override
   void initState() {
     super.initState();
     _fetchManongWallet();
-
-    // Initialize animations
-    _overlayController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _overlayAnimation = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _overlayController, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _overlayController.dispose();
-    super.dispose();
   }
 
   @override
@@ -78,32 +58,10 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   Future<void> _checkAndRefresh() async {
-    // You could check if a certain amount of time has passed
-    // Or use a flag to know when to refresh
     await _fetchManongWallet();
     if (_wallet != null) {
       await _loadWalletTransactions();
     }
-  }
-
-  void _showCreateManongWalletOverlay() {
-    setState(() {
-      _showWalletCreationOverlay = true;
-    });
-    _overlayController.forward();
-  }
-
-  void _hideCreateManongWalletOverlay() {
-    // Hide keyboard if open
-    FocusScope.of(context).unfocus();
-
-    _overlayController.reverse().then((_) {
-      if (mounted) {
-        setState(() {
-          _showWalletCreationOverlay = false;
-        });
-      }
-    });
   }
 
   Future<void> _createManongWallet() async {
@@ -117,9 +75,6 @@ class _WalletScreenState extends State<WalletScreen>
           .createManongWalletService();
 
       if (!mounted) return;
-
-      // Hide overlay first
-      _hideCreateManongWalletOverlay();
 
       // Show success message
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -207,9 +162,6 @@ class _WalletScreenState extends State<WalletScreen>
       setState(() {
         _error = e.toString();
       });
-
-      // Hide overlay and show error
-      _hideCreateManongWalletOverlay();
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         showDialog(
@@ -299,11 +251,6 @@ class _WalletScreenState extends State<WalletScreen>
           }
         } else {
           if (response['message'].toString().contains('Wallet not found')) {
-            // Show overlay instead of dialog
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _showCreateManongWalletOverlay();
-            });
-
             setState(() {
               _noManongWallet = true;
               _walletTransactions.clear();
@@ -336,143 +283,6 @@ class _WalletScreenState extends State<WalletScreen>
         });
       }
     }
-  }
-
-  Widget _buildCreateManongWalletOverlay() {
-    return Positioned.fill(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _hideCreateManongWalletOverlay,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
-          child: Container(
-            color: Colors.black.withOpacity(0.5),
-            child: Center(
-              child: GestureDetector(
-                onTap: () {
-                  // Prevent dismiss when tapping content
-                },
-                child: Container(
-                  width: MediaQuery.of(context).size.width * 0.85,
-                  constraints: const BoxConstraints(maxWidth: 500),
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 20,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Create Your ManongWallet',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: AppColorScheme.primaryDark,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Create your ManongWallet to start accepting jobs and cash payments.',
-                        style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColorScheme.primaryDark
-                              .withOpacity(0.1),
-                          foregroundColor: AppColorScheme.primaryDark,
-                          minimumSize: const Size(double.infinity, 48),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onPressed: () {
-                          // Currency selection is disabled for now
-                        },
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.currency_exchange, size: 20),
-                            const SizedBox(width: 8),
-                            Text('Currency: $_selectedCurrency'),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: _hideCreateManongWalletOverlay,
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 12,
-                              ),
-                            ),
-                            child: Text(
-                              'Cancel',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: AppColorScheme.primaryColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColorScheme.primaryColor,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 12,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            onPressed: _isButtonLoading
-                                ? null
-                                : _createManongWallet,
-                            child: _isButtonLoading
-                                ? SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : Text(
-                                    'Create Wallet',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildCard() {
@@ -778,31 +588,115 @@ class _WalletScreenState extends State<WalletScreen>
     }
   }
 
-  Widget _buildCreateWalletButton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-      child: ElevatedButton(
-        onPressed: _showCreateManongWalletOverlay,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColorScheme.primaryColor,
-          foregroundColor: Colors.white,
-          minimumSize: const Size(double.infinity, 50),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+  Widget _buildCreateWalletSection() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            spreadRadius: 0,
           ),
-          elevation: 2,
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.add_circle_outline, size: 20),
-            SizedBox(width: 8),
-            Text(
-              'Create ManongWallet',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Explanation text
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColorScheme.primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-          ],
-        ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColorScheme.primaryColor.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.account_balance_wallet_outlined,
+                    color: AppColorScheme.primaryColor,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'What is ManongWallet?',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColorScheme.primaryDark,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Your digital wallet for secure job payments, cash ins/outs, and transaction history. Start accepting cash payments today!',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Create wallet button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isButtonLoading ? null : _createManongWallet,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColorScheme.primaryColor,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 54),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+              ),
+              child: _isButtonLoading
+                  ? const SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_circle_outline, size: 22),
+                        SizedBox(width: 8),
+                        Text(
+                          'Create ManongWallet',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -924,10 +818,11 @@ class _WalletScreenState extends State<WalletScreen>
         _buildCard(),
         const SizedBox(height: 16),
 
-        // Show create wallet button when there's no wallet
-        if (_noManongWallet) _buildCreateWalletButton(),
-
-        _buildCashActionButtons(),
+        // Show create wallet section with explanation when there's no wallet
+        if (_noManongWallet)
+          _buildCreateWalletSection()
+        else
+          _buildCashActionButtons(),
 
         // Add recent transactions section
         _buildRecentTransactions(),
@@ -989,13 +884,6 @@ class _WalletScreenState extends State<WalletScreen>
               ),
             ),
           ),
-
-          // Conditionally show the animated wallet creation overlay
-          if (_showWalletCreationOverlay)
-            FadeTransition(
-              opacity: _overlayAnimation,
-              child: _buildCreateManongWalletOverlay(),
-            ),
 
           // Loading overlay for button actions
           if (_isButtonLoading)

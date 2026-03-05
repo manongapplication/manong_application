@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:manong_application/theme/colors.dart';
-import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 
@@ -18,7 +18,7 @@ class ImageDialog extends StatefulWidget {
 class _ImageDialogState extends State<ImageDialog> {
   bool _showControls = true;
   bool _isFullScreen = false;
-  bool _isSaving = false; // Add loading state
+  bool _isSaving = false;
 
   void _toggleControls() {
     setState(() {
@@ -28,7 +28,7 @@ class _ImageDialogState extends State<ImageDialog> {
   }
 
   Future<void> _saveImage(BuildContext context) async {
-    if (_isSaving) return; // Prevent multiple taps
+    if (_isSaving) return;
 
     setState(() {
       _isSaving = true;
@@ -38,65 +38,53 @@ class _ImageDialogState extends State<ImageDialog> {
       // Request storage permission
       var status = await Permission.storage.request();
 
-      if (await Permission.storage.isGranted) {
+      if (status.isGranted) {
+        bool? success = false;
+
         if (widget.imageString != null) {
-          // Save network image
+          // For network images
           var response = await http.get(Uri.parse(widget.imageString!));
-          final result = await ImageGallerySaver.saveImage(
+          final result = await ImageGallerySaverPlus.saveImage(
             response.bodyBytes,
-            quality: 100,
           );
-
-          if (result != null && result['isSuccess'] == true) {
-            // Close the dialog
-            if (mounted) {
-              Navigator.pop(context);
-            }
-
-            // Use a post frame callback to show snackbar after dialog is closed
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Image saved to gallery'),
-                    backgroundColor: Colors.green,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              }
-            });
-          } else {
-            throw Exception('Failed to save image');
-          }
+          success = result['isSuccess'];
         } else if (widget.image != null) {
-          // Save local image
-          final bytes = await widget.image!.readAsBytes();
-          final result = await ImageGallerySaver.saveImage(bytes, quality: 100);
+          // For local files
+          final result = await ImageGallerySaverPlus.saveFile(
+            widget.image!.path,
+          );
+          success = result['isSuccess'];
+        }
 
-          if (result != null && result['isSuccess'] == true) {
-            // Close the dialog
-            if (mounted) {
-              Navigator.pop(context);
-            }
+        // First pop the dialog
+        if (mounted) {
+          Navigator.pop(context); // Close dialog immediately
+        }
 
-            // Use a post frame callback to show snackbar after dialog is closed
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Image saved to gallery'),
-                    backgroundColor: Colors.green,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              }
-            });
-          } else {
-            throw Exception('Failed to save image');
+        // Then show snackbar after dialog is closed
+        if (success == true) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Image saved to gallery'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } else {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Failed to save image'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 2),
+              ),
+            );
           }
         }
       } else {
-        // Permission denied
+        // Permission denied - don't close dialog
         setState(() {
           _isSaving = false;
         });
@@ -109,16 +97,12 @@ class _ImageDialogState extends State<ImageDialog> {
             ),
           );
         }
-
-        // Open app settings
-        openAppSettings();
       }
     } catch (e) {
-      setState(() {
-        _isSaving = false;
-      });
-
+      // Error occurred - close dialog and show error
       if (mounted) {
+        Navigator.pop(context); // Close dialog
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error saving image: $e'),
@@ -222,7 +206,7 @@ class _ImageDialogState extends State<ImageDialog> {
             ),
           ),
 
-          // Messenger-style top bar (appears/disappears on tap)
+          // Messenger-style top bar
           if (_showControls)
             Positioned(
               top: 0,
